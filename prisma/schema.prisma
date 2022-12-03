@@ -1,0 +1,55 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  email    String @unique @db.VarChar
+  name     String @unique @db.VarChar
+  password String @db.Char(60)
+  image    String @db.VarChar
+  posts    Post[]
+}
+
+model Post {
+  id         Int              @id @default(autoincrement())
+  title      String           @db.VarChar
+  content    String
+  published  Boolean          @default(false)
+  coverImage String           @map("cover_image")
+  authorId   String           @map("author_id") @db.Uuid
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  viewCount  Int              @default(0) @map("view_count")
+  excerpt    String           @db.VarChar
+  slug       String           @unique @db.VarChar
+  author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  categories PostToCategory[]
+
+  @@index([slug])
+  @@index([createdAt])
+  @@index([viewCount])
+  @@index([published])
+}
+
+model PostToCategory {
+  postId       Int      @map("post_id")
+  categoryName String   @map("category_name")
+  category     Category @relation(fields: [categoryName], references: [name], onDelete: Cascade)
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, categoryName])
+}
+
+model Category {
+  name           String           @id @unique @db.VarChar
+  description    String           @db.VarChar(350)
+  hexColor       String?          @unique @map("hex_color") @db.Char(7)
+  PostToCategory PostToCategory[]
+}
