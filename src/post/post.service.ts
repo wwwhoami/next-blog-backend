@@ -6,10 +6,7 @@ import {
   GetPostsByCategoriesDto,
   SearchPostDto,
 } from './dto/get-post.dto';
-import {
-  PostWithAuthorCategories,
-  PostWithContentAuthorCategories,
-} from './types/post.types';
+import { PostEntity } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
 @Injectable()
@@ -70,9 +67,7 @@ export class PostService {
     skip = 0,
     orderBy = { createdAt: 'desc' },
     content = false,
-  }: GetPostDto): Promise<
-    PostWithAuthorCategories[] | PostWithContentAuthorCategories[]
-  > {
+  }: GetPostDto): Promise<PostEntity[]> {
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
@@ -93,9 +88,7 @@ export class PostService {
     orderBy = { createdAt: 'desc' },
     content = false,
     searchTerm,
-  }: SearchPostDto): Promise<
-    PostWithAuthorCategories[] | PostWithContentAuthorCategories[]
-  > {
+  }: SearchPostDto): Promise<PostEntity[]> {
     const search = searchTerm.split(' ').join(' & ');
 
     return this.prisma.post.findMany({
@@ -139,7 +132,7 @@ export class PostService {
     orderBy = { createdAt: 'desc' },
     content = false,
     category,
-  }: GetPostsByCategoriesDto): Promise<PostWithContentAuthorCategories[]> {
+  }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
     const categories = category.split(' ');
 
     // Get postIds with cardinality >= categories count
@@ -190,7 +183,7 @@ export class PostService {
     content = false,
     category,
     searchTerm,
-  }: FindPostsByDto): Promise<PostWithContentAuthorCategories[]> {
+  }: FindPostsByDto): Promise<PostEntity[]> {
     const categories = category.split(' ');
 
     // Get postIds with cardinality >= categories count
@@ -267,9 +260,7 @@ export class PostService {
     });
   }
 
-  async getPublishedPostBySlug(
-    slug: string,
-  ): Promise<PostWithAuthorCategories> {
+  async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.findFirst({
       select: {
         ...selectPostWithAuthorCategories,
@@ -283,7 +274,7 @@ export class PostService {
     });
   }
 
-  async publishPostBySlug(slug: string): Promise<PostWithAuthorCategories> {
+  async publishPostBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
       where: {
         slug,
@@ -298,7 +289,7 @@ export class PostService {
     });
   }
 
-  async deletePostBySlug(slug: string): Promise<PostWithAuthorCategories> {
+  async deletePostBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
         slug,
