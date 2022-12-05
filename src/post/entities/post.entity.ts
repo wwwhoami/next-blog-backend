@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class Slug {
+  slug: string;
+}
+
 class CategoryEntity {
   category: {
     name: string;
