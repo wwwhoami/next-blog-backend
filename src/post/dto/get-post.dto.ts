@@ -1,49 +1,41 @@
-import { Prisma } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
+import { Post, Prisma } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsNumber,
-  IsObject,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsEnum, IsOptional } from 'class-validator';
+import { SortOrder } from 'src/common/sort-order.enum';
+import { UnionOfObjKeys } from 'src/common/types/union-of-obj-keys.types';
+import { PostEntityKeysEnum } from '../entities/post.entity';
 
 export class GetPostDto {
-  @IsOptional()
-  @IsNumber()
   @Type(() => Number)
   take?: number;
 
-  @IsOptional()
-  @IsNumber()
   @Type(() => Number)
   skip?: number;
 
   @IsOptional()
-  @IsObject()
-  orderBy?: Prisma.PostOrderByWithAggregationInput;
+  @IsEnum(PostEntityKeysEnum)
+  @ApiProperty({ enum: PostEntityKeysEnum })
+  orderBy?: UnionOfObjKeys<Post>;
 
   @IsOptional()
-  @IsBoolean()
+  @IsEnum(SortOrder)
+  @ApiProperty({ enum: SortOrder })
+  order?: Prisma.SortOrder;
+
   @Type(() => Boolean)
   content?: boolean;
 }
 
 export class SearchPostDto extends GetPostDto {
-  @IsString()
   searchTerm: string;
 }
 
 export class GetPostsByCategoriesDto extends GetPostDto {
-  @IsString()
   category: string;
 }
 
 export class SearchPostsByCategoriesDto extends GetPostDto {
-  @IsString()
   searchTerm: string;
-
-  @IsOptional()
-  @IsString()
   category?: string;
 }

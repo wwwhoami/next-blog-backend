@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   GetPostDto,
@@ -16,7 +17,8 @@ export class PostService {
   async getPostIds({
     take = 10,
     skip = 0,
-    orderBy = { createdAt: 'desc' },
+    orderBy = 'createdAt',
+    order = 'desc',
   }: GetPostDto): Promise<{ id: number }[]> {
     return this.prisma.post.findMany({
       select: {
@@ -25,7 +27,7 @@ export class PostService {
       where: {
         published: true,
       },
-      orderBy,
+      orderBy: { [orderBy]: order },
       take,
       skip,
     });
@@ -34,6 +36,8 @@ export class PostService {
   async findPostIds({
     take = 10,
     skip = 0,
+    orderBy = 'createdAt',
+    order = 'desc',
     searchTerm,
   }: SearchPostDto): Promise<{ id: number }[]> {
     const search = searchTerm.split(' ').join(' & ');
@@ -57,6 +61,16 @@ export class PostService {
           },
         ],
       },
+      orderBy: [
+        {
+          _relevance: {
+            fields: ['title', 'excerpt'],
+            search,
+            sort: 'desc',
+          },
+        },
+        { [orderBy]: order },
+      ],
       take,
       skip,
     });
@@ -65,7 +79,8 @@ export class PostService {
   async getPosts({
     take = 10,
     skip = 0,
-    orderBy = { createdAt: 'desc' },
+    orderBy = 'createdAt',
+    order = 'desc',
     content = false,
   }: GetPostDto): Promise<PostEntity[]> {
     return this.prisma.post.findMany({
@@ -76,7 +91,7 @@ export class PostService {
       where: {
         published: true,
       },
-      orderBy,
+      orderBy: { [orderBy]: order },
       take,
       skip,
     });
@@ -85,7 +100,8 @@ export class PostService {
   async findPosts({
     take = 10,
     skip = 0,
-    orderBy = { createdAt: 'desc' },
+    orderBy = 'createdAt',
+    order = 'desc',
     content = false,
     searchTerm,
   }: SearchPostDto): Promise<PostEntity[]> {
@@ -119,7 +135,7 @@ export class PostService {
             sort: 'desc',
           },
         },
-        orderBy,
+        { [orderBy]: order },
       ],
       take,
       skip,
@@ -129,7 +145,8 @@ export class PostService {
   async getPostsByCategories({
     take = 10,
     skip = 0,
-    orderBy = { createdAt: 'desc' },
+    orderBy = 'createdAt',
+    order = 'desc',
     content = false,
     category,
   }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
@@ -170,7 +187,7 @@ export class PostService {
           },
         },
       },
-      orderBy,
+      orderBy: { [orderBy]: order },
       take,
       skip,
     });
@@ -179,7 +196,8 @@ export class PostService {
   async findPostsByCategories({
     take = 10,
     skip = 0,
-    orderBy = { createdAt: 'desc' },
+    orderBy = 'createdAt',
+    order = 'desc',
     content = false,
     category,
     searchTerm,
@@ -199,7 +217,7 @@ export class PostService {
     });
 
     if (groupedPosts.length === 0) return;
-
+    Prisma.UserOrderByRelevanceFieldEnum;
     const search = searchTerm ? searchTerm.split(' ').join(' & ') : undefined;
     const postIds = groupedPosts.map((data) => data.postId);
 
@@ -242,7 +260,7 @@ export class PostService {
             sort: 'desc',
           },
         },
-        orderBy,
+        { [orderBy]: order },
       ],
       take,
       skip,
