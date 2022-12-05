@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
-  FindPostsByDto,
   GetPostDto,
   GetPostsByCategoriesDto,
   SearchPostDto,
+  SearchPostsByCategoriesDto,
 } from './dto/get-post.dto';
 import { PostEntity } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
@@ -183,7 +183,7 @@ export class PostService {
     content = false,
     category,
     searchTerm,
-  }: FindPostsByDto): Promise<PostEntity[]> {
+  }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
     const categories = category.split(' ');
 
     // Get postIds with cardinality >= categories count
@@ -261,7 +261,7 @@ export class PostService {
   }
 
   async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
-    return this.prisma.post.findFirst({
+    const post = await this.prisma.post.findFirst({
       select: {
         ...selectPostWithAuthorCategories,
         content: true,
@@ -270,8 +270,11 @@ export class PostService {
         slug,
         published: true,
       },
-      rejectOnNotFound: true,
     });
+
+    if (!post) throw new NotFoundException(`Post with slug ${slug} not found`);
+
+    return post;
   }
 
   async publishPostBySlug(slug: string): Promise<PostEntity> {

@@ -1,5 +1,5 @@
-import { PartialType } from '@nestjs/mapped-types';
 import { Prisma } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsNumber,
@@ -11,10 +11,12 @@ import {
 export class GetPostDto {
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   take?: number;
 
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   skip?: number;
 
   @IsOptional()
@@ -23,20 +25,25 @@ export class GetPostDto {
 
   @IsOptional()
   @IsBoolean()
+  @Type(() => Boolean)
   content?: boolean;
 }
 
-export class SearchPostDto extends PartialType(GetPostDto) {
+export class SearchPostDto extends GetPostDto {
   @IsString()
   searchTerm: string;
 }
 
-export class GetPostsByCategoriesDto extends PartialType(GetPostDto) {
+export class GetPostsByCategoriesDto extends GetPostDto {
   @IsString()
   category: string;
 }
 
-export class FindPostsByDto extends PartialType(GetPostsByCategoriesDto) {
+export class SearchPostsByCategoriesDto extends GetPostDto {
   @IsString()
   searchTerm: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
 }
