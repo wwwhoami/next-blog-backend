@@ -1,42 +1,36 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { GetPostDto, SearchPostsByCategoriesDto } from './dto/get-post.dto';
+import { PostEntity, Slug } from './entities/post.entity';
 import { PostService } from './post.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 
 @Controller('post')
+@ApiTags('post')
 export class PostController {
   constructor(private readonly postService: PostService) {}
 
-  // @Post()
-  // create(@Body() createPostDto: CreatePostDto) {
-  //   return this.postService.create(createPostDto);
-  // }
+  @Get()
+  getPosts(@Query() getPostsQuery: GetPostDto): Promise<PostEntity[]> {
+    return this.postService.getPosts(getPostsQuery);
+  }
 
-  // @Get()
-  // findAll() {
-  //   return this.postService.findAll();
-  // }
+  @Get('article/:slug')
+  getPublishedPostBySlug(@Param('slug') slug: string): Promise<PostEntity> {
+    return this.postService.getPublishedPostBySlug(slug);
+  }
 
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.postService.findOne(+id);
-  // }
+  @Get('slug')
+  getPublishedPostsSlugs(): Promise<Slug[]> {
+    return this.postService.getPublishedPostsSlugs();
+  }
 
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto) {
-  //   return this.postService.update(+id, updatePostDto);
-  // }
+  @Get('search')
+  searchPost(
+    @Query() searchPostQuery: SearchPostsByCategoriesDto,
+  ): Promise<PostEntity[]> {
+    if (!searchPostQuery.category)
+      return this.postService.getPosts(searchPostQuery);
 
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.postService.remove(+id);
-  // }
+    return this.postService.findPostsByCategories(searchPostQuery);
+  }
 }
