@@ -29,7 +29,7 @@ export class PostController {
     @Query() searchPostQuery: SearchPostsByCategoriesDto,
   ): Promise<PostEntity[]> {
     if (!searchPostQuery.category)
-      return this.postService.getPosts(searchPostQuery);
+      return this.postService.findPosts(searchPostQuery);
 
     return this.postService.findPostsByCategories(searchPostQuery);
   }
