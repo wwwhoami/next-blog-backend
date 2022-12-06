@@ -1,16 +1,26 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, IntersectionType, PartialType } from '@nestjs/swagger';
 import { Post, Prisma } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsEnum, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { SortOrder } from 'src/common/sort-order.enum';
 import { UnionOfObjKeys } from 'src/common/types/union-of-obj-keys.types';
 import { PostEntityKeysEnum } from '../entities/post.entity';
 
 export class GetPostDto {
-  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Transform(({ value }) => Number.parseInt(value))
   take?: number;
 
-  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Transform(({ value }) => Number.parseInt(value))
   skip?: number;
 
   @IsOptional()
@@ -23,19 +33,27 @@ export class GetPostDto {
   @ApiProperty({ enum: SortOrder })
   order?: Prisma.SortOrder;
 
-  @Type(() => Boolean)
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   content?: boolean;
 }
 
 export class SearchPostDto extends GetPostDto {
+  @IsString()
   searchTerm: string;
 }
 
 export class GetPostsByCategoriesDto extends GetPostDto {
+  @IsString()
   category: string;
 }
 
-export class SearchPostsByCategoriesDto extends GetPostDto {
-  searchTerm: string;
-  category?: string;
-}
+export class SearchPostsByCategoriesDto extends IntersectionType(
+  SearchPostDto,
+  PartialType(GetPostsByCategoriesDto),
+) {}
