@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -82,7 +86,7 @@ export class PostService {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
-  }: GetPostDto): Promise<PostEntity[]> {
+  }: GetPostDto) {
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
@@ -164,7 +168,7 @@ export class PostService {
       },
     });
 
-    if (groupedPosts.length === 0) return;
+    if (groupedPosts.length === 0) return [];
 
     const postIds = groupedPosts.map((data) => data.postId);
 
@@ -202,7 +206,7 @@ export class PostService {
     category,
     searchTerm,
   }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
-    const categories = category.split(' ');
+    const categories = category ? category.split(' ') : '';
 
     // Get postIds with cardinality >= categories count
     const groupedPosts = await this.prisma.postToCategory.groupBy({
@@ -216,9 +220,9 @@ export class PostService {
       },
     });
 
-    if (groupedPosts.length === 0) return;
-    Prisma.UserOrderByRelevanceFieldEnum;
-    const search = searchTerm ? searchTerm.split(' ').join(' & ') : undefined;
+    if (groupedPosts.length === 0) return [];
+
+    const search = searchTerm ? searchTerm.split(' ').join(' & ') : '';
     const postIds = groupedPosts.map((data) => data.postId);
 
     return this.prisma.post.findMany({
@@ -311,13 +315,24 @@ export class PostService {
   }
 
   async deletePostBySlug(slug: string): Promise<PostEntity> {
-    return this.prisma.post.delete({
-      where: {
-        slug,
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-      },
-    });
+    try {
+      return await this.prisma.post.delete({
+        where: {
+          slug,
+        },
+        select: {
+          ...selectPostWithAuthorCategories,
+        },
+      });
+    } catch (error) {
+      if (
+        (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2025') ||
+        error.name === 'NotFoundError'
+      )
+        throw new NotFoundException(`Post with slug ${slug} not found`);
+
+      throw new InternalServerErrorException();
+    }
   }
 }

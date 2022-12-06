@@ -21,7 +21,7 @@ export class Slug {
 class CategoryEntity {
   category: {
     name: string;
-    hexColor: string;
+    hexColor: string | null;
   };
 }
 class AuthorEntity {
