@@ -1,9 +1,6 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PostModule } from 'src/post/post.module';
-import { PostRepository } from 'src/post/post.repository';
-import { PostService } from 'src/post/post.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 import * as request from 'supertest';
 
 const postsWithNoContent = [
@@ -106,15 +103,12 @@ const postsWithNoContent = [
 
 describe('Post (e2e)', () => {
   let app: INestApplication;
-  let postService: PostService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PostModule],
-      providers: [PrismaService, PostRepository, PostService],
     }).compile();
 
-    postService = moduleRef.get(PostService);
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
@@ -127,10 +121,9 @@ describe('Post (e2e)', () => {
         .get('/post')
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          expect(response.body).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining(postsWithNoContent[0]),
-            ]),
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys(postsWithNoContent[0]),
           );
           expect(response.body.length).toEqual(10);
         });
@@ -157,7 +150,7 @@ describe('Post (e2e)', () => {
         .query({ take })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          expect(response.body).toEqual(expect.arrayContaining([]));
+          expect(response.body).toEqual([]);
           expect(response.body.length).toEqual(take);
         });
     });
@@ -170,13 +163,9 @@ describe('Post (e2e)', () => {
         .query({ content })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          console.log(response.body[0]);
-          expect(response.body).toEqual(
-            expect.arrayContaining([
-              expect.objectContaining({
-                content: expect.any(String),
-              }),
-            ]),
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ ...postsWithNoContent[0], content: 'content' }),
           );
         });
     });
@@ -189,13 +178,42 @@ describe('Post (e2e)', () => {
         .query({ content })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          console.log(response.body[0]);
-          expect(response.body).toEqual(
-            expect.arrayContaining([
-              expect.not.objectContaining({
-                content: expect.any(String),
-              }),
-            ]),
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ ...postsWithNoContent[0] }),
+          );
+        });
+    });
+  });
+
+  describe('/post/article/:slug (GET)', () => {
+    it('should get post matching provided slug with content by default', () => {
+      const slug = 'tailwind-vs.-bootstrap';
+
+      return request(app.getHttpServer())
+        .get(`/post/article/${slug}`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(Object.keys(response.body)).toEqual(
+            Object.keys({
+              ...postsWithNoContent[0],
+              content: 'content',
+            }),
+          );
+          expect(response.body.slug).toMatch(slug);
+        });
+    });
+  });
+
+  describe('/post/slug (GET)', () => {
+    it('should get slugs of published posts', () => {
+      return request(app.getHttpServer())
+        .get(`/post/slug`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(Array.isArray(response.body)).toBe(true);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ slug: 'slug' }),
           );
         });
     });
