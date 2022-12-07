@@ -1,4 +1,4 @@
-import { ApiProperty, IntersectionType, PartialType } from '@nestjs/swagger';
+import { ApiProperty, IntersectionType } from '@nestjs/swagger';
 import { Post, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
@@ -41,6 +41,14 @@ export class GetPostDto {
     return value;
   })
   content?: boolean;
+
+  @IsOptional()
+  @IsString()
+  searchTerm?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
 }
 
 export class SearchPostDto extends GetPostDto {
@@ -55,5 +63,5 @@ export class GetPostsByCategoriesDto extends GetPostDto {
 
 export class SearchPostsByCategoriesDto extends IntersectionType(
   SearchPostDto,
-  PartialType(GetPostsByCategoriesDto),
+  GetPostsByCategoriesDto,
 ) {}
