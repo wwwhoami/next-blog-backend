@@ -59,7 +59,7 @@ export class PostService {
   }
 
   async publishPostBySlug(slug: string): Promise<PostEntity> {
-    return this.publishPostBySlug(slug);
+    return this.postRepository.publishPostBySlug(slug);
   }
 
   async deletePostBySlug(slug: string): Promise<PostEntity> {
