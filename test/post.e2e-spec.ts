@@ -214,21 +214,6 @@ describe('Post (e2e)', () => {
           );
         });
     });
-
-    it('should get posts without content if content query param set to "false"', () => {
-      const content = false;
-
-      return request(app.getHttpServer())
-        .get('/post')
-        .query({ content })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postsWithNoContent[0] }),
-          );
-        });
-    });
   });
 
   describe('/post/article/:slug (GET)', () => {
