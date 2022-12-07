@@ -1,12 +1,8 @@
-import {
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { PostService } from './post.service';
+import { PostRepository } from '../post.repository';
 
 const postArray = [
   {
@@ -56,13 +52,13 @@ const postArray = [
 const onePost = postArray[0];
 
 describe('PostService', () => {
-  let service: PostService;
+  let repository: PostRepository;
   let prisma: DeepMockProxy<PrismaService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        PostService,
+        PostRepository,
         {
           provide: PrismaService,
           useValue: mockDeep<PrismaClient>(),
@@ -70,12 +66,12 @@ describe('PostService', () => {
       ],
     }).compile();
 
-    service = module.get<PostService>(PostService);
+    repository = module.get<PostRepository>(PostRepository);
     prisma = module.get(PrismaService);
   });
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
+    expect(repository).toBeDefined();
   });
 
   describe('getPostIds', () => {
@@ -87,9 +83,9 @@ describe('PostService', () => {
 
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const postsIds = await service.getPosts({});
+      const postsIds = await repository.getPostIds({});
 
-      await expect(postsIds).toEqual(payload);
+      expect(postsIds).toEqual(payload);
     });
   });
 
@@ -102,7 +98,7 @@ describe('PostService', () => {
 
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const postsIds = await service.findPostIds({
+      const postsIds = await repository.findPostIds({
         searchTerm: 'good search term',
       });
 
@@ -114,7 +110,7 @@ describe('PostService', () => {
     it('should get posts', async () => {
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.getPosts({});
+      const posts = await repository.getPosts({});
 
       expect(posts).toEqual(postArray);
     });
@@ -124,7 +120,7 @@ describe('PostService', () => {
     it('should find posts', async () => {
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.findPosts({ searchTerm: 'test' });
+      const posts = await repository.findPosts({ searchTerm: 'test' });
 
       expect(posts).toEqual(postArray);
     });
@@ -135,7 +131,7 @@ describe('PostService', () => {
       prisma.postToCategory.groupBy.mockResolvedValue([]);
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.getPostsByCategories({
+      const posts = await repository.getPostsByCategories({
         category: 'test',
       });
 
@@ -151,7 +147,7 @@ describe('PostService', () => {
       prisma.postToCategory.groupBy.mockResolvedValue(groupedPosts);
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.getPostsByCategories({
+      const posts = await repository.getPostsByCategories({
         category: 'test',
       });
 
@@ -164,7 +160,7 @@ describe('PostService', () => {
       prisma.postToCategory.groupBy.mockResolvedValue([]);
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.findPostsByCategories({
+      const posts = await repository.findPostsByCategories({
         searchTerm: 'test',
         category: 'test',
       });
@@ -181,7 +177,7 @@ describe('PostService', () => {
       prisma.postToCategory.groupBy.mockResolvedValue(groupedPosts);
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.findPostsByCategories({
+      const posts = await repository.findPostsByCategories({
         searchTerm: 'test',
         category: 'test',
       });
@@ -198,7 +194,7 @@ describe('PostService', () => {
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const posts = await service.getPublishedPostsSlugs();
+      const posts = await repository.getPublishedPostsSlugs();
 
       expect(posts).toEqual(payload);
     });
@@ -208,19 +204,17 @@ describe('PostService', () => {
     it('should get published post by slug', async () => {
       prisma.post.findFirst.mockResolvedValue(onePost);
 
-      const posts = await service.getPublishedPostBySlug('slug');
+      const post = await repository.getPublishedPostBySlug('slug');
 
-      expect(posts).toEqual(onePost);
+      expect(post).toEqual(onePost);
     });
 
-    it('should throw NotFoundException if no post found', async () => {
+    it('should return null if no post found', async () => {
       prisma.post.findFirst.mockResolvedValue(null);
 
-      const getPublishedPostBySlug = service.getPublishedPostBySlug('slug');
+      const post = await repository.getPublishedPostBySlug('slug');
 
-      await expect(getPublishedPostBySlug).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      expect(post).toEqual(null);
     });
   });
 
@@ -228,7 +222,7 @@ describe('PostService', () => {
     it('should publish post by slug', async () => {
       prisma.post.update.mockResolvedValue(onePost);
 
-      const publishedPost = await service.publishPostBySlug('slug');
+      const publishedPost = await repository.publishPostBySlug('slug');
 
       expect(publishedPost).toEqual(onePost);
     });
@@ -238,12 +232,12 @@ describe('PostService', () => {
     it('should delete post by slug', async () => {
       prisma.post.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await service.deletePostBySlug('slug');
+      const deletedPost = await repository.deletePostBySlug('slug');
 
       expect(deletedPost).toEqual(onePost);
     });
 
-    it('should throw NotFoundException if no post exists', async () => {
+    it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
       const slug = 'a bad slug';
       const exception = new Prisma.PrismaClientKnownRequestError(
         'An operation failed because it depends on one or more records that were required but not found. {cause}',
@@ -252,27 +246,12 @@ describe('PostService', () => {
           clientVersion: '2.19.0',
         },
       );
-      const expectedException = new NotFoundException(
-        `Post with slug ${slug} not found`,
-      );
 
       prisma.post.delete.mockRejectedValue(exception);
 
-      const deletePostBySlug = service.deletePostBySlug(slug);
+      const deletePostBySlug = repository.deletePostBySlug(slug);
 
-      await expect(deletePostBySlug).rejects.toThrowError(expectedException);
-    });
-
-    it('should throw InternalServerErrorException if caught unknown exception', async () => {
-      const slug = 'a bad slug';
-      const exception = new Error('unknown error');
-      const expectedException = new InternalServerErrorException();
-
-      prisma.post.delete.mockRejectedValue(exception);
-
-      const deletePostBySlug = service.deletePostBySlug(slug);
-
-      await expect(deletePostBySlug).rejects.toThrowError(expectedException);
+      await expect(deletePostBySlug).rejects.toThrowError(exception);
     });
   });
 });

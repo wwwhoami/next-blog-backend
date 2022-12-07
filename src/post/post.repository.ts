@@ -216,7 +216,7 @@ export class PostRepository {
 
     if (groupedPosts.length === 0) return [];
 
-    const search = searchTerm ? searchTerm.split(' ').join(' & ') : '';
+    const search = searchTerm.split(' ').join(' & ');
     const postIds = groupedPosts.map((data) => data.postId);
 
     return this.prisma.post.findMany({
