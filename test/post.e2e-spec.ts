@@ -158,62 +158,77 @@ describe('Post (e2e)', () => {
           expect(response.body).toMatchObject(notFoundResponseBody);
         });
     });
-  });
 
-  it('should get as many posts as in take query param', () => {
-    const take = 3;
+    it('should get as many posts as in take query param', () => {
+      const take = 3;
 
-    return request(app.getHttpServer())
-      .get('/post')
-      .query({ take })
-      .expect(HttpStatus.OK)
-      .expect((response: request.Response) => {
-        expect(response.body).toBeInstanceOf(Array);
-        expect(response.body.length).toEqual(take);
-      });
-  });
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ take })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body.length).toEqual(take);
+        });
+    });
 
-  it('should get no post if take query param equals zero', () => {
-    const take = 0;
+    it('should get no post if take query param equals zero', () => {
+      const take = 0;
 
-    return request(app.getHttpServer())
-      .get('/post')
-      .query({ take })
-      .expect(HttpStatus.OK)
-      .expect((response: request.Response) => {
-        expect(response.body).toEqual([]);
-        expect(response.body.length).toEqual(take);
-      });
-  });
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ take })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toEqual([]);
+          expect(response.body.length).toEqual(take);
+        });
+    });
 
-  it('should get posts with content if content query param set to "true"', () => {
-    const content = true;
+    it('should get posts with content if content query param set to "true"', () => {
+      const content = true;
 
-    return request(app.getHttpServer())
-      .get('/post')
-      .query({ content })
-      .expect(HttpStatus.OK)
-      .expect((response: request.Response) => {
-        expect(response.body).toBeInstanceOf(Array);
-        expect(Object.keys(response.body[0])).toEqual(
-          Object.keys({ ...postsWithNoContent[0], content: 'content' }),
-        );
-      });
-  });
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ content })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ ...postsWithNoContent[0], content: 'content' }),
+          );
+        });
+    });
 
-  it('should get posts without content if content query param set to "false"', () => {
-    const content = false;
+    it('should get posts without content if content query param set to "false"', () => {
+      const content = false;
 
-    return request(app.getHttpServer())
-      .get('/post')
-      .query({ content })
-      .expect(HttpStatus.OK)
-      .expect((response: request.Response) => {
-        expect(response.body).toBeInstanceOf(Array);
-        expect(Object.keys(response.body[0])).toEqual(
-          Object.keys({ ...postsWithNoContent[0] }),
-        );
-      });
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ content })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ ...postsWithNoContent[0] }),
+          );
+        });
+    });
+
+    it('should get posts without content if content query param set to "false"', () => {
+      const content = false;
+
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ content })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(Object.keys(response.body[0])).toEqual(
+            Object.keys({ ...postsWithNoContent[0] }),
+          );
+        });
+    });
   });
 
   describe('/post/article/:slug (GET)', () => {
