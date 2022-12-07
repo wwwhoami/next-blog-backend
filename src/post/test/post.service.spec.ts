@@ -3,9 +3,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Post, Prisma, PrismaClient } from '@prisma/client';
+import { Post, Prisma } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
 
