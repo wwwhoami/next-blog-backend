@@ -4,295 +4,54 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from 'src/prisma/prisma.service';
-import {
-  GetPostDto,
-  GetPostsByCategoriesDto,
-  SearchPostDto,
-  SearchPostsByCategoriesDto,
-} from './dto/get-post.dto';
+import { GetPostDto } from './dto/get-post.dto';
 import { PostEntity } from './entities/post.entity';
-import { selectPostWithAuthorCategories } from './utils/select.objects';
+import { PostRepository } from './post.repository';
 
 @Injectable()
 export class PostService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private postRepository: PostRepository) {}
 
-  async getPostIds({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-  }: GetPostDto): Promise<{ id: number }[]> {
-    return this.prisma.post.findMany({
-      select: {
-        id: true,
-      },
-      where: {
-        published: true,
-      },
-      orderBy: { [orderBy]: order },
-      take,
-      skip,
-    });
+  async getPostIds(params: GetPostDto): Promise<{ id: number }[]> {
+    if (typeof params.searchTerm === 'string')
+      return this.postRepository.findPostIds({
+        ...params,
+        searchTerm: params.searchTerm,
+      });
+
+    return this.postRepository.getPostIds(params);
   }
 
-  async findPostIds({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    searchTerm,
-  }: SearchPostDto): Promise<{ id: number }[]> {
-    const search = searchTerm.split(' ').join(' & ');
+  async getPosts(params: GetPostDto): Promise<PostEntity[]> {
+    if (typeof params.searchTerm === 'string') {
+      if (typeof params.category === 'string')
+        return this.postRepository.findPostsByCategories({
+          ...params,
+          searchTerm: params.searchTerm,
+          category: params.category,
+        });
 
-    return this.prisma.post.findMany({
-      select: {
-        id: true,
-      },
-      where: {
-        published: true,
-        OR: [
-          {
-            title: {
-              search,
-            },
-          },
-          {
-            excerpt: {
-              search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
-  }
+      return this.postRepository.findPosts({
+        ...params,
+        searchTerm: params.searchTerm,
+      });
+    }
 
-  async getPosts({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-  }: GetPostDto) {
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        published: true,
-      },
-      orderBy: { [orderBy]: order },
-      take,
-      skip,
-    });
-  }
+    if (typeof params.category === 'string')
+      return this.postRepository.getPostsByCategories({
+        ...params,
+        category: params.category,
+      });
 
-  async findPosts({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    searchTerm,
-  }: SearchPostDto): Promise<PostEntity[]> {
-    const search = searchTerm.split(' ').join(' & ');
-
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        published: true,
-        OR: [
-          {
-            title: {
-              search,
-            },
-          },
-          {
-            excerpt: {
-              search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
-  }
-
-  async getPostsByCategories({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    category,
-  }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
-    const categories = category.split(' ');
-
-    // Get postIds with cardinality >= categories count
-    const groupedPosts = await this.prisma.postToCategory.groupBy({
-      by: ['postId'],
-      having: {
-        categoryName: {
-          _count: {
-            gte: categories.length,
-          },
-        },
-      },
-    });
-
-    if (groupedPosts.length === 0) return [];
-
-    const postIds = groupedPosts.map((data) => data.postId);
-
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        id: {
-          in: postIds,
-        },
-        published: true,
-        categories: {
-          some: {
-            categoryName: {
-              in: categories,
-              mode: 'insensitive',
-            },
-          },
-        },
-      },
-      orderBy: { [orderBy]: order },
-      take,
-      skip,
-    });
-  }
-
-  async findPostsByCategories({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    category,
-    searchTerm,
-  }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
-    const categories = category ? category.split(' ') : '';
-
-    // Get postIds with cardinality >= categories count
-    const groupedPosts = await this.prisma.postToCategory.groupBy({
-      by: ['postId'],
-      having: {
-        categoryName: {
-          _count: {
-            gte: categories.length,
-          },
-        },
-      },
-    });
-
-    if (groupedPosts.length === 0) return [];
-
-    const search = searchTerm ? searchTerm.split(' ').join(' & ') : '';
-    const postIds = groupedPosts.map((data) => data.postId);
-
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        id: {
-          in: postIds,
-        },
-        published: true,
-        categories: {
-          some: {
-            categoryName: {
-              in: categories,
-              mode: 'insensitive',
-            },
-          },
-        },
-        OR: [
-          {
-            title: {
-              search,
-            },
-          },
-          {
-            excerpt: {
-              search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
+    return this.postRepository.getPosts(params);
   }
 
   async getPublishedPostsSlugs(): Promise<{ slug: string }[]> {
-    return this.prisma.post.findMany({
-      select: {
-        slug: true,
-      },
-      where: {
-        published: true,
-      },
-    });
+    return this.postRepository.getPublishedPostsSlugs();
   }
 
   async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
-    const post = await this.prisma.post.findFirst({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content: true,
-      },
-      where: {
-        slug,
-        published: true,
-      },
-    });
+    const post = await this.postRepository.getPublishedPostBySlug(slug);
 
     if (!post) throw new NotFoundException(`Post with slug ${slug} not found`);
 
@@ -300,30 +59,12 @@ export class PostService {
   }
 
   async publishPostBySlug(slug: string): Promise<PostEntity> {
-    return this.prisma.post.update({
-      where: {
-        slug,
-      },
-      data: {
-        published: true,
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-        content: false,
-      },
-    });
+    return this.publishPostBySlug(slug);
   }
 
   async deletePostBySlug(slug: string): Promise<PostEntity> {
     try {
-      return await this.prisma.post.delete({
-        where: {
-          slug,
-        },
-        select: {
-          ...selectPostWithAuthorCategories,
-        },
-      });
+      return await this.postRepository.deletePostBySlug(slug);
     } catch (error) {
       if (
         (error instanceof Prisma.PrismaClientKnownRequestError &&
