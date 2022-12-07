@@ -129,61 +129,91 @@ describe('Post (e2e)', () => {
         });
     });
 
-    it('should get as many posts as in take query param', () => {
-      const take = 3;
+    it('should return 400 BAD_REQUEST if query params are wrong', () => {
+      const wrongQueryParams = {
+        take: 'asd',
+        skip: 'asd',
+        orderBy: 12,
+        order: 12,
+        content: 12,
+      };
+
+      const notFoundResponseBody = {
+        error: 'Bad Request',
+        message: [
+          'take must be an integer number',
+          'skip must be an integer number',
+          'orderBy must be a valid enum value',
+          'order must be a valid enum value',
+          'content must be a boolean value',
+        ],
+        statusCode: 400,
+      };
 
       return request(app.getHttpServer())
         .get('/post')
-        .query({ take })
-        .expect(HttpStatus.OK)
+        .query(wrongQueryParams)
+        .expect(HttpStatus.BAD_REQUEST)
         .expect((response: request.Response) => {
-          expect(response.body).toBeInstanceOf(Array);
-          expect(response.body.length).toEqual(take);
+          expect(response.body).toMatchObject(notFoundResponseBody);
         });
     });
+  });
 
-    it('should get no post if take query param equals zero', () => {
-      const take = 0;
+  it('should get as many posts as in take query param', () => {
+    const take = 3;
 
-      return request(app.getHttpServer())
-        .get('/post')
-        .query({ take })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toEqual([]);
-          expect(response.body.length).toEqual(take);
-        });
-    });
+    return request(app.getHttpServer())
+      .get('/post')
+      .query({ take })
+      .expect(HttpStatus.OK)
+      .expect((response: request.Response) => {
+        expect(response.body).toBeInstanceOf(Array);
+        expect(response.body.length).toEqual(take);
+      });
+  });
 
-    it('should get posts with content if content query param set to "true"', () => {
-      const content = true;
+  it('should get no post if take query param equals zero', () => {
+    const take = 0;
 
-      return request(app.getHttpServer())
-        .get('/post')
-        .query({ content })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postsWithNoContent[0], content: 'content' }),
-          );
-        });
-    });
+    return request(app.getHttpServer())
+      .get('/post')
+      .query({ take })
+      .expect(HttpStatus.OK)
+      .expect((response: request.Response) => {
+        expect(response.body).toEqual([]);
+        expect(response.body.length).toEqual(take);
+      });
+  });
 
-    it('should get posts without content if content query param set to "false"', () => {
-      const content = false;
+  it('should get posts with content if content query param set to "true"', () => {
+    const content = true;
 
-      return request(app.getHttpServer())
-        .get('/post')
-        .query({ content })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postsWithNoContent[0] }),
-          );
-        });
-    });
+    return request(app.getHttpServer())
+      .get('/post')
+      .query({ content })
+      .expect(HttpStatus.OK)
+      .expect((response: request.Response) => {
+        expect(response.body).toBeInstanceOf(Array);
+        expect(Object.keys(response.body[0])).toEqual(
+          Object.keys({ ...postsWithNoContent[0], content: 'content' }),
+        );
+      });
+  });
+
+  it('should get posts without content if content query param set to "false"', () => {
+    const content = false;
+
+    return request(app.getHttpServer())
+      .get('/post')
+      .query({ content })
+      .expect(HttpStatus.OK)
+      .expect((response: request.Response) => {
+        expect(response.body).toBeInstanceOf(Array);
+        expect(Object.keys(response.body[0])).toEqual(
+          Object.keys({ ...postsWithNoContent[0] }),
+        );
+      });
   });
 
   describe('/post/article/:slug (GET)', () => {
@@ -201,6 +231,22 @@ describe('Post (e2e)', () => {
             }),
           );
           expect(response.body.slug).toMatch(slug);
+        });
+    });
+
+    it('should return 404 if post with provided slug does not exist', () => {
+      const slug = 'not exists';
+      const notFoundResponseBody = {
+        error: 'Not Found',
+        message: 'Post with slug not exists not found',
+        statusCode: 404,
+      };
+
+      return request(app.getHttpServer())
+        .get(`/post/article/${slug}`)
+        .expect(HttpStatus.NOT_FOUND)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject(notFoundResponseBody);
         });
     });
   });
