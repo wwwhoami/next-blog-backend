@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { GetPostDto, SearchPostsByCategoriesDto } from './dto/get-post.dto';
+import { GetPostDto } from './dto/get-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
 import { PostService } from './post.service';
 
@@ -22,15 +22,5 @@ export class PostController {
   @Get('slug')
   getPublishedPostsSlugs(): Promise<Slug[]> {
     return this.postService.getPublishedPostsSlugs();
-  }
-
-  @Get('search')
-  searchPost(
-    @Query() searchPostQuery: SearchPostsByCategoriesDto,
-  ): Promise<PostEntity[]> {
-    if (!searchPostQuery.category)
-      return this.postService.findPosts(searchPostQuery);
-
-    return this.postService.findPostsByCategories(searchPostQuery);
   }
 }
