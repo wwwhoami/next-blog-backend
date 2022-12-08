@@ -1,6 +1,5 @@
 import { faker } from '@faker-js/faker';
 import { Prisma } from '@prisma/client';
-import { from } from 'rxjs';
 import slugify from 'slugify';
 import { getMockSlugs, getRandomPostMockContent } from './mdx';
 
