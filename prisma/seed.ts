@@ -11,19 +11,19 @@ import { categoryData, userData } from 'data/seed-data';
 
 const prisma = new PrismaClient();
 
-async function createUsers(users: Prisma.UserCreateWithoutPostsInput[]) {
+async function seedUsers(users: Prisma.UserCreateWithoutPostsInput[]) {
   await prisma.user.createMany({
     data: users,
   });
 }
 
-async function createCategories(categories: Prisma.CategoryCreateInput[]) {
+async function seedCategories(categories: Prisma.CategoryCreateInput[]) {
   await prisma.category.createMany({
     data: categories,
   });
 }
 
-async function createMockPosts(posts: Prisma.PostCreateInput[]) {
+async function seedMockPosts(posts: Prisma.PostCreateInput[]) {
   for (const p of posts) {
     await prisma.post.create({
       data: p,
@@ -31,13 +31,13 @@ async function createMockPosts(posts: Prisma.PostCreateInput[]) {
   }
 }
 
-async function createPosts(posts: Prisma.PostCreateManyInput[]) {
+async function seedPosts(posts: Prisma.PostCreateManyInput[]) {
   await prisma.post.createMany({
     data: posts,
   });
 }
 
-async function createPostToCategory(
+async function seedPostToCategory(
   postToCategory: Prisma.PostToCategoryCreateManyInput[],
 ) {
   await prisma.postToCategory.createMany({
@@ -51,9 +51,23 @@ async function main() {
   const postDataCount = 1000;
   const categoryDataCount = 20;
 
+  const timeTakenToGenerate = 'Data generated in';
+  const timeTakenToGetMocks = 'Data mocks read in';
+  const timeTakenDb = 'Seeded db in';
+  const timeTakenUsers = 'Seeded users in';
+  const timeTakenCategories = 'Seeded categories in';
+  const timeTakenPosts = 'Seeded posts in';
+  const timeTakenPostToCategory = 'Linked posts with categories in';
+
+  console.time(timeTakenToGetMocks);
+  console.log('Mock data reading 📚');
+
   const postData = await getMockPostData();
 
+  console.timeEnd(timeTakenToGetMocks);
+
   console.log('Data generating ⚙️');
+  console.time(timeTakenToGenerate);
 
   const randUuids = generateUuid(userDataCount);
   const randUserData = await generateUsers(userDataCount, randUuids);
@@ -70,27 +84,21 @@ async function main() {
     randPostData.length,
   );
 
-  console.log('Data generation completed ✅');
-
-  const timeTakenDb = 'Seeded db in ';
-  const timeTakenUsers = 'Seeded users in ';
-  const timeTakenCategories = 'Seeded categories in ';
-  const timeTakenPosts = 'Seeded posts in ';
-  const timeTakenPostToCategory = 'Linked posts with categories in ';
+  console.timeEnd(timeTakenToGenerate);
 
   console.log(`Seeding database 🌱`);
   console.time(timeTakenDb);
 
-  console.log('Seeding users 🙎‍♂️');
+  console.log('Seeding users 🤓');
   console.time(timeTakenUsers);
-  const createdUsers = createUsers(randUserData);
+  const createdUsers = seedUsers(randUserData);
   createdUsers.then(() => {
     console.timeEnd(timeTakenUsers);
   });
 
   console.log('Seeding categories 🏷️');
   console.time(timeTakenCategories);
-  const createdCategories = createCategories(randCategoryData);
+  const createdCategories = seedCategories(randCategoryData);
   createdCategories.then(() => {
     console.timeEnd(timeTakenCategories);
   });
@@ -99,8 +107,8 @@ async function main() {
     .then(async () => {
       console.log('Seeding posts 📝');
       console.time(timeTakenPosts);
-      const createdPosts = createPosts(randPostData);
-      const createdMockPosts = createMockPosts(postData);
+      const createdPosts = seedPosts(randPostData);
+      const createdMockPosts = seedMockPosts(postData);
 
       await Promise.all([createdPosts, createdMockPosts]);
     })
@@ -115,7 +123,7 @@ async function main() {
     console.log('Linking posts with categories 🔗');
 
     console.time(timeTakenPostToCategory);
-    createPostToCategory(randPostToCategoryData);
+    seedPostToCategory(randPostToCategoryData);
   });
 
   createdPostToCategory.then(() => {
@@ -128,8 +136,8 @@ async function main() {
     createdPosts,
     createdPostToCategory,
   ]).then(() => {
+    console.log(`Seeding complete ✅`);
     console.timeEnd(timeTakenDb);
-    console.log(`Seeding completed ✅`);
   });
 }
 
