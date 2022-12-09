@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   GetPostDto,
@@ -39,40 +40,29 @@ export class PostRepository {
     order = 'desc',
     searchTerm,
   }: SearchPostDto): Promise<{ id: number }[]> {
-    const search = searchTerm.split(' ').join(' & ');
+    const search = searchTerm.split(' ').join(' ');
+    const ordering =
+      order === 'desc'
+        ? Prisma.sql`order by 
+        title <-> ${search},
+        excerpt <-> ${search},
+        ${orderBy} desc`
+        : Prisma.sql`order by 
+        title <-> ${search},
+        excerpt <-> ${search},
+        ${orderBy} asc`;
 
-    return this.prisma.post.findMany({
-      select: {
-        id: true,
-      },
-      where: {
-        published: true,
-        OR: [
-          {
-            title: {
-              search,
-            },
-          },
-          {
-            excerpt: {
-              search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
+    return this.prisma.$queryRaw`
+      select
+        id
+      from
+        "Post"
+      where
+        title % ${search} or 
+        excerpt % ${search}
+      ${ordering}
+      limit ${take}
+      offset ${skip}`;
   }
 
   async getPosts({
@@ -104,41 +94,84 @@ export class PostRepository {
     content = false,
     searchTerm,
   }: SearchPostDto): Promise<PostEntity[]> {
-    const search = searchTerm.split(' ').join(' & ');
+    const search = searchTerm.split(' ').join(' ');
 
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        published: true,
-        OR: [
-          {
-            title: {
-              search,
-            },
-          },
-          {
-            excerpt: {
-              search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
+    const select = content
+      ? Prisma.sql`
+      select
+        id,
+        created_at,
+        title,
+        slug,
+        excerpt,
+        view_count,
+        cover_image,
+        content`
+      : Prisma.sql`
+      select
+        id,
+        created_at,
+        title,
+        slug,
+        excerpt,
+        view_count,
+        cover_image
+        `;
+
+    const selectAuthorCategoriesToJsonOutput = Prisma.sql`
+    ,(
+        select
+            array_to_json(array_agg(cate))
+        from (
+                select
+                    row_to_json(c) as category
+                from (
+                        select
+                            name,
+                            hex_color
+                        from
+                            "Category" as cat
+                            inner join "PostToCategory" as ptc on cat.name = ptc.category_name
+                        where
+                            ptc.post_id = p.id
+                    ) as c
+            ) as cate
+    ) as categories, (
+        select
+            row_to_json(a) as author
+        from (
+                select
+                    name,
+                    image
+                from
+                    "User" as u
+                where
+                    u.id = p.author_id
+            ) as a
+    )
+    `;
+
+    const ordering =
+      order === 'desc'
+        ? Prisma.sql`order by 
+        title <-> ${search},
+        excerpt <-> ${search},
+        ${orderBy} desc`
+        : Prisma.sql`order by 
+        title <-> ${search},
+        excerpt <-> ${search},
+        ${orderBy} asc`;
+
+    return this.prisma.$queryRaw<PostEntity[]>`
+      ${select}
+      ${selectAuthorCategoriesToJsonOutput} 
+      from "Post" as p
+      where
+          title % ${search}
+          or excerpt % ${search}
+      ${ordering}
+      limit ${take}
+      offset ${skip}`;
   }
 
   /**
@@ -240,12 +273,12 @@ export class PostRepository {
         OR: [
           {
             title: {
-              search,
+              contains: search,
             },
           },
           {
             excerpt: {
-              search,
+              contains: search,
             },
           },
         ],

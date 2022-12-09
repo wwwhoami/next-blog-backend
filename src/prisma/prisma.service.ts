@@ -45,6 +45,7 @@ export class PrismaService
       this.logger.verbose(event.target);
     });
 
+    await this.$queryRaw`SET pg_trgm.similarity_threshold = 0.2`;
     await this.$connect();
   }
 

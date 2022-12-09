@@ -96,7 +96,9 @@ describe('PostService', () => {
         { id: 11 },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
 
-      prisma.post.findMany.mockResolvedValue(payload);
+      prisma.$queryRaw.mockResolvedValue(payload);
+
+      // prisma.post.findMany.mockResolvedValue(payload);
 
       const postsIds = await repository.findPostIds({
         searchTerm: 'good search term',
@@ -118,7 +120,7 @@ describe('PostService', () => {
 
   describe('findPosts', () => {
     it('should find posts', async () => {
-      prisma.post.findMany.mockResolvedValue(postArray);
+      prisma.$queryRaw.mockResolvedValue(postArray);
 
       const posts = await repository.findPosts({ searchTerm: 'test' });
 

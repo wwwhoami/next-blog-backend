@@ -48,7 +48,7 @@ async function seedPostToCategory(
 async function main() {
   const handmadeData = 1;
   const userDataCount = 100;
-  const postDataCount = 1000;
+  const postDataCount = 100000;
   const categoryDataCount = 20;
 
   const timeTakenToGenerate = 'Data generated in';
