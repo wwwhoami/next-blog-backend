@@ -49,7 +49,7 @@ export class GetPostDto {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value.trim())
+  @Transform(({ value }) => value.trim().toLowerCase())
   category?: string;
 }
 
@@ -61,7 +61,7 @@ export class SearchPostDto extends GetPostDto {
 
 export class GetPostsByCategoriesDto extends GetPostDto {
   @IsString()
-  @Transform(({ value }) => value.trim())
+  @Transform(({ value }) => value.trim().toLowerCase())
   category: string;
 }
 
