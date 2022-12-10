@@ -44,20 +44,24 @@ export class GetPostDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => value.trim())
   searchTerm?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => value.trim())
   category?: string;
 }
 
 export class SearchPostDto extends GetPostDto {
   @IsString()
+  @Transform(({ value }) => value.trim())
   searchTerm: string;
 }
 
 export class GetPostsByCategoriesDto extends GetPostDto {
   @IsString()
+  @Transform(({ value }) => value.trim())
   category: string;
 }
 
