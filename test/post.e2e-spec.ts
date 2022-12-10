@@ -1,7 +1,7 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PostModule } from 'src/post/post.module';
-import * as request from 'supertest';
+import request from 'supertest';
 
 const postsWithNoContent = [
   {

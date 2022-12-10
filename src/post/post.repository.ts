@@ -40,17 +40,10 @@ export class PostRepository {
     order = 'desc',
     searchTerm,
   }: SearchPostDto): Promise<{ id: number }[]> {
-    const search = searchTerm.split(' ').join(' ');
     const ordering =
       order === 'desc'
-        ? Prisma.sql`ORDER BY 
-        title <-> ${search},
-        excerpt <-> ${search},
-        ${orderBy} DESC`
-        : Prisma.sql`ORDER BY 
-        title <-> ${search},
-        excerpt <-> ${search},
-        ${orderBy} ASC`;
+        ? Prisma.sql`${orderBy} DESC`
+        : Prisma.sql`${orderBy} ASC`;
 
     return this.prisma.$queryRaw`
       SELECT
@@ -58,9 +51,12 @@ export class PostRepository {
       FROM
         "Post"
       WHERE
-        title % ${search} OR 
-        excerpt % ${search}
-      ${ordering}
+        title % ${searchTerm} OR 
+        excerpt % ${searchTerm}
+      ORDER BY
+        title <-> ${searchTerm},
+        excerpt <-> ${searchTerm},
+        ${ordering}
       LIMIT ${take}
       OFFSET ${skip}`;
   }
@@ -94,8 +90,6 @@ export class PostRepository {
     content = false,
     searchTerm,
   }: SearchPostDto): Promise<PostEntity[]> {
-    const search = searchTerm.split(' ').join(' ');
-
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
 
     const ordering =
@@ -122,15 +116,15 @@ export class PostRepository {
         JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
         JOIN "Category" AS c ON c.name = ptc.category_name
       WHERE
-        title % ${search}
-        OR excerpt % ${search}
+        title % ${searchTerm}
+        OR excerpt % ${searchTerm}
       GROUP BY
         p.id,
         u."name",
         u.image
       ORDER BY
-        title <-> ${search},
-        excerpt <-> ${search},
+        title <-> ${searchTerm},
+        excerpt <-> ${searchTerm},
         ${ordering}
       LIMIT ${take}
       OFFSET ${skip}`;
@@ -163,22 +157,12 @@ export class PostRepository {
   }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
     const categories = category.split(' ');
 
-    // Get postIds with cardinality >= categories count
-    const groupedPosts = await this.getPostsGroupedByIds(categories.length);
-
-    if (groupedPosts.length === 0) return [];
-
-    const postIds = groupedPosts.map((data) => data.postId);
-
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
         content,
       },
       where: {
-        id: {
-          in: postIds,
-        },
         published: true,
         categories: {
           some: {
@@ -205,59 +189,55 @@ export class PostRepository {
     searchTerm,
   }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
     const categories = category.split(' ');
+    const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
 
-    // Get postIds with cardinality >= categories count
-    const groupedPosts = await this.getPostsGroupedByIds(categories.length);
+    const ordering =
+      order === 'desc'
+        ? Prisma.sql`${orderBy} DESC`
+        : Prisma.sql`${orderBy} ASC`;
 
-    if (groupedPosts.length === 0) return [];
-
-    const search = searchTerm.split(' ').join(' & ');
-    const postIds = groupedPosts.map((data) => data.postId);
-
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: {
-        id: {
-          in: postIds,
-        },
-        published: true,
-        categories: {
-          some: {
-            categoryName: {
-              in: categories,
-              mode: 'insensitive',
-            },
-          },
-        },
-        OR: [
-          {
-            title: {
-              contains: search,
-            },
-          },
-          {
-            excerpt: {
-              contains: search,
-            },
-          },
-        ],
-      },
-      orderBy: [
-        {
-          _relevance: {
-            fields: ['title', 'excerpt'],
-            search,
-            sort: 'desc',
-          },
-        },
-        { [orderBy]: order },
-      ],
-      take,
-      skip,
-    });
+    return this.prisma.$queryRaw<PostEntity[]>`
+      SELECT
+        p.id,
+        p.created_at,
+        p.updated_at,
+        p.title,
+        p.slug,
+        p.excerpt,
+        p.view_count,
+        p.cover_image,
+        ${selectContent}
+        json_build_object('name', u."name", 'image', u.image) AS author,
+        array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
+      FROM
+        "Post" AS p
+        JOIN "User" AS u ON p.author_id = u.id
+        JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
+        JOIN "Category" AS c ON c.name = ptc.category_name
+      WHERE
+        p.id IN (
+          SELECT
+            p1.id
+          FROM "Post" AS p1
+            INNER JOIN "PostToCategory" AS ptc1
+              ON (ptc1.post_id) = (p1.id)
+          WHERE 
+            LOWER(ptc1.category_name) IN (${Prisma.join(categories)})
+            AND p1.id IS NOT NULL
+        )
+        AND p.published = TRUE
+        AND (title % ${searchTerm}
+        OR excerpt % ${searchTerm})
+      GROUP BY
+        p.id,
+        u."name",
+        u.image
+      ORDER BY
+        title <-> ${searchTerm},
+        excerpt <-> ${searchTerm},
+        ${ordering}
+      LIMIT ${take}
+      OFFSET ${skip}`;
   }
 
   async getPublishedPostsSlugs(): Promise<{ slug: string }[]> {

@@ -129,17 +129,6 @@ describe('PostService', () => {
   });
 
   describe('getPostsByCategories', () => {
-    it('should find no posts if postToCategory.groupBy resolved value is empty', async () => {
-      prisma.postToCategory.groupBy.mockResolvedValue([]);
-      prisma.post.findMany.mockResolvedValue(postArray);
-
-      const posts = await repository.getPostsByCategories({
-        category: 'test',
-      });
-
-      expect(posts).toEqual([]);
-    });
-
     it('should find posts if postToCategory.groupBy resolved value is not empty', async () => {
       const groupedPosts = [
         { postId: 12, categoryName: 'test' },
@@ -158,26 +147,13 @@ describe('PostService', () => {
   });
 
   describe('findPostsByCategories', () => {
-    it('should find no posts if postToCategory.groupBy resolved value is empty', async () => {
-      prisma.postToCategory.groupBy.mockResolvedValue([]);
-      prisma.post.findMany.mockResolvedValue(postArray);
-
-      const posts = await repository.findPostsByCategories({
-        searchTerm: 'test',
-        category: 'test',
-      });
-
-      expect(posts).toEqual([]);
-    });
-
     it('should find posts if postToCategory.groupBy resolved value is not empty', async () => {
       const groupedPosts = [
         { postId: 12, categoryName: 'test' },
         { postId: 12, categoryName: 'test' },
       ] as any;
 
-      prisma.postToCategory.groupBy.mockResolvedValue(groupedPosts);
-      prisma.post.findMany.mockResolvedValue(postArray);
+      prisma.$queryRaw.mockResolvedValue(postArray);
 
       const posts = await repository.findPostsByCategories({
         searchTerm: 'test',
