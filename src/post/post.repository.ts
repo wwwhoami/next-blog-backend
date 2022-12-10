@@ -46,11 +46,11 @@ export class PostRepository {
         ? Prisma.sql`ORDER BY 
         title <-> ${search},
         excerpt <-> ${search},
-        ${orderBy} desc`
+        ${orderBy} DESC`
         : Prisma.sql`ORDER BY 
         title <-> ${search},
         excerpt <-> ${search},
-        ${orderBy} asc`;
+        ${orderBy} ASC`;
 
     return this.prisma.$queryRaw`
       SELECT
