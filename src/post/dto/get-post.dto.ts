@@ -44,24 +44,34 @@ export class GetPostDto {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value.trim())
+  @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
   searchTerm?: string;
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value.trim().toLowerCase())
+  @Transform(({ value }) =>
+    value
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .toLowerCase(),
+  )
   category?: string;
 }
 
 export class SearchPostDto extends GetPostDto {
   @IsString()
-  @Transform(({ value }) => value.trim())
+  @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
   searchTerm: string;
 }
 
 export class GetPostsByCategoriesDto extends GetPostDto {
   @IsString()
-  @Transform(({ value }) => value.trim().toLowerCase())
+  @Transform(({ value }) =>
+    value
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .toLowerCase(),
+  )
   category: string;
 }
 
