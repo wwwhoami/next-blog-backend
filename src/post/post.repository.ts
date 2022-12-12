@@ -137,8 +137,6 @@ export class PostRepository {
     content = false,
     category,
   }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
-    const categories = category.split(' ');
-
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
     const ordering =
       order === 'desc'
@@ -165,24 +163,23 @@ export class PostRepository {
         JOIN "Category" AS c ON c.name = ptc.category_name
       WHERE
         p.published = TRUE
-        AND p.id NOT IN (
-          SELECT
-            p1.id
-          FROM "Post" AS p1
-            JOIN "PostToCategory" AS ptc1 
-              ON (ptc1.post_id) = (p1.id)
-          WHERE
-            p1.id IS NOT NULL
-            AND NOT LOWER(ptc1.category_name) IN (${Prisma.join(categories)}))
-        AND p.id IN (
-          SELECT
-            p1.id
-          FROM "Post" AS p1
-            JOIN "PostToCategory" AS ptc1 
-              ON (ptc1.post_id) = (p1.id)
-          WHERE
-            p1.id IS NOT NULL
-            AND LOWER(ptc1.category_name) IN (${Prisma.join(categories)}))
+        AND p.id IN(
+            SELECT
+                p1.id
+            FROM
+              (
+              SELECT
+                p2.id,
+                array_agg(LOWER(ptc1.category_name)) AS category_names
+              FROM
+                "Post" AS p2
+              JOIN "PostToCategory" AS ptc1 ON
+                (ptc1.post_id) = (p2.id)
+              GROUP BY
+                p2.id) AS p1
+            WHERE
+              p1.id IS NOT NULL
+              AND p1.category_names @> string_to_array(${category}, ' '))
       GROUP BY
         p.id,
         u.name,
@@ -202,8 +199,6 @@ export class PostRepository {
     category,
     searchTerm,
   }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
-    const categories = category.split(' ');
-
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
     const ordering =
       order === 'desc'
@@ -230,22 +225,23 @@ export class PostRepository {
         JOIN "Category" AS c ON c.name = ptc.category_name
       WHERE
         p.published = TRUE
-        AND p.id NOT IN (
-          SELECT
-            p1.id
-          FROM "Post" AS p1
-          JOIN "PostToCategory" AS ptc1 ON (ptc1.post_id) = (p1.id)
-          WHERE
-            p1.id IS NOT NULL
-            AND NOT LOWER(ptc1.category_name) IN (${Prisma.join(categories)}))
-        AND p.id IN (
-          SELECT
-            p1.id
-          FROM "Post" AS p1
-          JOIN "PostToCategory" AS ptc1 ON (ptc1.post_id) = (p1.id)
-          WHERE
-            p1.id IS NOT NULL
-            AND LOWER(ptc1.category_name) IN (${Prisma.join(categories)}))
+        AND p.id IN(
+            SELECT
+                p1.id
+            FROM
+              (
+              SELECT
+                p2.id,
+                array_agg(LOWER(ptc1.category_name)) AS category_names
+              FROM
+                "Post" AS p2
+              JOIN "PostToCategory" AS ptc1 ON
+                (ptc1.post_id) = (p2.id)
+              GROUP BY
+                p2.id) AS p1
+            WHERE
+              p1.id IS NOT NULL
+              AND p1.category_names @> string_to_array(${category}, ' '))
         AND (title % ${searchTerm}
         OR excerpt % ${searchTerm})
       GROUP BY
