@@ -1,18 +1,28 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
-import { GetCategoryDto } from './dto/get-category-dto';
+import {
+  GetCategoryCombinationsDto,
+  GetCategoryDto,
+} from './dto/get-category-dto';
+import { CategoryEntity } from './entities/category.entity';
 
 @Controller('category')
+@ApiTags('category')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
-  getCategories(@Query() getCategoriesQuery: GetCategoryDto) {
+  getCategories(
+    @Query() getCategoriesQuery: GetCategoryDto,
+  ): Promise<CategoryEntity[]> {
     return this.categoryService.getCategories(getCategoriesQuery);
   }
 
   @Get('combo')
-  getCategoryCombinations(@Query() getCategoriesQuery: GetCategoryDto) {
+  getCategoryCombinations(
+    @Query() getCategoriesQuery: GetCategoryCombinationsDto,
+  ): Promise<string[][]> {
     return this.categoryService.getCategoryCombinations(getCategoriesQuery);
   }
 }

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { CategoryRepository } from './category.repository';
-import { GetCategoryDto } from './dto/get-category-dto';
+import {
+  GetCategoryCombinationsDto,
+  GetCategoryDto,
+} from './dto/get-category-dto';
 import { CategoryEntity } from './entities/category.entity';
 
 @Injectable()
@@ -11,7 +14,9 @@ export class CategoryService {
     return this.categoryRepository.getCategories(params);
   }
 
-  getCategoryCombinations({ searchTerm }: GetCategoryDto): Promise<string[][]> {
+  getCategoryCombinations({
+    searchTerm,
+  }: GetCategoryCombinationsDto): Promise<string[][]> {
     if (searchTerm)
       return this.categoryRepository.getCategoryCombinationsForSearchTerm(
         searchTerm,

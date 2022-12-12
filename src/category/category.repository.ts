@@ -26,37 +26,6 @@ export class CategoryRepository {
     });
   }
 
-  // async getCategoriesForPostSearchterm(search: string) {
-  //   const categories = await this.prisma.category.findMany({
-  //     select: {
-  //       name: true,
-  //       hexColor: true,
-  //     },
-  //     where: {
-  //       PostToCategory: {
-  //         some: {
-  //           post: {
-  //             published: true,
-  //             OR: [
-  //               {
-  //                 title: {
-  //                   search,
-  //                 },
-  //               },
-  //               {
-  //                 excerpt: {
-  //                   search,
-  //                 },
-  //               },
-  //             ],
-  //           },
-  //         },
-  //       },
-  //     },
-  //   });
-  //   return categories;
-  // }
-
   async getCategoryCombinations(): Promise<string[][]> {
     const categoryComb = await this.prisma.$queryRaw<
       Record<'category_list', string>[]
