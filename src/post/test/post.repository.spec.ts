@@ -51,7 +51,7 @@ const postArray = [
 
 const onePost = postArray[0];
 
-describe('PostService', () => {
+describe('PostRepository', () => {
   let repository: PostRepository;
   let prisma: DeepMockProxy<PrismaService>;
 
