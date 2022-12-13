@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { mock, MockProxy } from 'jest-mock-extended';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
 
@@ -88,7 +88,7 @@ const onePost = postArray[0];
 
 describe('PostService', () => {
   let service: PostService;
-  let postRepository: DeepMockProxy<PostRepository>;
+  let postRepository: MockProxy<PostRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -96,7 +96,7 @@ describe('PostService', () => {
         PostService,
         {
           provide: PostRepository,
-          useValue: mockDeep<PostRepository>(),
+          useValue: mock<PostRepository>(),
         },
       ],
     }).compile();

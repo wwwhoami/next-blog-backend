@@ -1,13 +1,13 @@
 import { TestingModule, Test } from '@nestjs/testing';
 import { Category, Post, Prisma, PrismaClient } from '@prisma/client';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { DeepMockProxy, mock, mockDeep, MockProxy } from 'jest-mock-extended';
 import { PostService } from 'src/post/post.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CategoryRepository } from '../category.repository';
 
 describe('CategoryRepository', () => {
   let repository: CategoryRepository;
-  let postService: DeepMockProxy<PostService>;
+  let postService: MockProxy<PostService>;
   let prisma: DeepMockProxy<PrismaService>;
 
   beforeEach(async () => {
@@ -16,7 +16,7 @@ describe('CategoryRepository', () => {
         CategoryRepository,
         {
           provide: PostService,
-          useValue: mockDeep<PostService>(),
+          useValue: mock<PostService>(),
         },
         {
           provide: PrismaService,

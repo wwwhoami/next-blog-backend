@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { mock, MockProxy } from 'jest-mock-extended';
 import { CategoryRepository } from '../category.repository';
 import { CategoryService } from '../category.service';
 
 describe('CategoryService', () => {
   let service: CategoryService;
-  let categoryRepository: DeepMockProxy<CategoryRepository>;
+  let categoryRepository: MockProxy<CategoryRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -13,7 +13,7 @@ describe('CategoryService', () => {
         CategoryService,
         {
           provide: CategoryRepository,
-          useValue: mockDeep<CategoryRepository>(),
+          useValue: mock<CategoryRepository>(),
         },
       ],
     }).compile();
@@ -47,7 +47,6 @@ describe('CategoryService', () => {
         ['impedit', 'magnam'],
         ['cumque', 'maxime'],
       ];
-
       categoryRepository.getCategoryCombinations.mockResolvedValue(payload);
 
       expect(service.getCategoryCombinations({})).resolves.toEqual(payload);
