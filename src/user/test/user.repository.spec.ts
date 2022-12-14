@@ -4,13 +4,14 @@ import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserRepository } from '../user.repository';
 
-export const userData = [
-  {
-    id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
-    name: 'Alice Johnson',
-    email: 'alice@prisma.io',
-    image: 'https://randomuser.me/api/portraits/women/12.jpg',
-  },
+const userDataWithId = {
+  id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
+  name: 'Alice Johnson',
+  email: 'alice@prisma.io',
+  image: 'https://randomuser.me/api/portraits/women/12.jpg',
+};
+
+const userData = [
   {
     name: 'John Doe',
     email: 'john@prisma.io',
@@ -61,12 +62,24 @@ describe('UserRepository', () => {
 
   describe('getByUuid', () => {
     it('should get user by uuid', () => {
-      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
-      const uuid = userData[0].id as string;
+      const user = userDataWithId as unknown as Prisma.Prisma__UserClient<User>;
+      const uuid = userDataWithId.id as string;
 
       prismaService.user.findUnique.mockResolvedValue(user);
 
       expect(repository.getByUuid(uuid)).resolves.toEqual(user);
+    });
+  });
+
+  describe('createUser', () => {
+    it('should create user returning his data', () => {
+      const userToCreate = { ...userData[0], password: 'password' };
+      const createdUser =
+        userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+
+      prismaService.user.create.mockResolvedValue(createdUser);
+
+      expect(repository.createUser(userToCreate)).resolves.toEqual(createdUser);
     });
   });
 });
