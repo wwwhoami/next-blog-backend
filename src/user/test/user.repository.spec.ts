@@ -71,6 +71,17 @@ describe('UserRepository', () => {
     });
   });
 
+  describe('getByEmail', () => {
+    it('should get user by email', () => {
+      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+      const email = userData[0].email;
+
+      prismaService.user.findUnique.mockResolvedValue(user);
+
+      expect(repository.getByEmail(email)).resolves.toEqual(user);
+    });
+  });
+
   describe('createUser', () => {
     it('should create user returning his data', () => {
       const userToCreate = { ...userData[0], password: 'password' };

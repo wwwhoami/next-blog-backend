@@ -10,6 +10,6 @@ export class UserController {
 
   @Get(':username')
   async getUser(@Param('username') username: string): Promise<UserEntity> {
-    return this.userService.getUser(username);
+    return this.userService.getUser({ name: username });
   }
 }

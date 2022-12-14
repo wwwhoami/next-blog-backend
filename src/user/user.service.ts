@@ -3,23 +3,40 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UserEntity } from './entities/user.entity';
-import { UserRepository } from './user.repository';
-import { genSalt, hash } from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { genSalt, hash } from 'bcrypt';
+import { CreateUserDto } from './dto/create-user.dto';
+import { GetUserDto } from './dto/get-user.dto';
+import { UserWithPasswordOrUserType } from './types/user-with-password-or-user.type';
+import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
   constructor(private userRepository: UserRepository) {}
 
-  async getUser(username: string): Promise<UserEntity> {
-    const user = await this.userRepository.getByName(username);
+  async getUser<B extends boolean>(
+    { name = undefined, email = undefined }: GetUserDto,
+    returnPassword?: B,
+  ): Promise<NonNullable<UserWithPasswordOrUserType<B>>> {
+    let user: UserWithPasswordOrUserType<B>;
 
-    if (!user)
-      throw new NotFoundException(`User with name ${username} not found`);
+    if (name) {
+      user = await this.userRepository.getByName(name, returnPassword);
 
-    return user;
+      if (!user)
+        throw new NotFoundException(`User with name ${name} not found`);
+
+      return user;
+    } else if (email) {
+      user = await this.userRepository.getByEmail(email, returnPassword);
+
+      if (!user)
+        throw new NotFoundException(`User with email ${email} not found`);
+
+      return user;
+    }
+
+    throw new Error('Neither name nor email was provided');
   }
 
   async createUser(user: CreateUserDto) {

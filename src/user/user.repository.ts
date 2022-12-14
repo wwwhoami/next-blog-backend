@@ -2,17 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity } from './entities/user.entity';
+import { UserWithPasswordOrUserType } from './types/user-with-password-or-user.type';
 
 @Injectable()
 export class UserRepository {
   constructor(private prisma: PrismaService) {}
 
-  async getByUuid(uuid: string): Promise<UserEntity | null> {
+  async getByUuid<B extends boolean>(
+    uuid: string,
+    returnPassword?: B,
+  ): Promise<UserWithPasswordOrUserType<B>> {
     return this.prisma.user.findUnique({
       select: {
         name: true,
         email: true,
         image: true,
+        password: returnPassword as boolean,
       },
       where: {
         id: uuid,
@@ -20,15 +25,36 @@ export class UserRepository {
     });
   }
 
-  async getByName(username: string): Promise<UserEntity | null> {
+  async getByName<B extends boolean>(
+    name: string,
+    returnPassword?: B,
+  ): Promise<UserWithPasswordOrUserType<B>> {
     return this.prisma.user.findUnique({
       select: {
         name: true,
         email: true,
         image: true,
+        password: returnPassword as boolean,
       },
       where: {
-        name: username,
+        name,
+      },
+    });
+  }
+
+  async getByEmail<B extends boolean>(
+    email: string,
+    returnPassword?: B,
+  ): Promise<UserWithPasswordOrUserType<B>> {
+    return this.prisma.user.findUnique({
+      select: {
+        name: true,
+        email: true,
+        image: true,
+        password: returnPassword as boolean,
+      },
+      where: {
+        email,
       },
     });
   }

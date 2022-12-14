@@ -54,13 +54,13 @@ describe('UserService', () => {
   });
 
   describe('getUser', () => {
-    it('should get user by username', () => {
+    it('should get user by username if username provided', () => {
       const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
       const username = userData[0].name;
 
       repository.getByName.mockResolvedValue(user);
 
-      expect(service.getUser(username)).resolves.toEqual(user);
+      expect(service.getUser({ name: username })).resolves.toEqual(user);
     });
 
     it('should throw NotFoundException if no user found', async () => {
@@ -68,9 +68,39 @@ describe('UserService', () => {
 
       repository.getByName.mockResolvedValue(null);
 
-      await expect(service.getUser(username)).rejects.toBeInstanceOf(
+      await expect(service.getUser({ name: username })).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it('should get user by email if no username but email provided', () => {
+      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+      const email = userData[0].email;
+
+      repository.getByEmail.mockResolvedValue(user);
+
+      expect(service.getUser({ email })).resolves.toEqual(user);
+    });
+
+    it('should throw NotFoundException if no user found with email provided', async () => {
+      const email = 'test';
+
+      repository.getByEmail.mockResolvedValue(null);
+
+      await expect(service.getUser({ email })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('should throw Error if neither username nor email provided', async () => {
+      const email = undefined;
+      const username = undefined;
+
+      repository.getByEmail.mockResolvedValue(null);
+
+      await expect(
+        service.getUser({ email, name: username }),
+      ).rejects.toBeInstanceOf(Error);
     });
   });
 

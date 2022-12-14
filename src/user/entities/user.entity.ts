@@ -4,3 +4,7 @@ export class UserEntity {
   name: string;
   image: string;
 }
+
+export class UserWithPasswordEntity extends UserEntity {
+  password: string;
+}
