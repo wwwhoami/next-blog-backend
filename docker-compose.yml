@@ -12,5 +12,20 @@ services:
     ports:
       - '${POSTGRES_PORT}:5432'
 
+  redis:
+    container_name: redis
+    image: redis:7.0.6
+    restart: always
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - '${REDIS_PORT}:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass $REDIS_PASSWORD
+    volumes:
+      - redis:/data
+
+
 volumes:
   postgres:
+  redis:
+    driver: local
