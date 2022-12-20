@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  IsOptional,
   IsString,
   IsUrl,
   MaxLength,
@@ -18,6 +19,7 @@ export class CreateUserDto {
   @MaxLength(60)
   password: string;
 
+  @IsOptional()
   @IsUrl()
-  image: string;
+  image?: string;
 }

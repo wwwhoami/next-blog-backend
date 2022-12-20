@@ -26,7 +26,7 @@ class CategoryEntity {
 }
 class AuthorEntity {
   name: string;
-  image: string;
+  image: string | null;
 }
 
 export class PostEntity {
