@@ -1,4 +1,10 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { GetPostDto } from './dto/get-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
@@ -15,8 +21,14 @@ export class PostController {
   }
 
   @Get('article/:slug')
-  getPublishedPostBySlug(@Param('slug') slug: string): Promise<PostEntity> {
-    return this.postService.getPublishedPostBySlug(slug);
+  async getPublishedPostBySlug(
+    @Param('slug') slug: string,
+  ): Promise<PostEntity> {
+    const post = await this.postService.getPublishedPostBySlug(slug);
+
+    if (!post) throw new NotFoundException(`Post with slug ${slug} not found`);
+
+    return post;
   }
 
   @Get('slug')

@@ -50,12 +50,8 @@ export class PostService {
     return this.postRepository.getPublishedPostsSlugs();
   }
 
-  async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
-    const post = await this.postRepository.getPublishedPostBySlug(slug);
-
-    if (!post) throw new NotFoundException(`Post with slug ${slug} not found`);
-
-    return post;
+  async getPublishedPostBySlug(slug: string): Promise<PostEntity | null> {
+    return this.postRepository.getPublishedPostBySlug(slug);
   }
 
   async publishPostBySlug(slug: string): Promise<PostEntity> {
