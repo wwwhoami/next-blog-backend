@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { genSalt, hash } from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,28 +23,14 @@ export class UserService {
    * @returns User's data
    */
   async getUser<B extends boolean, T extends boolean>(
-    { name = undefined, email = undefined }: GetUserDto,
+    { name = undefined, email = undefined, id = undefined }: GetUserDto,
     returnOptions?: { id?: T; password?: B },
-  ): Promise<NonNullable<UserType<B, T>>> {
-    let user: UserType<B, T>;
+  ): Promise<UserType<B, T>> {
+    if (id) return this.userRepository.getByUuid(id, returnOptions);
+    else if (name) return this.userRepository.getByName(name, returnOptions);
+    else if (email) return this.userRepository.getByEmail(email, returnOptions);
 
-    if (name) {
-      user = await this.userRepository.getByName(name, returnOptions);
-
-      if (!user)
-        throw new NotFoundException(`User with name ${name} not found`);
-
-      return user;
-    } else if (email) {
-      user = await this.userRepository.getByEmail(email, returnOptions);
-
-      if (!user)
-        throw new NotFoundException(`User with email ${email} not found`);
-
-      return user;
-    }
-
-    throw new Error('Neither name nor email was provided');
+    throw new Error('Neither of { name, email, id } parameters provided');
   }
 
   async createUser(
