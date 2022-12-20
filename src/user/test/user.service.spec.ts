@@ -1,10 +1,11 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, User } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const userDataWithId = {
   id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
   name: 'Alice Johnson',
@@ -54,6 +55,15 @@ describe('UserService', () => {
   });
 
   describe('getUser', () => {
+    it('should get user by id if id provided', () => {
+      const user = userDataWithId as unknown as Prisma.Prisma__UserClient<User>;
+      const id = userDataWithId.id;
+
+      repository.getByUuid.mockResolvedValue(user);
+
+      expect(service.getUser({ id })).resolves.toEqual(user);
+    });
+
     it('should get user by username if username provided', () => {
       const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
       const username = userData[0].name;
@@ -68,9 +78,7 @@ describe('UserService', () => {
 
       repository.getByName.mockResolvedValue(null);
 
-      await expect(service.getUser({ name: username })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(service.getUser({ name: username })).resolves.toBeNull();
     });
 
     it('should get user by email if no username but email provided', () => {
@@ -82,16 +90,6 @@ describe('UserService', () => {
       expect(service.getUser({ email })).resolves.toEqual(user);
     });
 
-    it('should throw NotFoundException if no user found with email provided', async () => {
-      const email = 'test';
-
-      repository.getByEmail.mockResolvedValue(null);
-
-      await expect(service.getUser({ email })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
-    });
-
     it('should throw Error if neither username nor email provided', async () => {
       const email = undefined;
       const username = undefined;
@@ -100,7 +98,7 @@ describe('UserService', () => {
 
       await expect(
         service.getUser({ email, name: username }),
-      ).rejects.toBeInstanceOf(Error);
+      ).rejects.toThrowError(Error);
     });
   });
 

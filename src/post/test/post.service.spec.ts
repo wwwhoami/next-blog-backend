@@ -199,14 +199,12 @@ describe('PostService', () => {
       expect(posts).toEqual(onePost);
     });
 
-    it('should throw NotFoundException if no post found', async () => {
+    it('should return null if no post found', async () => {
       postRepository.getPublishedPostBySlug.mockResolvedValue(null);
 
       const getPublishedPostBySlug = service.getPublishedPostBySlug('slug');
 
-      await expect(getPublishedPostBySlug).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(getPublishedPostBySlug).resolves.toBeNull();
     });
   });
 
