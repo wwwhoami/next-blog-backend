@@ -73,7 +73,14 @@ export class AuthService {
       createdUser.name,
     );
 
-    return { ...createdUser, accessToken, refreshToken, refreshTokenExpiry };
+    return {
+      name: createdUser.name,
+      email: createdUser.email,
+      image: createdUser.image,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiry,
+    };
   }
 
   async createRefreshToken(
@@ -119,8 +126,8 @@ export class AuthService {
     id: string;
   }> {
     const { sub: id, name } = refreshToken;
-    const tokenValue = await this.cacheManager.get(id);
 
+    const tokenValue = await this.cacheManager.get(id);
     if (!tokenValue) throw new UnauthorizedException('Refresh token expired');
 
     await this.cacheManager.del(id);
