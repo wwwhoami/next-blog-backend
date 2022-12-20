@@ -1,6 +1,7 @@
 import {
   CACHE_MANAGER,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -136,6 +137,15 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
+    it('should throw NotFoundException if user with provided credentials does not exist', () => {
+      const user = authCredentials;
+      const retrievedUser = null;
+
+      userService.getUser.mockResolvedValue(retrievedUser);
+
+      expect(service.login(user)).rejects.toThrowError(NotFoundException);
+    });
+
     it('should return undefined if password comparison resolves to false', () => {
       const user = authCredentials;
       const retrievedUser = { ...userData, password: 'other password' };

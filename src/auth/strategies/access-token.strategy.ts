@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserNoPasswordEntity } from 'src/user/entities/user.entity';
-import { UserRepository } from 'src/user/user.repository';
+import { UserService } from 'src/user/user.service';
 import { JwtPayload } from '../types/jwt-payload.type';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class AccessTokenStrategy extends PassportStrategy(
 ) {
   constructor(
     private configService: ConfigService,
-    private userRepository: UserRepository,
+    private userService: UserService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -28,7 +28,7 @@ export class AccessTokenStrategy extends PassportStrategy(
   async validate(payload: JwtPayload): Promise<UserNoPasswordEntity | null> {
     const { sub: id } = payload;
 
-    const user = await this.userRepository.getByUuid(id, { id: true });
+    const user = await this.userService.getUser({ id }, { id: true });
 
     if (!user) throw new UnauthorizedException();
 

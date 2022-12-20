@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -28,6 +29,9 @@ export class AuthService {
       { name, email },
       { id: true, password: true },
     );
+
+    if (!user)
+      throw new NotFoundException('User with provided credentials not found');
 
     if (await compare(password, user.password)) {
       const { id, name, email, image } = user;
