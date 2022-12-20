@@ -1,6 +1,6 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { UserEntity } from './entities/user.entity';
+import { UserNoIdPasswordEntity } from './entities/user.entity';
 import { UserService } from './user.service';
 
 @Controller('user')
@@ -9,7 +9,9 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Get(':username')
-  async getUser(@Param('username') username: string): Promise<UserEntity> {
+  async getUser(
+    @Param('username') username: string,
+  ): Promise<UserNoIdPasswordEntity> {
     return this.userService.getUser({ name: username });
   }
 }

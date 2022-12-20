@@ -1,23 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UserEntity } from './entities/user.entity';
-import { UserWithPasswordOrUserType } from './types/user-with-password-or-user.type';
+import { UserNoPasswordEntity } from './entities/user.entity';
+import { UserType } from './types/user-with-password-or-user.type';
 
 @Injectable()
 export class UserRepository {
   constructor(private prisma: PrismaService) {}
 
-  async getByUuid<B extends boolean>(
+  /**
+   *
+   * @param uuid - Id to find the user by.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If provided, user's data with id will be returned.
+   * @param {boolean} [returnOptions.password] - If provided, user's data with password will be returned.
+   * if fully omitted (or partly) data with no id and (or) password will be returned
+   * @returns User's data
+   */
+  async getByUuid<B extends boolean, T extends boolean>(
     uuid: string,
-    returnPassword?: B,
-  ): Promise<UserWithPasswordOrUserType<B>> {
+    returnOptions?: { id?: T; password?: B },
+  ): Promise<UserType<B, T>> {
     return this.prisma.user.findUnique({
       select: {
+        id: (returnOptions?.id as boolean) ?? false,
         name: true,
         email: true,
         image: true,
-        password: returnPassword as boolean,
+        password: (returnOptions?.password as boolean) ?? false,
       },
       where: {
         id: uuid,
@@ -25,16 +35,26 @@ export class UserRepository {
     });
   }
 
-  async getByName<B extends boolean>(
+  /**
+   *
+   * @param name - Name to find the user by.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If provided, user's data with id will be returned.
+   * @param {boolean} [returnOptions.password] - If provided, user's data with password will be returned.
+   * if fully omitted (or partly) data with no id and (or) password will be returned
+   * @returns User's data
+   */
+  async getByName<B extends boolean, T extends boolean>(
     name: string,
-    returnPassword?: B,
-  ): Promise<UserWithPasswordOrUserType<B>> {
+    returnOptions?: { id?: T; password?: B },
+  ): Promise<UserType<B, T>> {
     return this.prisma.user.findUnique({
       select: {
+        id: (returnOptions?.id as boolean) ?? false,
         name: true,
         email: true,
         image: true,
-        password: returnPassword as boolean,
+        password: (returnOptions?.password as boolean) ?? false,
       },
       where: {
         name,
@@ -42,16 +62,26 @@ export class UserRepository {
     });
   }
 
-  async getByEmail<B extends boolean>(
+  /**
+   *
+   * @param email - Email to find the user by.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If provided, user's data with id will be returned.
+   * @param {boolean} [returnOptions.password] - If provided, user's data with password will be returned.
+   * if fully omitted (or partly) data with no id and (or) password will be returned
+   * @returns User's data
+   */
+  async getByEmail<B extends boolean, T extends boolean>(
     email: string,
-    returnPassword?: B,
-  ): Promise<UserWithPasswordOrUserType<B>> {
+    returnOptions?: { id?: T; password?: B },
+  ): Promise<UserType<B, T>> {
     return this.prisma.user.findUnique({
       select: {
+        id: (returnOptions?.id as boolean) ?? false,
         name: true,
         email: true,
         image: true,
-        password: returnPassword as boolean,
+        password: (returnOptions?.password as boolean) ?? false,
       },
       where: {
         email,
@@ -59,10 +89,11 @@ export class UserRepository {
     });
   }
 
-  async createUser(user: CreateUserDto): Promise<UserEntity> {
+  async createUser(user: CreateUserDto): Promise<UserNoPasswordEntity> {
     return this.prisma.user.create({
       data: user,
       select: {
+        id: true,
         name: true,
         email: true,
         image: true,

@@ -1,5 +1,14 @@
-import { UserEntity, UserWithPasswordEntity } from '../entities/user.entity';
+import {
+  UserEntity,
+  UserNoIdEntity,
+  UserNoIdPasswordEntity,
+  UserNoPasswordEntity,
+} from '../entities/user.entity';
 
-export type UserWithPasswordOrUserType<B extends boolean> = [B] extends [true]
-  ? UserWithPasswordEntity | null
-  : UserEntity | null;
+export type UserType<B extends boolean, T extends boolean> = [B] extends [true]
+  ? [T] extends [true]
+    ? UserEntity | null
+    : UserNoIdEntity | null
+  : [T] extends [true]
+  ? UserNoPasswordEntity | null
+  : UserNoIdPasswordEntity | null;
