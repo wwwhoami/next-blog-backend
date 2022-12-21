@@ -1,6 +1,5 @@
 import {
   IsEmail,
-  IsOptional,
   IsString,
   MaxLength,
   MinLength,
@@ -8,13 +7,11 @@ import {
 } from 'class-validator';
 
 export class AuthCredentialsDto {
-  @ValidateIf((user: AuthCredentialsDto) => Boolean(user.name))
-  @IsOptional()
+  @ValidateIf((user: AuthCredentialsDto) => Boolean(!user.email))
   @IsString()
   name?: string;
 
   @ValidateIf((user: AuthCredentialsDto) => Boolean(!user.name))
-  @IsOptional()
   @IsEmail()
   email?: string;
 
