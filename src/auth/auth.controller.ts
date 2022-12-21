@@ -4,7 +4,6 @@ import {
   Controller,
   Get,
   InternalServerErrorException,
-  NotFoundException,
   Post,
   Req,
   Res,
