@@ -1,7 +1,7 @@
 import {
   ConflictException,
   InternalServerErrorException,
-  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -208,29 +208,29 @@ describe('AuthController', () => {
       });
     });
 
-    it('should throw NotFoundException if service resolves to undefined & user name provided', async () => {
+    it('should throw UnauthorizedException if service resolves to undefined & user name provided', async () => {
       const user = { ...authCredentials, image: 'image' };
       const res: any = {};
 
       authService.login.mockResolvedValue(undefined);
 
       await expect(controller.login(user, res)).rejects.toThrowError(
-        NotFoundException,
+        UnauthorizedException,
       );
     });
 
-    it('should throw NotFoundException if service resolves to undefined & user email provided', async () => {
+    it('should throw UnauthorizedException if service resolves to undefined & user email provided', async () => {
       const user = { ...authCredentials, image: 'image', name: undefined };
       const res: any = {};
 
       authService.login.mockResolvedValue(undefined);
 
       await expect(controller.login(user, res)).rejects.toThrowError(
-        NotFoundException,
+        UnauthorizedException,
       );
     });
 
-    it('should throw NotFoundException if service resolves to undefined & user name, email not provided', async () => {
+    it('should throw UnauthorizedException if service resolves to undefined & user name, email not provided', async () => {
       const user = {
         ...authCredentials,
         image: 'image',
@@ -242,7 +242,7 @@ describe('AuthController', () => {
       authService.login.mockResolvedValue(undefined);
 
       await expect(controller.login(user, res)).rejects.toThrowError(
-        NotFoundException,
+        UnauthorizedException,
       );
     });
   });

@@ -8,6 +8,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -84,9 +85,11 @@ export class AuthController {
     const loggedInUser = await this.authService.login(user);
 
     if (!loggedInUser) {
-      if (user.name) throw new NotFoundException('Invalid name or password');
-      if (user.email) throw new NotFoundException('Invalid email or password');
-      throw new NotFoundException('Invalid credentials');
+      if (user.name)
+        throw new UnauthorizedException('Invalid name or password');
+      if (user.email)
+        throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const {
