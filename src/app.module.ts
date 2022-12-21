@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import redisStore from 'cache-manager-redis-store';
-import { configValidationSchema } from 'config.schema';
+import { configValidationSchema } from '../config.schema';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { LoggerMiddleware } from './middleware/logger.middleware';
