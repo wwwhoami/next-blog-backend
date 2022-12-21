@@ -1,7 +1,5 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { isString } from 'class-validator';
-import { CategoryModule } from 'src/category/category.module';
 import { UserModule } from 'src/user/user.module';
 import request from 'supertest';
 
@@ -45,63 +43,25 @@ describe('User (e2e)', () => {
 
   describe('/user/:username (GET)', () => {
     it('should get user data by username param', () => {
-      const username = userData[1].name;
+      const username = userData[0].name;
+      const expectedData = userData[1];
 
       return request(app.getHttpServer())
         .get(`/user/${username}`)
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys(username[1]),
-          );
+          expect(Object.keys(response.body)).toEqual(Object.keys(expectedData));
         });
     });
 
-    it('should get as many categories as in take query param', () => {
-      const take = 5;
-      return request(app.getHttpServer())
-        .get('/category')
-        .query({ take })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toBeInstanceOf(Array);
-          expect(response.body.length).toEqual(take);
-        });
-    });
-
-    it('should get no categories if take query param zero', () => {
-      const take = 0;
-      return request(app.getHttpServer())
-        .get('/category')
-        .query({ take })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toEqual([]);
-          expect(response.body.length).toEqual(take);
-        });
-    });
-
-    it('should return 400 BAD_REQUEST if query params are wrong', () => {
-      const wrongQueryParams = {
-        take: 'asd',
-        skip: 'asd',
-      };
-
-      const notFoundResponseBody = {
-        error: 'Bad Request',
-        message: [
-          'take must be an integer number',
-          'skip must be an integer number',
-        ],
-        statusCode: 400,
-      };
+    it('should get 404 Not Found if no user found', () => {
+      const username = 'userData[0].name';
 
       return request(app.getHttpServer())
-        .get('/post')
-        .query(wrongQueryParams)
-        .expect(HttpStatus.BAD_REQUEST)
+        .get(`/user/${username}`)
+        .expect(HttpStatus.NOT_FOUND)
         .expect((response: request.Response) => {
-          expect(response.body).toMatchObject(notFoundResponseBody);
+          expect(response.body[0]).toBeUndefined();
         });
     });
   });

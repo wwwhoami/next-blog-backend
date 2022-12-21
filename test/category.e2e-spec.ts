@@ -87,7 +87,7 @@ describe('Category (e2e)', () => {
       };
 
       return request(app.getHttpServer())
-        .get('/post')
+        .get('/category')
         .query(wrongQueryParams)
         .expect(HttpStatus.BAD_REQUEST)
         .expect((response: request.Response) => {
