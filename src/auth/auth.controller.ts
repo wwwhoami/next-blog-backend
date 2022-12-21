@@ -1,8 +1,10 @@
 import {
-  BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
+  InternalServerErrorException,
+  NotFoundException,
   Post,
   Req,
   Res,
@@ -10,12 +12,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
+import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { RefreshTokenGuard } from 'src/common/guards/refresh-token.guard';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { SignedUpUser } from './types/signed-up-user.type';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -30,6 +34,29 @@ export class AuthController {
     @Body() user: CreateUserDto,
     @Res({ passthrough: true }) res: Response,
   ) {
+    let signedUpUser: SignedUpUser | undefined;
+
+    try {
+      signedUpUser = await this.authService.signUp(user);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      )
+        if (error.meta?.target instanceof Array) {
+          if (error.meta.target.includes('name'))
+            throw new ConflictException(
+              `User with provided name already exists`,
+            );
+          else if (error.meta.target.includes('email'))
+            throw new ConflictException(
+              `User with provided email already exists`,
+            );
+        }
+    }
+
+    if (!signedUpUser) throw new InternalServerErrorException();
+
     const {
       email,
       name,
@@ -37,7 +64,7 @@ export class AuthController {
       refreshToken,
       refreshTokenExpiry,
       accessToken,
-    } = await this.authService.signUp(user);
+    } = signedUpUser;
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -57,10 +84,9 @@ export class AuthController {
     const loggedInUser = await this.authService.login(user);
 
     if (!loggedInUser) {
-      if (user.name) throw new BadRequestException('Invalid name or password');
-      if (user.email)
-        throw new BadRequestException('Invalid email or password');
-      return;
+      if (user.name) throw new NotFoundException('Invalid name or password');
+      if (user.email) throw new NotFoundException('Invalid email or password');
+      throw new NotFoundException('Invalid credentials');
     }
 
     const {

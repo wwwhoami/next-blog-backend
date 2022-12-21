@@ -1,9 +1,4 @@
-import {
-  CACHE_MANAGER,
-  InternalServerErrorException,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CACHE_MANAGER, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -137,13 +132,13 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should throw NotFoundException if user with provided credentials does not exist', () => {
+    it('should return undefined if user with provided credentials does not exist', () => {
       const user = authCredentials;
       const retrievedUser = null;
 
       userService.getUser.mockResolvedValue(retrievedUser);
 
-      expect(service.login(user)).rejects.toThrowError(NotFoundException);
+      expect(service.login(user)).resolves.toBeUndefined();
     });
 
     it('should return undefined if password comparison resolves to false', () => {
@@ -183,16 +178,14 @@ describe('AuthService', () => {
   });
 
   describe('signUp', () => {
-    it('should throw InternalServerErrorException if createdUser is undefined', async () => {
+    it('should return undefined if createdUser is undefined', async () => {
       const userToCreate = authCredentials;
       const createdUser = undefined;
 
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToCreate.password);
       userService.createUser.mockResolvedValueOnce(createdUser);
 
-      await expect(service.signUp(userToCreate)).rejects.toThrowError(
-        InternalServerErrorException,
-      );
+      await expect(service.signUp(userToCreate)).resolves.toBeUndefined();
     });
 
     it('should return { id, name, email, image, accessToken, refreshToken, refreshTokenExpiry } if user created', async () => {

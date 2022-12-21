@@ -2,8 +2,6 @@ import {
   CACHE_MANAGER,
   Inject,
   Injectable,
-  InternalServerErrorException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +12,7 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserService } from 'src/user/user.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './types/jwt-payload.type';
+import { SignedUpUser } from './types/signed-up-user.type';
 
 @Injectable()
 export class AuthService {
@@ -24,14 +23,17 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async login({ name, email, password }: AuthCredentialsDto) {
+  async login({
+    name,
+    email,
+    password,
+  }: AuthCredentialsDto): Promise<SignedUpUser | undefined> {
     const user = await this.userService.getUser(
       { name, email },
       { id: true, password: true },
     );
 
-    if (!user)
-      throw new NotFoundException('User with provided credentials not found');
+    if (!user) return;
 
     if (await compare(password, user.password)) {
       const { id, name, email, image } = user;
@@ -55,7 +57,12 @@ export class AuthService {
     this.cacheManager.del(id);
   }
 
-  async signUp({ name, password, email, image }: CreateUserDto) {
+  async signUp({
+    name,
+    password,
+    email,
+    image,
+  }: CreateUserDto): Promise<SignedUpUser | undefined> {
     const salt = await genSalt(10);
     const encryptedPassword = await hash(password, salt);
 
@@ -66,7 +73,7 @@ export class AuthService {
       password: encryptedPassword,
     });
 
-    if (!createdUser) throw new InternalServerErrorException();
+    if (!createdUser) return;
 
     const { refreshToken, refreshTokenExpiry } = await this.createRefreshToken(
       createdUser.id,

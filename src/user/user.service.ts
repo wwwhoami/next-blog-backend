@@ -1,5 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
 import { genSalt, hash } from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { GetUserDto } from './dto/get-user.dto';
@@ -39,26 +38,9 @@ export class UserService {
     const salt = await genSalt(10);
     const encryptedPassword = await hash(user.password, salt);
 
-    try {
-      return await this.userRepository.createUser({
-        ...user,
-        password: encryptedPassword,
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      )
-        if (error.meta?.target instanceof Array) {
-          if (error.meta.target.includes('name'))
-            throw new ConflictException(
-              `User with provided name already exists`,
-            );
-          else if (error.meta.target.includes('email'))
-            throw new ConflictException(
-              `User with provided email already exists`,
-            );
-        }
-    }
+    return this.userRepository.createUser({
+      ...user,
+      password: encryptedPassword,
+    });
   }
 }

@@ -1,4 +1,3 @@
-import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, User } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
@@ -119,54 +118,6 @@ describe('UserService', () => {
         expect.objectContaining({
           password: expect.not.stringMatching(password),
         }),
-      );
-    });
-
-    it('should throw ConflictException if user with provided name exists', async () => {
-      const password = 'password';
-      const userToCreate = { ...userData[0], password };
-      const exception = new Prisma.PrismaClientKnownRequestError(
-        'Error message',
-        {
-          code: 'P2002',
-          clientVersion: '4.7.1',
-          meta: {
-            target: ['name'],
-          },
-        },
-      );
-      const expectedException = new ConflictException(
-        `User with provided name already exists`,
-      );
-
-      repository.createUser.mockRejectedValue(exception);
-
-      await expect(service.createUser(userToCreate)).rejects.toThrowError(
-        expectedException,
-      );
-    });
-
-    it('should throw ConflictException if user with provided email exists', async () => {
-      const password = 'password';
-      const userToCreate = { ...userData[0], password };
-      const exception = new Prisma.PrismaClientKnownRequestError(
-        'Error message',
-        {
-          code: 'P2002',
-          clientVersion: '4.7.1',
-          meta: {
-            target: ['email'],
-          },
-        },
-      );
-      const expectedException = new ConflictException(
-        `User with provided email already exists`,
-      );
-
-      repository.createUser.mockRejectedValue(exception);
-
-      await expect(service.createUser(userToCreate)).rejects.toThrowError(
-        expectedException,
       );
     });
   });
