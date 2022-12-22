@@ -107,10 +107,10 @@ async function main() {
     .then(async () => {
       console.log('Seeding posts 📝');
       console.time(timeTakenPosts);
-      const createdPosts = seedPosts(randPostData);
-      const createdMockPosts = seedMockPosts(postData);
 
-      await Promise.all([createdPosts, createdMockPosts]);
+      await seedPosts(randPostData).then(() => {
+        seedMockPosts(postData);
+      });
     })
     .then(() => {
       console.timeEnd(timeTakenPosts);
