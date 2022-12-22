@@ -41,7 +41,7 @@ export async function generateCategories(count: number) {
   while (count > 0) {
     categoryData.push({
       name: faker.helpers.unique(() =>
-        faker.lorem.word({ length: { min: 3, max: 7 } }),
+        faker.lorem.word({ length: { min: 3, max: 10 } }),
       ),
       description: faker.lorem.sentence(),
       hexColor: faker.helpers.unique(() => faker.color.rgb({ format: 'hex' })),

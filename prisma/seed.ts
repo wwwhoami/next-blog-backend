@@ -46,10 +46,10 @@ async function seedPostToCategory(
 }
 
 async function main() {
-  const handmadeData = 1;
-  const userDataCount = 100;
-  const postDataCount = 100000;
-  const categoryDataCount = 20;
+  const handmadeData = parseInt(process.env.HANDMADE_DATA || '') || 1;
+  const userDataCount = parseInt(process.env.USER_COUNT || '') || 100;
+  const postDataCount = parseInt(process.env.POST_COUNT || '') || 1000;
+  const categoryDataCount = parseInt(process.env.CATEGORY_COUNT || '') || 20;
 
   const timeTakenToGenerate = 'Data generated in';
   const timeTakenToGetMocks = 'Data mocks read in';
