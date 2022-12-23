@@ -1,6 +1,7 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PostModule } from 'src/post/post.module';
+import cookieParser from 'cookie-parser';
+import { AppModule } from 'src/app.module';
 import request from 'supertest';
 
 const postsWithNoContent = [
@@ -106,17 +107,19 @@ describe('Post (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [PostModule],
+      imports: [AppModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
+
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.use(cookieParser());
 
     await app.init();
   });
 
   describe('/post (GET)', () => {
-    it('should get 10 posts as array of PostEntity in response body by default', () => {
+    it('should get posts as array of PostEntity in response body by default', () => {
       return request(app.getHttpServer())
         .get('/post')
         .expect(HttpStatus.OK)
@@ -125,7 +128,6 @@ describe('Post (e2e)', () => {
           expect(Object.keys(response.body[0])).toEqual(
             Object.keys(postsWithNoContent[0]),
           );
-          expect(response.body.length).toEqual(10);
         });
     });
 

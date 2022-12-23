@@ -1,6 +1,7 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { UserModule } from 'src/user/user.module';
+import cookieParser from 'cookie-parser';
+import { AppModule } from 'src/app.module';
 import request from 'supertest';
 
 export const userData = [
@@ -32,11 +33,13 @@ describe('User (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [UserModule],
+      imports: [AppModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
+
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.use(cookieParser());
 
     await app.init();
   });

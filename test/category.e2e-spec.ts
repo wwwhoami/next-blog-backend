@@ -1,7 +1,8 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { isString } from 'class-validator';
-import { CategoryModule } from 'src/category/category.module';
+import cookieParser from 'cookie-parser';
+import { AppModule } from 'src/app.module';
 import { CategoryEntity } from 'src/category/entities/category.entity';
 import request from 'supertest';
 
@@ -25,11 +26,13 @@ describe('Category (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [CategoryModule],
+      imports: [AppModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
+
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.use(cookieParser());
 
     await app.init();
   });
