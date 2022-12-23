@@ -4,6 +4,8 @@
     "json",
     "ts"
   ],
+  "globalSetup": "<rootDir>/test/setup.ts",
+  "globalTeardown": "<rootDir>/test/teardown.ts",
   "rootDir": "..",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
@@ -11,6 +13,8 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/src/$1"
+    "^src/(.*)$": "<rootDir>/src/$1",
+    "^data/(.*)$": "<rootDir>/data/$1",
+    "^prisma/(.*)$": "<rootDir>/prisma/$1"
   }
 }
