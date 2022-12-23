@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import {
   generateCategories,
   generatePosts,
@@ -8,44 +8,13 @@ import {
 } from 'data/data-gen';
 import { getMockPostData } from 'data/post';
 import { categoryData, userData } from 'data/seed-data';
+import { PrismaSeeder } from './seeders';
 
 const prisma = new PrismaClient();
 
-async function seedUsers(users: Prisma.UserCreateWithoutPostsInput[]) {
-  await prisma.user.createMany({
-    data: users,
-  });
-}
-
-async function seedCategories(categories: Prisma.CategoryCreateInput[]) {
-  await prisma.category.createMany({
-    data: categories,
-  });
-}
-
-async function seedMockPosts(posts: Prisma.PostCreateInput[]) {
-  for (const p of posts) {
-    await prisma.post.create({
-      data: p,
-    });
-  }
-}
-
-async function seedPosts(posts: Prisma.PostCreateManyInput[]) {
-  await prisma.post.createMany({
-    data: posts,
-  });
-}
-
-async function seedPostToCategory(
-  postToCategory: Prisma.PostToCategoryCreateManyInput[],
-) {
-  await prisma.postToCategory.createMany({
-    data: postToCategory,
-  });
-}
-
 async function main() {
+  const prismaSeeder = new PrismaSeeder(prisma);
+
   const handmadeData = parseInt(process.env.HANDMADE_DATA || '') || 1;
   const userDataCount = parseInt(process.env.USER_COUNT || '') || 100;
   const postDataCount = parseInt(process.env.POST_COUNT || '') || 1000;
@@ -91,14 +60,14 @@ async function main() {
 
   console.log('Seeding users 🤓');
   console.time(timeTakenUsers);
-  const createdUsers = seedUsers(randUserData);
+  const createdUsers = prismaSeeder.seedUsers(randUserData);
   createdUsers.then(() => {
     console.timeEnd(timeTakenUsers);
   });
 
   console.log('Seeding categories 🏷️');
   console.time(timeTakenCategories);
-  const createdCategories = seedCategories(randCategoryData);
+  const createdCategories = prismaSeeder.seedCategories(randCategoryData);
   createdCategories.then(() => {
     console.timeEnd(timeTakenCategories);
   });
@@ -108,8 +77,8 @@ async function main() {
       console.log('Seeding posts 📝');
       console.time(timeTakenPosts);
 
-      await seedPosts(randPostData).then(() => {
-        seedMockPosts(postData);
+      await prismaSeeder.seedPosts(randPostData).then(() => {
+        prismaSeeder.seedMockPosts(postData);
       });
     })
     .then(() => {
@@ -123,7 +92,7 @@ async function main() {
     console.log('Linking posts with categories 🔗');
 
     console.time(timeTakenPostToCategory);
-    seedPostToCategory(randPostToCategoryData);
+    prismaSeeder.seedPostToCategory(randPostToCategoryData);
   });
 
   createdPostToCategory.then(() => {
