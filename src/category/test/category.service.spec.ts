@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { mock, MockProxy } from 'jest-mock-extended';
 import { CategoryRepository } from '../category.repository';
 import { CategoryService } from '../category.service';
+import { CreateCategoriesDto } from '../dto/create-category.dto';
 
 describe('CategoryService', () => {
   let service: CategoryService;
@@ -67,6 +68,29 @@ describe('CategoryService', () => {
 
       expect(service.getCategoryCombinations({ searchTerm })).resolves.toEqual(
         payload,
+      );
+    });
+  });
+
+  describe('createCategory', () => {
+    const categoriesToCreate: CreateCategoriesDto = {
+      categories: [
+        { name: 'category1', description: 'description' },
+        { name: 'category2', description: 'description' },
+        { name: 'category3', description: 'description' },
+        { name: 'category4', description: 'description' },
+      ],
+    };
+
+    it('should create one or many categories', () => {
+      const expected = {
+        count: categoriesToCreate.categories.length,
+      };
+
+      categoryRepository.createCategory.mockResolvedValue(expected);
+
+      expect(service.createCategory(categoriesToCreate)).resolves.toEqual(
+        expected,
       );
     });
   });
