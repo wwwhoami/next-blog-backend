@@ -1,9 +1,10 @@
-import { TestingModule, Test } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Category, Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mock, mockDeep, MockProxy } from 'jest-mock-extended';
 import { PostService } from 'src/post/post.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CategoryRepository } from '../category.repository';
+import { CreateCategoriesDto } from '../dto/create-category.dto';
 
 describe('CategoryRepository', () => {
   let repository: CategoryRepository;
@@ -131,6 +132,29 @@ describe('CategoryRepository', () => {
       expect(
         repository.getCategoryCombinationsForSearchTerm(searchTerm),
       ).resolves.toEqual(expected);
+    });
+  });
+
+  describe('createCategory', () => {
+    const categoriesToCreate: CreateCategoriesDto = {
+      categories: [
+        { name: 'category1', description: 'description' },
+        { name: 'category2', description: 'description' },
+        { name: 'category3', description: 'description' },
+        { name: 'category4', description: 'description' },
+      ],
+    };
+
+    it('should create one or many categories', () => {
+      const expected = {
+        count: categoriesToCreate.categories.length,
+      };
+
+      prisma.category.createMany.mockResolvedValue(expected);
+
+      expect(repository.createCategory(categoriesToCreate)).resolves.toEqual(
+        expected,
+      );
     });
   });
 });
