@@ -195,6 +195,46 @@ describe('PostRepository', () => {
     });
   });
 
+  describe('createPost', () => {
+    const postToCreate = {
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      slug: 'architecto-iustos-nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+
+    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
+
+    const postsCategoryNames = ['CSS', 'JavaScript'];
+
+    it('should create new post with postData, authorId, categoryNames provided', async () => {
+      prisma.post.create.mockResolvedValue({
+        ...postToCreate,
+        id: 12312,
+        authorId,
+        updatedAt: new Date(),
+      });
+
+      const createdPost = await repository.createPost(
+        postToCreate,
+        authorId,
+        postsCategoryNames,
+      );
+
+      expect(createdPost).toMatchObject({
+        ...postToCreate,
+        id: expect.any(Number),
+        authorId: expect.any(String),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+
   describe('deletePostBySlug', () => {
     it('should delete post by slug', async () => {
       prisma.post.delete.mockResolvedValue(onePost);

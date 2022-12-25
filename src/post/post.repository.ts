@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CreatePostDto } from './dto/create-post.dto';
 import {
   GetPostDto,
   GetPostsByCategoriesDto,
@@ -291,6 +292,30 @@ export class PostRepository {
       select: {
         ...selectPostWithAuthorCategories,
         content: false,
+      },
+    });
+  }
+
+  async createPost(
+    postData: CreatePostDto,
+    authorId: string,
+    categoryNames: string[],
+  ) {
+    return this.prisma.post.create({
+      data: {
+        ...postData,
+        authorId,
+        categories: {
+          createMany: {
+            data: categoryNames.map((categoryName) => ({
+              categoryName,
+            })),
+          },
+        },
+      },
+      select: {
+        ...selectPostWithAuthorCategories,
+        content: true,
       },
     });
   }
