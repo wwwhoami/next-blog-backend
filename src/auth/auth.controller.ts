@@ -5,7 +5,6 @@ import {
   Get,
   InternalServerErrorException,
   Post,
-  Req,
   Res,
   UnauthorizedException,
   UseGuards,
@@ -13,12 +12,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { RefreshTokenGuard } from 'src/common/guards/refresh-token.guard';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { AuthService } from './auth.service';
+import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
+import { GetUser } from './decorators/get-user.decorator';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { JwtPayload } from './types/jwt-payload.type';
 import { SignedUpUser } from './types/signed-up-user.type';
 
 @Controller('auth')
@@ -112,10 +114,11 @@ export class AuthController {
 
   @UseGuards(AccessTokenGuard)
   @Get('logout')
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const userId: string = req.user.id;
-
-    await this.authService.logout(userId);
+  async logout(
+    @GetUser('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.logout(id);
 
     res.clearCookie('refreshToken');
   }
@@ -123,11 +126,11 @@ export class AuthController {
   @UseGuards(RefreshTokenGuard)
   @Get('/refresh')
   async refreshTokens(
-    @Req() req: Request,
+    @GetRefreshToken() jwt: JwtPayload,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { refreshToken, accessToken, refreshTokenExpiry } =
-      await this.authService.refreshTokens(req.user);
+      await this.authService.refreshTokens(jwt);
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
