@@ -28,6 +28,6 @@ export class RefreshTokenStrategy extends PassportStrategy(
   }
 
   async validate(payload: JwtPayload) {
-    return { ...payload };
+    return payload;
   }
 }
