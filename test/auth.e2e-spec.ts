@@ -35,7 +35,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/sign-up (POST)', () => {
-    it('should sign up new user, set refreshToken cookie, return userData with access token', async () => {
+    it('should sign up new user, set refreshToken cookie, return userData with access token', () => {
       return request(app.getHttpServer())
         .post('/auth/sign-up')
         .send(newUser)
@@ -50,7 +50,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 409 if user with provided email exists already', async () => {
+    it('should return 409 if user with provided email exists already', () => {
       const ConflictExceptionResponse = {
         error: 'Conflict',
         message: 'User with provided email already exists',
@@ -66,7 +66,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 409 if user with provided name exists already', async () => {
+    it('should return 409 if user with provided name exists already', () => {
       const ConflictExceptionResponse = {
         error: 'Conflict',
         message: 'User with provided name already exists',
@@ -132,7 +132,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/login (POST)', () => {
-    it('should login user if exists, set refreshToken cookie, return userData with access token', async () => {
+    it('should login user if exists, set refreshToken cookie, return userData with access token', () => {
       return request(app.getHttpServer())
         .post(`/auth/login`)
         .send(authCredentials)
@@ -148,7 +148,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 401 if user with provided name not exists', async () => {
+    it('should return 401 if user with provided name not exists', () => {
       const invalidNameOrPassword = {
         error: 'Unauthorized',
         message: 'Invalid name or password',
@@ -164,7 +164,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 401 if user with provided email not exists', async () => {
+    it('should return 401 if user with provided email not exists', () => {
       const invalidEmailOrPassword = {
         error: 'Unauthorized',
         message: 'Invalid email or password',
@@ -221,7 +221,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 401 if has no access token in bearer auth header', async () => {
+    it('should return 401 if has no access token in bearer auth header', () => {
       const accessToken = '';
 
       return request(app.getHttpServer())
@@ -232,7 +232,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/refresh (GET)', () => {
-    it('should logout user if has access token in bearer auth header', async () => {
+    it('should logout user if has access token in bearer auth header', () => {
       const agent = request.agent(app.getHttpServer());
 
       return agent
@@ -264,7 +264,7 @@ describe('Auth (e2e)', () => {
         });
     });
 
-    it('should return 401 if has no access token in bearer auth header', async () => {
+    it('should return 401 if has no access token in bearer auth header', () => {
       return request(app.getHttpServer())
         .get(`/auth/refresh`)
         .expect(HttpStatus.UNAUTHORIZED);
