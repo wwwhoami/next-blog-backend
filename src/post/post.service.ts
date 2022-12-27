@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { PostEntity } from './entities/post.entity';
 import { PostRepository } from './post.repository';
@@ -56,6 +57,10 @@ export class PostService {
 
   async publishPostBySlug(slug: string): Promise<PostEntity> {
     return this.postRepository.publishPostBySlug(slug);
+  }
+
+  async createPost(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+    return this.postRepository.createPost(post, authorId);
   }
 
   async deletePostBySlug(slug: string): Promise<PostEntity> {

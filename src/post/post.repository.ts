@@ -68,7 +68,7 @@ export class PostRepository {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
-  }: GetPostDto) {
+  }: GetPostDto): Promise<PostEntity[]> {
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
@@ -296,21 +296,22 @@ export class PostRepository {
     });
   }
 
-  async createPost(
-    postData: CreatePostDto,
-    authorId: string,
-    categoryNames: string[],
-  ) {
+  async createPost(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+    const { post: postData, categories } = post;
+
     return this.prisma.post.create({
       data: {
         ...postData,
         authorId,
         categories: {
-          createMany: {
-            data: categoryNames.map((categoryName) => ({
-              categoryName,
-            })),
-          },
+          create: categories?.map((category) => ({
+            category: {
+              connectOrCreate: {
+                where: { name: category.name },
+                create: category,
+              },
+            },
+          })),
         },
       },
       select: {

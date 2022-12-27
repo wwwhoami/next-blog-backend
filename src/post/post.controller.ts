@@ -1,11 +1,17 @@
 import {
+  Body,
   Controller,
   Get,
   NotFoundException,
   Param,
+  Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
+import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
+import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
 import { PostService } from './post.service';
@@ -34,5 +40,15 @@ export class PostController {
   @Get('slug')
   getPublishedPostsSlugs(): Promise<Slug[]> {
     return this.postService.getPublishedPostsSlugs();
+  }
+
+  @ApiBody({ type: CreatePostDto })
+  @UseGuards(AccessTokenGuard)
+  @Post()
+  async createPost(
+    @GetUser('id') userId: string,
+    @Body() post: CreatePostDto,
+  ): Promise<PostEntity> {
+    return this.postService.createPost(post, userId);
   }
 }
