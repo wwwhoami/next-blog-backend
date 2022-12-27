@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -42,7 +42,6 @@ export class PostController {
     return this.postService.getPublishedPostsSlugs();
   }
 
-  @ApiBody({ type: CreatePostDto })
   @UseGuards(AccessTokenGuard)
   @Post()
   async createPost(
