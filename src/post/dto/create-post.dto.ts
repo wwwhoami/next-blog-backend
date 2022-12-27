@@ -1,9 +1,41 @@
-export class CreatePostDto {
-  createdAt: Date;
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsDefined,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
+
+export class CreatePostData {
+  @IsString()
   title: string;
+
+  @IsString()
   slug: string;
+
+  @IsString()
   excerpt: string;
+
+  @IsString()
   content: string;
+
+  @IsBoolean()
   published: boolean;
+
+  @IsString()
   coverImage: string;
+}
+
+export class CreatePostDto {
+  @IsDefined()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePostData)
+  post: CreatePostData;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCategoryDto)
+  categories?: CreateCategoryDto[];
 }
