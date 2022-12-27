@@ -208,6 +208,48 @@ describe('PostService', () => {
     });
   });
 
+  describe('createPost', () => {
+    const postData = {
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      slug: 'architecto-iustos-nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+    const postToCreate = { post: postData };
+
+    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
+    const authorData = {
+      name: 'author name',
+      image: 'author image',
+    };
+
+    it('should create new post with postData, authorId provided', async () => {
+      postRepository.createPost.mockResolvedValue({
+        ...postToCreate.post,
+        id: 12312,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      const createdPost = await postRepository.createPost(
+        postToCreate,
+        authorId,
+      );
+
+      expect(createdPost).toMatchObject({
+        ...postToCreate.post,
+        id: expect.any(Number),
+        author: expect.objectContaining(authorData),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+
   describe('publishPostBySlug', () => {
     it('should publish post by slug', async () => {
       postRepository.publishPostBySlug.mockResolvedValue(onePost);

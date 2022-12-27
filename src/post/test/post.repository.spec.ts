@@ -196,7 +196,7 @@ describe('PostRepository', () => {
   });
 
   describe('createPost', () => {
-    const postToCreate = {
+    const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
       slug: 'architecto-iustos-nesciunt.',
@@ -207,27 +207,22 @@ describe('PostRepository', () => {
       published: true,
       content: 'content',
     };
+    const postToCreate = { post: postData };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
-    const postsCategoryNames = ['CSS', 'JavaScript'];
-
-    it('should create new post with postData, authorId, categoryNames provided', async () => {
+    it('should create new post with postData, authorId provided', async () => {
       prisma.post.create.mockResolvedValue({
-        ...postToCreate,
+        ...postToCreate.post,
         id: 12312,
         authorId,
         updatedAt: new Date(),
       });
 
-      const createdPost = await repository.createPost(
-        postToCreate,
-        authorId,
-        postsCategoryNames,
-      );
+      const createdPost = await repository.createPost(postToCreate, authorId);
 
       expect(createdPost).toMatchObject({
-        ...postToCreate,
+        ...postToCreate.post,
         id: expect.any(Number),
         authorId: expect.any(String),
         updatedAt: expect.any(Date),
