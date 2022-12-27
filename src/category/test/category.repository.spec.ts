@@ -1,14 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Category, Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mock, mockDeep, MockProxy } from 'jest-mock-extended';
-import { PostService } from 'src/post/post.service';
+import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CategoryRepository } from '../category.repository';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
 
 describe('CategoryRepository', () => {
   let repository: CategoryRepository;
-  let postService: MockProxy<PostService>;
+  let postRepository: MockProxy<PostRepository>;
   let prisma: DeepMockProxy<PrismaService>;
 
   beforeEach(async () => {
@@ -16,8 +16,8 @@ describe('CategoryRepository', () => {
       providers: [
         CategoryRepository,
         {
-          provide: PostService,
-          useValue: mock<PostService>(),
+          provide: PostRepository,
+          useValue: mock<PostRepository>(),
         },
         {
           provide: PrismaService,
@@ -27,7 +27,7 @@ describe('CategoryRepository', () => {
     }).compile();
 
     repository = module.get<CategoryRepository>(CategoryRepository);
-    postService = module.get(PostService);
+    postRepository = module.get(PostRepository);
     prisma = module.get(PrismaService);
   });
 
@@ -81,7 +81,7 @@ describe('CategoryRepository', () => {
 
   describe('getCategoryCombinationsForSearchTerm', () => {
     it('should get category combinations if postIds found for searchTerm', () => {
-      const postServicePayload = [
+      const PostRepositoryPayload = [
         { id: 1 },
         { id: 2 },
         { id: 12 },
@@ -108,7 +108,7 @@ describe('CategoryRepository', () => {
         ['cumque', 'maxime'],
       ];
 
-      postService.getPostIds.mockResolvedValue(postServicePayload);
+      postRepository.findPostIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(
@@ -117,7 +117,7 @@ describe('CategoryRepository', () => {
     });
 
     it('should get empty array if no postIds found for searchTerm', () => {
-      const postServicePayload = [] as unknown as Prisma.Prisma__PostClient<
+      const PostRepositoryPayload = [] as unknown as Prisma.Prisma__PostClient<
         Array<Post>
       >;
       const prismaPayload = [] as unknown as Prisma.Prisma__CategoryClient<
@@ -126,7 +126,7 @@ describe('CategoryRepository', () => {
       const searchTerm = 'test';
       const expected: any[] = [];
 
-      postService.getPostIds.mockResolvedValue(postServicePayload);
+      postRepository.findPostIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(

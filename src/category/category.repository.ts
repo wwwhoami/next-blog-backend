@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PostService } from 'src/post/post.service';
+import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoriesDto } from './dto/create-category.dto';
 import { GetCategoryDto } from './dto/get-category-dto';
@@ -10,7 +10,7 @@ import { CategoryEntity } from './entities/category.entity';
 export class CategoryRepository {
   constructor(
     private prisma: PrismaService,
-    private postService: PostService,
+    private postRepository: PostRepository,
   ) {}
 
   getCategories({
@@ -54,7 +54,7 @@ export class CategoryRepository {
   async getCategoryCombinationsForSearchTerm(
     searchTerm: string,
   ): Promise<string[][]> {
-    const postIds = (await this.postService.getPostIds({ searchTerm })).map(
+    const postIds = (await this.postRepository.findPostIds({ searchTerm })).map(
       (post) => post.id,
     );
 
@@ -87,6 +87,7 @@ export class CategoryRepository {
   createCategory(category: CreateCategoriesDto) {
     return this.prisma.category.createMany({
       data: category.categories,
+      skipDuplicates: true,
     });
   }
 }
