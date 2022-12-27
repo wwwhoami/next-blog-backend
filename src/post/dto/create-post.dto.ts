@@ -4,6 +4,7 @@ import {
   IsDefined,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateNested,
 } from 'class-validator';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
@@ -24,7 +25,7 @@ export class CreatePostData {
   @IsBoolean()
   published: boolean;
 
-  @IsString()
+  @IsUrl()
   coverImage: string;
 }
 
