@@ -2,6 +2,8 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { AppModule } from 'src/app.module';
+import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
+import { CreatePostData } from 'src/post/dto/create-post.dto';
 import request from 'supertest';
 
 const postsWithNoContent = [
@@ -99,6 +101,44 @@ const postsWithNoContent = [
         },
       },
     ],
+  },
+];
+
+const authCredentials = {
+  name: 'Alice Johnson',
+  email: 'alice@prisma.io',
+  password: 'password',
+};
+
+const author = {
+  image: 'https://randomuser.me/api/portraits/women/12.jpg',
+  name: 'Alice Johnson',
+};
+
+const newPost: CreatePostData = {
+  title: 'Architectom iustoa nesciunts.',
+  slug: 'architectom-iustoa-nesciunts.',
+  excerpt:
+    'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+  content: 'Content',
+  published: true,
+  coverImage: 'http://loremflickr.com/1200/480/business',
+};
+
+const categoriesForNewPost: CreateCategoryDto[] = [
+  {
+    name: 'name',
+    description: 'description',
+  },
+  {
+    name: 'JavaScript',
+    description: 'description',
+    hexColor: '#ca8a04',
+  },
+  {
+    name: 'PHP',
+    description: 'description',
+    hexColor: '#9333ea',
   },
 ];
 
@@ -264,6 +304,62 @@ describe('Post (e2e)', () => {
             Object.keys({ slug: 'slug' }),
           );
         });
+    });
+  });
+
+  describe('/post (POST)', () => {
+    it('should create new post if user is logged in', async () => {
+      const agent = request.agent(app.getHttpServer());
+      let accessToken: string;
+
+      await agent
+        .post(`/auth/login`)
+        .send(authCredentials)
+        .expect((response: request.Response) => {
+          accessToken = response.body.accessToken;
+        })
+        .then(() => {
+          return agent
+            .post(`/post`)
+            .auth(accessToken, { type: 'bearer' })
+            .send({ post: newPost, categories: categoriesForNewPost })
+            .expect(HttpStatus.CREATED)
+            .expect((response: request.Response) => {
+              expect(response.body).toMatchObject({
+                title: newPost.title,
+                slug: newPost.slug,
+                excerpt: newPost.excerpt,
+                content: newPost.content,
+                coverImage: newPost.coverImage,
+                author: expect.objectContaining(author),
+              });
+            });
+        });
+    });
+
+    it('should return 400 if bad body provided', async () => {
+      const agent = request.agent(app.getHttpServer());
+      let accessToken: string;
+
+      await agent
+        .post(`/auth/login`)
+        .send(authCredentials)
+        .expect((response: request.Response) => {
+          accessToken = response.body.accessToken;
+        })
+        .then(() => {
+          return agent
+            .post(`/post`)
+            .auth(accessToken, { type: 'bearer' })
+            .send({ post: { name: 'name' } })
+            .expect(HttpStatus.BAD_REQUEST);
+        });
+    });
+
+    it('should return 401 if user is not logged in', async () => {
+      return request(app.getHttpServer())
+        .post(`/post`)
+        .expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
