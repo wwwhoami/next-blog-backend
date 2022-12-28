@@ -4,8 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity } from './entities/post.entity';
 import { PostRepository } from './post.repository';
 
@@ -61,6 +63,18 @@ export class PostService {
 
   async createPost(post: CreatePostDto, authorId: string): Promise<PostEntity> {
     return this.postRepository.createPost(post, authorId);
+  }
+
+  async updatePost(post: UpdatePostDto, userId: string): Promise<PostEntity> {
+    const { authorId } = await this.postRepository.getPostAuthorById(
+      post.post.id,
+    );
+    const isAuthor = userId === authorId;
+
+    if (!isAuthor)
+      throw new UnauthorizedError('User is not author of the post');
+
+    return this.postRepository.updatePost(post);
   }
 
   async deletePostBySlug(slug: string): Promise<PostEntity> {

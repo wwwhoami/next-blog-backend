@@ -5,6 +5,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
 
@@ -243,6 +244,92 @@ describe('PostService', () => {
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
+        id: expect.any(Number),
+        author: expect.objectContaining(authorData),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+  describe('updatePost', () => {
+    const postData = {
+      id: 12312,
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+    const postToUpdate = { post: postData };
+    const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+    const authorData = {
+      name: 'author name',
+      image: 'author image',
+    };
+
+    it("should update post with postData provided if userId equals to post's authorId", async () => {
+      const userId = authorId;
+      const updatedPostReturn = {
+        ...postData,
+        slug: 'architecto-iustos-nesciunt.',
+      };
+
+      postRepository.updatePost.mockResolvedValue({
+        ...updatedPostReturn,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+
+      const updatedPost = await service.updatePost(postToUpdate, userId);
+
+      expect(updatedPost).toMatchObject({
+        ...updatedPostReturn,
+        id: expect.any(Number),
+        author: expect.objectContaining(authorData),
+        updatedAt: expect.any(Date),
+      });
+    });
+
+    it("should update post with postData provided if userId equals to post's authorId", async () => {
+      const userId = 'not author id';
+      const updatedPostReturn = {
+        ...postData,
+        slug: 'architecto-iustos-nesciunt.',
+      };
+
+      postRepository.updatePost.mockResolvedValue({
+        ...updatedPostReturn,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+
+      const updatePost = service.updatePost(postToUpdate, userId);
+
+      await expect(updatePost).rejects.toThrowError(UnauthorizedError);
+    });
+
+    it('should update post with postData provided', async () => {
+      const updatedPostReturn = {
+        ...postData,
+        slug: 'architecto-iustos-nesciunt.',
+      };
+
+      postRepository.updatePost.mockResolvedValue({
+        ...updatedPostReturn,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      const updatedPost = await postRepository.updatePost(postToUpdate);
+
+      expect(updatedPost).toMatchObject({
+        ...updatedPostReturn,
         id: expect.any(Number),
         author: expect.objectContaining(authorData),
         updatedAt: expect.any(Date),
