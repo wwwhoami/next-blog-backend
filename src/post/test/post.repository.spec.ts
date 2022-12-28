@@ -185,6 +185,21 @@ describe('PostRepository', () => {
     });
   });
 
+  describe('getPostAuthorById', () => {
+    it("should get post's author by post id", async () => {
+      const expectedAuthor = {
+        authorId: 'afe39927-eb6b-4e73-8d06-239fe6b14eb4',
+      } as unknown as Prisma.Prisma__PostClient<Post>;
+      const postId = 12;
+
+      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+
+      const author = await repository.getPostAuthorById(postId);
+
+      expect(author).toEqual(expectedAuthor);
+    });
+  });
+
   describe('publishPostBySlug', () => {
     it('should publish post by slug', async () => {
       prisma.post.update.mockResolvedValue(onePost);
@@ -223,6 +238,42 @@ describe('PostRepository', () => {
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
+        id: expect.any(Number),
+        authorId: expect.any(String),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+
+  describe('updatePost', () => {
+    const postData = {
+      id: 12312,
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      slug: 'architecto-iustos-nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+    const postToUpdate = { post: postData };
+
+    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
+
+    it('should update post with postData provided', async () => {
+      prisma.post.update.mockResolvedValue({
+        ...postToUpdate.post,
+        id: 12312,
+        authorId,
+        updatedAt: new Date(),
+      });
+
+      const updatedPost = await repository.updatePost(postToUpdate);
+
+      expect(updatedPost).toMatchObject({
+        ...postToUpdate.post,
         id: expect.any(Number),
         authorId: expect.any(String),
         updatedAt: expect.any(Date),

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import slugify from 'slugify';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import {
@@ -8,6 +9,7 @@ import {
   SearchPostDto,
   SearchPostsByCategoriesDto,
 } from './dto/get-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
@@ -281,6 +283,17 @@ export class PostRepository {
     });
   }
 
+  async getPostAuthorById(id: number): Promise<{ authorId: string }> {
+    return this.prisma.post.findUniqueOrThrow({
+      select: {
+        authorId: true,
+      },
+      where: {
+        id,
+      },
+    });
+  }
+
   async publishPostBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
       where: {
@@ -309,6 +322,52 @@ export class PostRepository {
               connectOrCreate: {
                 where: { name: category.name },
                 create: category,
+              },
+            },
+          })),
+        },
+      },
+      select: {
+        ...selectPostWithAuthorCategories,
+        content: true,
+      },
+    });
+  }
+
+  async updatePost(post: UpdatePostDto): Promise<PostEntity> {
+    const { post: postData, categories } = post;
+
+    const slug = postData.title ? slugify(postData.title) : undefined;
+    const updatedAt = new Date().toISOString();
+
+    return this.prisma.post.update({
+      where: {
+        id: postData.id,
+      },
+      data: {
+        ...postData,
+        slug,
+        updatedAt,
+        categories: {
+          deleteMany: {
+            categoryName: {
+              notIn: categories?.map((category) => category.name),
+            },
+          },
+          upsert: categories?.map((category) => ({
+            where: {
+              postId_categoryName: {
+                postId: postData.id,
+                categoryName: category.name,
+              },
+            },
+            update: {},
+            create: {
+              category: {
+                connectOrCreate: {
+                  where: { name: category.name },
+                  create: category,
+                },
               },
             },
           })),
