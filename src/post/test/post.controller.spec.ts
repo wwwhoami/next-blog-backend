@@ -1,7 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { PostController } from '../post.controller';
 import { PostService } from '../post.service';
 
@@ -147,6 +148,80 @@ describe('PostController', () => {
       await expect(getPublishedPostBySlug).rejects.toThrowError(
         NotFoundException,
       );
+    });
+  });
+
+  describe('updatePost', () => {
+    const postData = {
+      id: 12312,
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+    const postToUpdate = { post: postData };
+    const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+
+    const authorData = {
+      name: 'author name',
+      image: 'author image',
+    };
+
+    it('should update post with postData provided', async () => {
+      const updatedPostReturn = {
+        ...postData,
+        slug: 'architecto-iustos-nesciunt.',
+      };
+
+      postService.updatePost.mockResolvedValue({
+        ...updatedPostReturn,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      const updatedPost = await controller.updatePost(userId, postToUpdate);
+
+      expect(updatedPost).toMatchObject({
+        ...updatedPostReturn,
+        id: expect.any(Number),
+        author: expect.objectContaining(authorData),
+        updatedAt: expect.any(Date),
+      });
+    });
+
+    it('should throw UnauthorizedException if requesting user is not author', async () => {
+      const exception = new UnauthorizedError(
+        `Post with id ${postToUpdate.post.id} not found`,
+      );
+
+      postService.updatePost.mockRejectedValue(exception);
+
+      const updatePost = controller.updatePost(userId, postToUpdate);
+
+      await expect(updatePost).rejects.toThrowError(UnauthorizedException);
+    });
+
+    it('should throw NotFoundException if no post exists', async () => {
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+      const expectedException = new NotFoundException(
+        `Post with id ${postToUpdate.post.id} not found`,
+      );
+
+      postService.updatePost.mockRejectedValue(exception);
+
+      const updatePost = controller.updatePost(userId, postToUpdate);
+
+      await expect(updatePost).rejects.toThrowError(expectedException);
     });
   });
 });
