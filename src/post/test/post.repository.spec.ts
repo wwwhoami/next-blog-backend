@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import slugify from 'slugify';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PostRepository } from '../post.repository';
 
@@ -214,7 +215,6 @@ describe('PostRepository', () => {
     const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
-      slug: 'architecto-iustos-nesciunt.',
       excerpt:
         'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
       viewCount: 0,
@@ -222,7 +222,9 @@ describe('PostRepository', () => {
       published: true,
       content: 'content',
     };
-    const postToCreate = { post: postData };
+    const postToCreate = {
+      post: { ...postData, slug: slugify(postData.title) },
+    };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 

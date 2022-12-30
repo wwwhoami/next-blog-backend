@@ -222,7 +222,6 @@ describe('Post (e2e)', () => {
       };
       const newPost: CreatePostData = {
         title: 'Architectom iustoa nesciunts.',
-        slug: 'architectom-iustoa-nesciunts.',
         excerpt:
           'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
         content: 'Content',
@@ -254,7 +253,6 @@ describe('Post (e2e)', () => {
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
             title: newPost.title,
-            slug: newPost.slug,
             excerpt: newPost.excerpt,
             content: newPost.content,
             coverImage: newPost.coverImage,

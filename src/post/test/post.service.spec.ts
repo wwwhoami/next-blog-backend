@@ -5,6 +5,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
+import slugify from 'slugify';
 import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
@@ -213,7 +214,6 @@ describe('PostService', () => {
     const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
-      slug: 'architecto-iustos-nesciunt.',
       excerpt:
         'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
       viewCount: 0,
@@ -221,7 +221,9 @@ describe('PostService', () => {
       published: true,
       content: 'content',
     };
-    const postToCreate = { post: postData };
+    const postToCreate = {
+      post: { ...postData, slug: slugify(postData.title) },
+    };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
     const authorData = {

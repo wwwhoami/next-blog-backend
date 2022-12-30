@@ -14,9 +14,6 @@ export class CreatePostData {
   title: string;
 
   @IsString()
-  slug: string;
-
-  @IsString()
   excerpt: string;
 
   @IsString()
