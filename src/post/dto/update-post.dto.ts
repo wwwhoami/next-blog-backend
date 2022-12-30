@@ -14,25 +14,20 @@ export class UpdatePostData {
   @IsNumber()
   id: number;
 
-  @IsOptional()
   @IsString()
-  title?: string;
+  title: string;
 
-  @IsOptional()
   @IsString()
-  excerpt?: string;
+  excerpt: string;
 
-  @IsOptional()
   @IsString()
-  content?: string;
+  content: string;
 
-  @IsOptional()
   @IsBoolean()
-  published?: boolean;
+  published: boolean;
 
-  @IsOptional()
   @IsUrl()
-  coverImage?: string;
+  coverImage: string;
 }
 
 export class UpdatePostDto {
