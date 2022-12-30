@@ -337,8 +337,7 @@ export class PostRepository {
   async updatePost(post: UpdatePostDto): Promise<PostEntity> {
     const { post: postData, categories } = post;
 
-    const slug = postData.title ? slugify(postData.title) : undefined;
-    const updatedAt = new Date().toISOString();
+    const slug = slugify(postData.title);
 
     return this.prisma.post.update({
       where: {
@@ -347,7 +346,6 @@ export class PostRepository {
       data: {
         ...postData,
         slug,
-        updatedAt,
         categories: {
           deleteMany: {
             categoryName: {
