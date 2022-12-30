@@ -3,164 +3,36 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import slugify from 'slugify';
 import { AppModule } from 'src/app.module';
+import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { CreatePostData } from 'src/post/dto/create-post.dto';
+import { PostEntity } from 'src/post/entities/post.entity';
 import request from 'supertest';
 
-const postsWithNoContent = [
-  {
-    id: 1006,
-    createdAt: '2021-05-15T00:00:00.000Z',
-    updatedAt: '2022-05-23T23:47:35.677Z',
-    title: 'Tailwind vs. Bootstrap',
-    slug: 'tailwind-vs.-bootstrap',
-    excerpt:
-      'Both Tailwind and Bootstrap are very popular CSS frameworks. In this article, we will compare them',
-    viewCount: 0,
-    coverImage: '/images/posts/img2.jpg',
-    author: {
-      name: 'Alice Johnson',
-      image: 'https://randomuser.me/api/portraits/women/12.jpg',
-    },
-    categories: [
-      {
-        category: {
-          name: 'CSS',
-          hexColor: '#2563eb',
-        },
-      },
-    ],
-  },
-  {
-    id: 335,
-    createdAt: '2021-05-12T15:39:50.348Z',
-    updatedAt: '2022-05-23T23:47:32.957Z',
-    title: 'Nostrum velit non.',
-    slug: 'nostrum-velit-non.',
-    excerpt:
-      'Deserunt aut dolor voluptatem pariatur at quia enim rerum quod omnis non harum harum velit.',
-    viewCount: 0,
-    coverImage: 'http://loremflickr.com/1200/480/business',
-    author: {
-      name: 'Vicky',
-      image:
-        'https://cloudflare-ipfs.com/ipfs/Qmd3W5DuhgHirLHGVixi6V76LhCkZUz6pnFt5AJBiyvHye/avatar/1205.jpg',
-    },
-    categories: [
-      {
-        category: {
-          name: 'CSS',
-          hexColor: '#2563eb',
-        },
-      },
-    ],
-  },
-  {
-    id: 995,
-    createdAt: '2021-05-12T02:32:34.229Z',
-    updatedAt: '2022-05-23T23:47:35.613Z',
-    title: 'Architecto iusto nesciunt.',
-    slug: 'architecto-iusto-nesciunt.',
-    excerpt:
-      'Quam est est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-    viewCount: 0,
-    coverImage: 'http://loremflickr.com/1200/480/business',
-    author: {
-      name: 'Maybell',
-      image:
-        'https://cloudflare-ipfs.com/ipfs/Qmd3W5DuhgHirLHGVixi6V76LhCkZUz6pnFt5AJBiyvHye/avatar/790.jpg',
-    },
-    categories: [
-      {
-        category: {
-          name: 'JavaScript',
-          hexColor: '#ca8a04',
-        },
-      },
-    ],
-  },
-  {
-    id: 23,
-    createdAt: '2021-05-12T01:11:27.097Z',
-    updatedAt: '2022-05-23T23:47:31.638Z',
-    title: 'Quo vel illum.',
-    slug: 'quo-vel-illum.',
-    excerpt:
-      'A error officia rem eligendi maiores quasi voluptatum ipsum autem sit praesentium aperiam qui eius.',
-    viewCount: 0,
-    coverImage: 'http://loremflickr.com/1200/480/business',
-    author: {
-      name: 'Keara',
-      image:
-        'https://cloudflare-ipfs.com/ipfs/Qmd3W5DuhgHirLHGVixi6V76LhCkZUz6pnFt5AJBiyvHye/avatar/315.jpg',
-    },
-    categories: [
-      {
-        category: {
-          name: 'PHP',
-          hexColor: '#9333ea',
-        },
-      },
-    ],
-  },
-];
-
-const authCredentials = {
-  name: 'Alice Johnson',
-  email: 'alice@prisma.io',
-  password: 'password',
-};
-
-const author = {
-  image: 'https://randomuser.me/api/portraits/women/12.jpg',
-  name: 'Alice Johnson',
-};
-
-const newPost: CreatePostData = {
-  title: 'Architectom iustoa nesciunts.',
-  slug: 'architectom-iustoa-nesciunts.',
+const postWithNoContent: PostEntity = {
+  id: 1006,
+  createdAt: new Date('2021-05-15T00:00:00.000Z'),
+  updatedAt: new Date('2022-05-23T23:47:35.677Z'),
+  title: 'Tailwind vs. Bootstrap',
+  slug: 'tailwind-vs.-bootstrap',
   excerpt:
-    'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-  content: 'Content',
-  published: true,
-  coverImage: 'http://loremflickr.com/1200/480/business',
+    'Both Tailwind and Bootstrap are very popular CSS frameworks. In this article, we will compare them',
+  viewCount: 0,
+  coverImage: '/images/posts/img2.jpg',
+  author: {
+    name: 'Alice Johnson',
+    image: 'https://randomuser.me/api/portraits/women/12.jpg',
+  },
+  categories: [
+    {
+      category: {
+        name: 'CSS',
+        hexColor: '#2563eb',
+      },
+    },
+  ],
 };
-
-const updatedPost = {
-  id: 1,
-  title: 'Updated title.',
-  excerpt:
-    'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-  content: 'Updated content',
-  published: true,
-  coverImage: 'http://loremflickr.com/1200/480/business',
-};
-
-const categoriesForNewPost: CreateCategoryDto[] = [
-  {
-    name: 'name',
-    description: 'description',
-  },
-  {
-    name: 'JavaScript',
-    description: 'description',
-    hexColor: '#ca8a04',
-  },
-  {
-    name: 'PHP',
-    description: 'description',
-    hexColor: '#9333ea',
-  },
-];
-
-const categoriesForUpdatedPost: UpdateCategoryDto[] = [
-  {
-    name: 'new category',
-    description: 'new description',
-    hexColor: '#9110ea',
-  },
-];
 
 describe('Post (e2e)', () => {
   let app: INestApplication;
@@ -186,7 +58,7 @@ describe('Post (e2e)', () => {
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
           expect(Object.keys(response.body[0])).toEqual(
-            Object.keys(postsWithNoContent[0]),
+            Object.keys(postWithNoContent),
           );
         });
     });
@@ -257,7 +129,7 @@ describe('Post (e2e)', () => {
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
           expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postsWithNoContent[0], content: 'content' }),
+            Object.keys({ ...postWithNoContent, content: 'content' }),
           );
         });
     });
@@ -272,7 +144,7 @@ describe('Post (e2e)', () => {
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
           expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postsWithNoContent[0] }),
+            Object.keys({ ...postWithNoContent }),
           );
         });
     });
@@ -288,7 +160,7 @@ describe('Post (e2e)', () => {
         .expect((response: request.Response) => {
           expect(Object.keys(response.body)).toEqual(
             Object.keys({
-              ...postsWithNoContent[0],
+              ...postWithNoContent,
               content: 'content',
             }),
           );
@@ -328,55 +200,78 @@ describe('Post (e2e)', () => {
   });
 
   describe('/post (POST)', () => {
-    it('should create new post if user is logged in', async () => {
-      const agent = request.agent(app.getHttpServer());
-      let accessToken: string;
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
 
-      await agent
-        .post(`/auth/login`)
-        .send(authCredentials)
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: 'Alice Johnson',
+        email: 'alice@prisma.io',
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it('should create new post if user is logged in', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
+      const newPost: CreatePostData = {
+        title: 'Architectom iustoa nesciunts.',
+        slug: 'architectom-iustoa-nesciunts.',
+        excerpt:
+          'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+        content: 'Content',
+        published: true,
+        coverImage: 'http://loremflickr.com/1200/480/business',
+      };
+      const categoriesForNewPost: CreateCategoryDto[] = [
+        {
+          name: 'name',
+          description: 'description',
+        },
+        {
+          name: 'JavaScript',
+          description: 'description',
+          hexColor: '#ca8a04',
+        },
+        {
+          name: 'PHP',
+          description: 'description',
+          hexColor: '#9333ea',
+        },
+      ];
+
+      return agent
+        .post(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ post: newPost, categories: categoriesForNewPost })
+        .expect(HttpStatus.CREATED)
         .expect((response: request.Response) => {
-          accessToken = response.body.accessToken;
-        })
-        .then(() => {
-          return agent
-            .post(`/post`)
-            .auth(accessToken, { type: 'bearer' })
-            .send({ post: newPost, categories: categoriesForNewPost })
-            .expect(HttpStatus.CREATED)
-            .expect((response: request.Response) => {
-              expect(response.body).toMatchObject({
-                title: newPost.title,
-                slug: newPost.slug,
-                excerpt: newPost.excerpt,
-                content: newPost.content,
-                coverImage: newPost.coverImage,
-                author: expect.objectContaining(author),
-              });
-            });
+          expect(response.body).toMatchObject({
+            title: newPost.title,
+            slug: newPost.slug,
+            excerpt: newPost.excerpt,
+            content: newPost.content,
+            coverImage: newPost.coverImage,
+            author: expect.objectContaining(author),
+          });
         });
     });
 
-    it('should return 400 if bad body provided', async () => {
-      const agent = request.agent(app.getHttpServer());
-      let accessToken: string;
-
-      await agent
-        .post(`/auth/login`)
-        .send(authCredentials)
-        .expect((response: request.Response) => {
-          accessToken = response.body.accessToken;
-        })
-        .then(() => {
-          return agent
-            .post(`/post`)
-            .auth(accessToken, { type: 'bearer' })
-            .send({ post: { name: 'name' } })
-            .expect(HttpStatus.BAD_REQUEST);
-        });
+    it('should return 400 if bad body provided', () => {
+      return agent
+        .post(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ post: { name: 'name' } })
+        .expect(HttpStatus.BAD_REQUEST);
     });
 
-    it('should return 401 if user is not logged in', async () => {
+    it('should return 401 if user is not logged in', () => {
       return request(app.getHttpServer())
         .post(`/post`)
         .expect(HttpStatus.UNAUTHORIZED);
@@ -384,12 +279,43 @@ describe('Post (e2e)', () => {
   });
 
   describe('/post (PUT)', () => {
-    it('should replace post data with data provided if user is logged in and is author', async () => {
-      const agent = request.agent(app.getHttpServer());
-      const { accessToken } = (
-        await agent.post(`/auth/login`).send(authCredentials)
-      ).body;
+    const categoriesForUpdatedPost: UpdateCategoryDto[] = [
+      {
+        name: 'new category',
+        description: 'new description',
+        hexColor: '#9110ea',
+      },
+    ];
+    const updatedPost = {
+      id: 1,
+      title: 'Updated title.',
+      excerpt:
+        'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      content: 'Updated content',
+      published: true,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+    };
 
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: 'Alice Johnson',
+        email: 'alice@prisma.io',
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it('should replace post data with data provided if user is logged in and is author', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
       const expectedRecievedCategories = categoriesForUpdatedPost.map(
         (category) => ({
           category: { name: category.name, hexColor: category.hexColor },
@@ -417,12 +343,7 @@ describe('Post (e2e)', () => {
         });
     });
 
-    it('should return 404 if post with provided id does not exist', async () => {
-      const agent = request.agent(app.getHttpServer());
-      const { accessToken } = (
-        await agent.post(`/auth/login`).send(authCredentials)
-      ).body;
-
+    it('should return 404 if post with provided id does not exist', () => {
       return agent
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })
@@ -435,12 +356,13 @@ describe('Post (e2e)', () => {
 
     it('should return 401 if requesting user is not author', async () => {
       const agent = request.agent(app.getHttpServer());
+      const requestingUserAuthCredentials: AuthCredentialsDto = {
+        name: 'John Doe',
+        email: 'john@prisma.io',
+        password: 'password',
+      };
       const { accessToken } = (
-        await agent.post(`/auth/login`).send({
-          name: 'John Doe',
-          email: 'john@prisma.io',
-          password: 'password',
-        })
+        await agent.post(`/auth/login`).send(requestingUserAuthCredentials)
       ).body;
 
       return agent
@@ -453,19 +375,13 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.UNAUTHORIZED);
     });
 
-    it('should return 401 if user is not logged in', async () => {
+    it('should return 401 if user is not logged in', () => {
       return request(app.getHttpServer())
         .put(`/post`)
         .expect(HttpStatus.UNAUTHORIZED);
     });
 
-    it('should return 400 if bad body provided', async () => {
-      const agent = request.agent(app.getHttpServer());
-
-      const { accessToken } = (
-        await agent.post(`/auth/login`).send(authCredentials)
-      ).body;
-
+    it('should return 400 if bad body provided', () => {
       return agent
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })

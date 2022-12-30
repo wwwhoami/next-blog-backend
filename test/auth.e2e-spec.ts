@@ -3,15 +3,16 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
 import { AppModule } from 'src/app.module';
+import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import request from 'supertest';
 
-const authCredentials = {
+const authCredentials: AuthCredentialsDto = {
   name: 'Alice Johnson',
   email: 'alice@prisma.io',
   password: 'password',
 };
 
-const newUser = {
+const newUser: AuthCredentialsDto = {
   name: 'Test Name',
   email: 'name@test.io',
   password: 'password',
@@ -194,11 +195,11 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/logout (GET)', () => {
-    it('should logout user if has access token in bearer auth header', async () => {
+    it('should logout user if has access token in bearer auth header', () => {
       const agent = request.agent(app.getHttpServer());
       let accessToken: string;
 
-      await agent
+      return agent
         .post(`/auth/login`)
         .send(authCredentials)
         .expect(HttpStatus.CREATED)

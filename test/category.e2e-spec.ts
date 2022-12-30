@@ -52,6 +52,7 @@ describe('Category (e2e)', () => {
 
     it('should get as many categories as in take query param', () => {
       const take = 5;
+
       return request(app.getHttpServer())
         .get('/category')
         .query({ take })
@@ -64,6 +65,7 @@ describe('Category (e2e)', () => {
 
     it('should get no categories if take query param zero', () => {
       const take = 0;
+
       return request(app.getHttpServer())
         .get('/category')
         .query({ take })
@@ -79,7 +81,6 @@ describe('Category (e2e)', () => {
         take: 'asd',
         skip: 'asd',
       };
-
       const notFoundResponseBody = {
         error: 'Bad Request',
         message: [
@@ -113,6 +114,7 @@ describe('Category (e2e)', () => {
 
     it('should get two dimensional array of category combinations if any exists for provided searchTerm', () => {
       const searchTerm = 'tailwind';
+
       return request(app.getHttpServer())
         .get(`/category/combo`)
         .query({ searchTerm })
@@ -126,6 +128,7 @@ describe('Category (e2e)', () => {
 
     it('should get empty array of category combinations if none exists for provided searchTerm', () => {
       const searchTerm = '99a54c445a0d63f0304df35046a542ae';
+
       return request(app.getHttpServer())
         .get(`/category/combo`)
         .query({ searchTerm })
