@@ -15,7 +15,9 @@ export class PrismaSeeder {
     });
   }
 
-  async seedMockPosts(posts: Prisma.PostCreateInput[]) {
+  async seedMockPosts(
+    posts: Prisma.PostCreateInput[] | Prisma.PostUncheckedCreateInput[],
+  ) {
     for (const p of posts) {
       await this.prisma.post.create({
         data: p,
