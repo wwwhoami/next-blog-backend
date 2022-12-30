@@ -1,8 +1,10 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import slugify from 'slugify';
 import { AppModule } from 'src/app.module';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
+import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { CreatePostData } from 'src/post/dto/create-post.dto';
 import request from 'supertest';
 
@@ -125,6 +127,16 @@ const newPost: CreatePostData = {
   coverImage: 'http://loremflickr.com/1200/480/business',
 };
 
+const updatedPost = {
+  id: 1,
+  title: 'Updated title.',
+  excerpt:
+    'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+  content: 'Updated content',
+  published: true,
+  coverImage: 'http://loremflickr.com/1200/480/business',
+};
+
 const categoriesForNewPost: CreateCategoryDto[] = [
   {
     name: 'name',
@@ -139,6 +151,14 @@ const categoriesForNewPost: CreateCategoryDto[] = [
     name: 'PHP',
     description: 'description',
     hexColor: '#9333ea',
+  },
+];
+
+const categoriesForUpdatedPost: UpdateCategoryDto[] = [
+  {
+    name: 'new category',
+    description: 'new description',
+    hexColor: '#9110ea',
   },
 ];
 
@@ -360,6 +380,96 @@ describe('Post (e2e)', () => {
       return request(app.getHttpServer())
         .post(`/post`)
         .expect(HttpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe('/post (PUT)', () => {
+    it('should replace post data with data provided if user is logged in and is author', async () => {
+      const agent = request.agent(app.getHttpServer());
+      const { accessToken } = (
+        await agent.post(`/auth/login`).send(authCredentials)
+      ).body;
+
+      const expectedRecievedCategories = categoriesForUpdatedPost.map(
+        (category) => ({
+          category: { name: category.name, hexColor: category.hexColor },
+        }),
+      );
+
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          post: updatedPost,
+          categories: categoriesForUpdatedPost,
+        })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            title: updatedPost.title,
+            slug: slugify(updatedPost.title),
+            excerpt: updatedPost.excerpt,
+            content: updatedPost.content,
+            coverImage: updatedPost.coverImage,
+            author: expect.objectContaining(author),
+            categories: expect.arrayContaining(expectedRecievedCategories),
+          });
+        });
+    });
+
+    it('should return 404 if post with provided id does not exist', async () => {
+      const agent = request.agent(app.getHttpServer());
+      const { accessToken } = (
+        await agent.post(`/auth/login`).send(authCredentials)
+      ).body;
+
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          post: { ...updatedPost, id: -12 },
+          categories: categoriesForUpdatedPost,
+        })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 401 if requesting user is not author', async () => {
+      const agent = request.agent(app.getHttpServer());
+      const { accessToken } = (
+        await agent.post(`/auth/login`).send({
+          name: 'John Doe',
+          email: 'john@prisma.io',
+          password: 'password',
+        })
+      ).body;
+
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          post: { ...updatedPost },
+          categories: categoriesForUpdatedPost,
+        })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 401 if user is not logged in', async () => {
+      return request(app.getHttpServer())
+        .put(`/post`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if bad body provided', async () => {
+      const agent = request.agent(app.getHttpServer());
+
+      const { accessToken } = (
+        await agent.post(`/auth/login`).send(authCredentials)
+      ).body;
+
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
     });
   });
 
