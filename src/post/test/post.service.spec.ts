@@ -1,12 +1,8 @@
-import {
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
 import slugify from 'slugify';
-import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
+import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
 
@@ -201,12 +197,20 @@ describe('PostService', () => {
       expect(posts).toEqual(onePost);
     });
 
-    it('should return null if no post found', async () => {
-      postRepository.getPublishedPostBySlug.mockResolvedValue(null);
+    it('should should throw PrismaClientKnownRequestError if no post found', async () => {
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      postRepository.getPublishedPostBySlug.mockRejectedValue(exception);
 
       const getPublishedPostBySlug = service.getPublishedPostBySlug('slug');
 
-      await expect(getPublishedPostBySlug).resolves.toBeNull();
+      await expect(getPublishedPostBySlug).rejects.toThrowError(exception);
     });
   });
 
@@ -222,7 +226,7 @@ describe('PostService', () => {
       content: 'content',
     };
     const postToCreate = {
-      post: { ...postData, slug: slugify(postData.title) },
+      post: { ...postData, slug: slugify(postData.title, { lower: true }) },
     };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
@@ -239,10 +243,7 @@ describe('PostService', () => {
         updatedAt: new Date(),
       });
 
-      const createdPost = await postRepository.createPost(
-        postToCreate,
-        authorId,
-      );
+      const createdPost = await service.createPost(postToCreate, authorId);
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
@@ -252,6 +253,7 @@ describe('PostService', () => {
       });
     });
   });
+
   describe('updatePost', () => {
     const postData = {
       id: 12312,
@@ -264,57 +266,12 @@ describe('PostService', () => {
       published: true,
       content: 'content',
     };
-    const postToUpdate = { post: postData };
+    const postToUpdate = postData;
     const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
     const authorData = {
       name: 'author name',
       image: 'author image',
     };
-
-    it("should update post with postData provided if userId equals to post's authorId", async () => {
-      const userId = authorId;
-      const updatedPostReturn = {
-        ...postData,
-        slug: 'architecto-iustos-nesciunt.',
-      };
-
-      postRepository.updatePost.mockResolvedValue({
-        ...updatedPostReturn,
-        author: authorData,
-        updatedAt: new Date(),
-      });
-
-      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
-
-      const updatedPost = await service.updatePost(postToUpdate, userId);
-
-      expect(updatedPost).toMatchObject({
-        ...updatedPostReturn,
-        id: expect.any(Number),
-        author: expect.objectContaining(authorData),
-        updatedAt: expect.any(Date),
-      });
-    });
-
-    it("should update post with postData provided if userId equals to post's authorId", async () => {
-      const userId = 'not author id';
-      const updatedPostReturn = {
-        ...postData,
-        slug: 'architecto-iustos-nesciunt.',
-      };
-
-      postRepository.updatePost.mockResolvedValue({
-        ...updatedPostReturn,
-        author: authorData,
-        updatedAt: new Date(),
-      });
-
-      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
-
-      const updatePost = service.updatePost(postToUpdate, userId);
-
-      await expect(updatePost).rejects.toThrowError(UnauthorizedError);
-    });
 
     it('should update post with postData provided', async () => {
       const updatedPostReturn = {
@@ -328,7 +285,9 @@ describe('PostService', () => {
         updatedAt: new Date(),
       });
 
-      const updatedPost = await postRepository.updatePost(postToUpdate);
+      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+
+      const updatedPost = await service.updatePost(postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -349,45 +308,59 @@ describe('PostService', () => {
     });
   });
 
-  describe('deletePostBySlug', () => {
-    it('should delete post by slug', async () => {
-      postRepository.deletePostBySlug.mockResolvedValue(onePost);
+  describe('getPostAuthorId', () => {
+    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
-      const deletedPost = await service.deletePostBySlug('slug');
+    it("should get post's author id by post's id", async () => {
+      const id = onePost.id;
+      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+
+      const author = await service.getPostAuthorId({ id });
+
+      expect(author).toEqual({ authorId });
+    });
+
+    it("should get post's author id by post's slug", async () => {
+      const slug = onePost.slug;
+
+      postRepository.getPostAuthorBySlug.mockResolvedValue({ authorId });
+
+      const author = await service.getPostAuthorId({ slug });
+
+      expect(author).toEqual({ authorId });
+    });
+
+    it('should throw WrongParamsError if neither id nor slug provided', async () => {
+      const deletePost = service.getPostAuthorId({});
+
+      await expect(deletePost).rejects.toThrowError(WrongParamsError);
+    });
+  });
+
+  describe('deletePost', () => {
+    it('should delete post by id, if id provided', async () => {
+      const id = onePost.id;
+      postRepository.deletePostById.mockResolvedValue(onePost);
+
+      const deletedPost = await service.deletePost({ id });
 
       expect(deletedPost).toEqual(onePost);
     });
 
-    it('should throw NotFoundException if no post exists', async () => {
-      const slug = 'a bad slug';
-      const exception = new Prisma.PrismaClientKnownRequestError(
-        'An operation failed because it depends on one or more records that were required but not found. {cause}',
-        {
-          code: 'P2025',
-          clientVersion: '2.19.0',
-        },
-      );
-      const expectedException = new NotFoundException(
-        `Post with slug ${slug} not found`,
-      );
+    it('should delete post by slug, if no id, but slug provided', async () => {
+      const slug = onePost.slug;
 
-      postRepository.deletePostBySlug.mockRejectedValue(exception);
+      postRepository.deletePostBySlug.mockResolvedValue(onePost);
 
-      const deletePostBySlug = service.deletePostBySlug(slug);
+      const deletedPost = await service.deletePost({ slug });
 
-      await expect(deletePostBySlug).rejects.toThrowError(expectedException);
+      expect(deletedPost).toEqual(onePost);
     });
 
-    it('should throw InternalServerErrorException if caught unknown exception', async () => {
-      const slug = 'a bad slug';
-      const exception = new Error('unknown error');
-      const expectedException = new InternalServerErrorException();
+    it('should throw WrongParamsError if neither id nor slug provided', async () => {
+      const deletePost = service.deletePost({});
 
-      postRepository.deletePostBySlug.mockRejectedValue(exception);
-
-      const deletePostBySlug = service.deletePostBySlug(slug);
-
-      await expect(deletePostBySlug).rejects.toThrowError(expectedException);
+      await expect(deletePost).rejects.toThrowError(WrongParamsError);
     });
   });
 });

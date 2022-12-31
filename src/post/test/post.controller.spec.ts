@@ -1,8 +1,7 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
-import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
+import slugify from 'slugify';
 import { PostController } from '../post.controller';
 import { PostService } from '../post.service';
 
@@ -139,15 +138,45 @@ describe('PostController', () => {
 
       expect(posts).toEqual(onePost);
     });
+  });
 
-    it('should throw NotFoundException if no post found', async () => {
-      postService.getPublishedPostBySlug.mockResolvedValue(null);
+  describe('createPost', () => {
+    const postData = {
+      createdAt: new Date(),
+      title: 'Architecto iustos nesciunt.',
+      excerpt:
+        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+      viewCount: 0,
+      coverImage: 'http://loremflickr.com/1200/480/business',
+      published: true,
+      content: 'content',
+    };
+    const postToCreate = {
+      post: { ...postData, slug: slugify(postData.title, { lower: true }) },
+    };
 
-      const getPublishedPostBySlug = controller.getPublishedPostBySlug('slug');
+    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
+    const authorData = {
+      name: 'author name',
+      image: 'author image',
+    };
 
-      await expect(getPublishedPostBySlug).rejects.toThrowError(
-        NotFoundException,
-      );
+    it('should create new post with postData, authorId provided', async () => {
+      postService.createPost.mockResolvedValue({
+        ...postToCreate.post,
+        id: 12312,
+        author: authorData,
+        updatedAt: new Date(),
+      });
+
+      const createdPost = await controller.createPost(authorId, postToCreate);
+
+      expect(createdPost).toMatchObject({
+        ...postToCreate.post,
+        id: expect.any(Number),
+        author: expect.objectContaining(authorData),
+        updatedAt: expect.any(Date),
+      });
     });
   });
 
@@ -163,9 +192,7 @@ describe('PostController', () => {
       published: true,
       content: 'content',
     };
-    const postToUpdate = { post: postData };
-    const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
-
+    const postToUpdate = postData;
     const authorData = {
       name: 'author name',
       image: 'author image',
@@ -183,7 +210,7 @@ describe('PostController', () => {
         updatedAt: new Date(),
       });
 
-      const updatedPost = await controller.updatePost(userId, postToUpdate);
+      const updatedPost = await controller.updatePost(postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -192,36 +219,26 @@ describe('PostController', () => {
         updatedAt: expect.any(Date),
       });
     });
+  });
 
-    it('should throw UnauthorizedException if requesting user is not author', async () => {
-      const exception = new UnauthorizedError(
-        `Post with id ${postToUpdate.post.id} not found`,
-      );
+  describe('deletePost', () => {
+    it('should delete post by id, if id provided', async () => {
+      const id = onePost.id;
+      postService.deletePost.mockResolvedValue(onePost);
 
-      postService.updatePost.mockRejectedValue(exception);
+      const deletedPost = await controller.deletePost({ id });
 
-      const updatePost = controller.updatePost(userId, postToUpdate);
-
-      await expect(updatePost).rejects.toThrowError(UnauthorizedException);
+      expect(deletedPost).toEqual(onePost);
     });
 
-    it('should throw NotFoundException if no post exists', async () => {
-      const exception = new Prisma.PrismaClientKnownRequestError(
-        'An operation failed because it depends on one or more records that were required but not found. {cause}',
-        {
-          code: 'P2025',
-          clientVersion: '2.19.0',
-        },
-      );
-      const expectedException = new NotFoundException(
-        `Post with id ${postToUpdate.post.id} not found`,
-      );
+    it('should delete post by slug, if no id, but slug provided', async () => {
+      const slug = onePost.slug;
 
-      postService.updatePost.mockRejectedValue(exception);
+      postService.deletePost.mockResolvedValue(onePost);
 
-      const updatePost = controller.updatePost(userId, postToUpdate);
+      const deletedPost = await controller.deletePost({ slug });
 
-      await expect(updatePost).rejects.toThrowError(expectedException);
+      expect(deletedPost).toEqual(onePost);
     });
   });
 });

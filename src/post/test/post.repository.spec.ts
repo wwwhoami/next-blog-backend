@@ -170,19 +170,27 @@ describe('PostRepository', () => {
 
   describe('getPublishedPostBySlug', () => {
     it('should get published post by slug', async () => {
-      prisma.post.findFirst.mockResolvedValue(onePost);
+      prisma.post.findFirstOrThrow.mockResolvedValue(onePost);
 
       const post = await repository.getPublishedPostBySlug('slug');
 
       expect(post).toEqual(onePost);
     });
 
-    it('should return null if no post found', async () => {
-      prisma.post.findFirst.mockResolvedValue(null);
+    it('should throw PrismaClientKnownRequestError if no post found', async () => {
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
 
-      const post = await repository.getPublishedPostBySlug('slug');
+      prisma.post.findFirstOrThrow.mockRejectedValue(exception);
 
-      expect(post).toEqual(null);
+      const post = repository.getPublishedPostBySlug('slug');
+
+      await expect(post).rejects.toThrowError(exception);
     });
   });
 
@@ -223,7 +231,7 @@ describe('PostRepository', () => {
       content: 'content',
     };
     const postToCreate = {
-      post: { ...postData, slug: slugify(postData.title) },
+      post: { ...postData, slug: slugify(postData.title, { lower: true }) },
     };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
@@ -260,13 +268,13 @@ describe('PostRepository', () => {
       published: true,
       content: 'content',
     };
-    const postToUpdate = { post: postData };
+    const postToUpdate = { ...postData };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
     it('should update post with postData provided', async () => {
       prisma.post.update.mockResolvedValue({
-        ...postToUpdate.post,
+        ...postToUpdate,
         id: 12312,
         authorId,
         updatedAt: new Date(),
@@ -275,7 +283,7 @@ describe('PostRepository', () => {
       const updatedPost = await repository.updatePost(postToUpdate);
 
       expect(updatedPost).toMatchObject({
-        ...postToUpdate.post,
+        ...postToUpdate,
         id: expect.any(Number),
         authorId: expect.any(String),
         updatedAt: expect.any(Date),
@@ -283,8 +291,35 @@ describe('PostRepository', () => {
     });
   });
 
+  describe('deletePostById', () => {
+    it('should delete post by id, return deleted post', async () => {
+      prisma.post.delete.mockResolvedValue(onePost);
+
+      const deletedPost = await repository.deletePostById(1);
+
+      expect(deletedPost).toEqual(onePost);
+    });
+
+    it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
+      const id = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      prisma.post.delete.mockRejectedValue(exception);
+
+      const deletePostBySlug = repository.deletePostById(id);
+
+      await expect(deletePostBySlug).rejects.toThrowError(exception);
+    });
+  });
+
   describe('deletePostBySlug', () => {
-    it('should delete post by slug', async () => {
+    it('should delete post by slug, return deleted post', async () => {
       prisma.post.delete.mockResolvedValue(onePost);
 
       const deletedPost = await repository.deletePostBySlug('slug');
