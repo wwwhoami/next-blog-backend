@@ -27,7 +27,6 @@ const postWithNoContent: PostEntity = {
   slug: 'tailwind-vs.-bootstrap',
   excerpt:
     'Both Tailwind and Bootstrap are very popular CSS frameworks. In this article, we will compare them',
-  viewCount: 0,
   coverImage: '/images/posts/img2.jpg',
   author: {
     name: 'Alice Johnson',

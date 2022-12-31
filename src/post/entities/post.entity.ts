@@ -9,7 +9,6 @@ export enum PostEntityKeysEnum {
   authorId = 'authorId',
   createdAt = 'createdAt',
   updatedAt = 'updatedAt',
-  viewCount = 'viewCount',
   excerpt = 'excerpt',
   slug = 'slug',
 }
@@ -36,7 +35,6 @@ export class PostEntity {
   coverImage: string;
   createdAt: Date;
   updatedAt: Date;
-  viewCount: number;
   excerpt: string;
   slug: string;
   author?: AuthorEntity;

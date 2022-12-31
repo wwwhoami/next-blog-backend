@@ -15,7 +15,6 @@ const postArray = [
     slug: 'tailwind-vs.-bootstrap',
     excerpt:
       'Both Tailwind and Bootstrap are very popular CSS frameworks. In this article, we will compare them',
-    viewCount: 0,
     coverImage: '/images/posts/img2.jpg',
     author: {
       name: 'Alice Johnson',
@@ -39,7 +38,6 @@ const postArray = [
     slug: 'nostrum-velit-non.',
     excerpt:
       'Deserunt aut dolor voluptatem pariatur at quia enim rerum quod omnis non harum harum velit.',
-    viewCount: 0,
     coverImage: 'http://loremflickr.com/1200/480/business',
     author: {
       name: 'Vicky',
@@ -64,7 +62,6 @@ const postArray = [
     slug: 'architecto-iusto-nesciunt.',
     excerpt:
       'Quam est est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-    viewCount: 0,
     coverImage: 'http://loremflickr.com/1200/480/business',
     author: {
       name: 'Maybell',
@@ -220,7 +217,6 @@ describe('PostService', () => {
       title: 'Architecto iustos nesciunt.',
       excerpt:
         'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      viewCount: 0,
       coverImage: 'http://loremflickr.com/1200/480/business',
       published: true,
       content: 'content',
@@ -262,7 +258,6 @@ describe('PostService', () => {
       title: 'Architecto iustos nesciunt.',
       excerpt:
         'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      viewCount: 0,
       coverImage: 'http://loremflickr.com/1200/480/business',
       published: true,
       content: 'content',

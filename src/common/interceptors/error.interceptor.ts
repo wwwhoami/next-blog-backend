@@ -28,7 +28,7 @@ export class ErrorInterceptor implements NestInterceptor {
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         )
-          return throwError(() => new ConflictException());
+          return throwError(() => new ConflictException(error.message));
 
         if (error instanceof WrongParamsError)
           return throwError(() => new BadRequestException(error.message));
