@@ -9,7 +9,7 @@ import redisStore from 'cache-manager-redis-store';
 import { configValidationSchema } from '../config.schema';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
-import { LoggerMiddleware } from './middleware/logger.middleware';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { PostModule } from './post/post.module';
 import { PrismaService } from './prisma/prisma.service';
 import { UserModule } from './user/user.module';
