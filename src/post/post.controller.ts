@@ -1,24 +1,23 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
-  NotFoundException,
   Param,
   Post,
   Put,
   Query,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Prisma } from '@prisma/client';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
-import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { CreatePostDto } from './dto/create-post.dto';
+import { DeletePostDto } from './dto/delete-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
+import { IsAuthorGuard } from './guards/is-author.guard';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -35,11 +34,7 @@ export class PostController {
   async getPublishedPostBySlug(
     @Param('slug') slug: string,
   ): Promise<PostEntity> {
-    const post = await this.postService.getPublishedPostBySlug(slug);
-
-    if (!post) throw new NotFoundException(`Post with slug ${slug} not found`);
-
-    return post;
+    return this.postService.getPublishedPostBySlug(slug);
   }
 
   @Get('slug')
@@ -47,24 +42,12 @@ export class PostController {
     return this.postService.getPublishedPostsSlugs();
   }
 
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Put()
   async updatePost(
-    @GetUser('id') userId: string,
     @Body() post: UpdatePostDto,
   ): Promise<PostEntity | undefined> {
-    try {
-      return await this.postService.updatePost(post, userId);
-    } catch (error) {
-      if (error instanceof UnauthorizedError)
-        throw new UnauthorizedException(error.message);
-      if (
-        (error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2025') ||
-        error.name === 'NotFoundError'
-      )
-        throw new NotFoundException(`Post with id ${post.post.id} not found`);
-    }
+    return await this.postService.updatePost(post);
   }
 
   @UseGuards(AccessTokenGuard)
@@ -74,5 +57,13 @@ export class PostController {
     @Body() post: CreatePostDto,
   ): Promise<PostEntity> {
     return this.postService.createPost(post, userId);
+  }
+
+  @UseGuards(AccessTokenGuard, IsAuthorGuard)
+  @Delete()
+  async deletePost(
+    @Body() post: DeletePostDto,
+  ): Promise<PostEntity | undefined> {
+    return this.postService.deletePost(post);
   }
 }

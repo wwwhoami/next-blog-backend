@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsDefined,
   IsNumber,
   IsOptional,
   IsString,
@@ -10,7 +9,7 @@ import {
 } from 'class-validator';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 
-export class UpdatePostData {
+export class UpdatePostDto {
   @IsNumber()
   id: number;
 
@@ -28,13 +27,6 @@ export class UpdatePostData {
 
   @IsUrl()
   coverImage: string;
-}
-
-export class UpdatePostDto {
-  @IsDefined()
-  @ValidateNested({ each: true })
-  @Type(() => UpdatePostData)
-  post: UpdatePostData;
 
   @IsOptional()
   @ValidateNested({ each: true })
