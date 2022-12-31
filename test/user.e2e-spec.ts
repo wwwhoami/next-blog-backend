@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
 import { AppModule } from 'src/app.module';
+import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import request from 'supertest';
 
 const user = userData[0];
@@ -18,6 +19,7 @@ describe('User (e2e)', () => {
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
     await app.init();

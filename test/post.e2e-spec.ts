@@ -6,9 +6,19 @@ import { AppModule } from 'src/app.module';
 import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
+import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import { CreatePostData } from 'src/post/dto/create-post.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import request from 'supertest';
+
+const postCategories = [
+  {
+    category: {
+      name: 'CSS',
+      hexColor: '#2563eb',
+    },
+  },
+];
 
 const postWithNoContent: PostEntity = {
   id: 1006,
@@ -24,14 +34,7 @@ const postWithNoContent: PostEntity = {
     name: 'Alice Johnson',
     image: 'https://randomuser.me/api/portraits/women/12.jpg',
   },
-  categories: [
-    {
-      category: {
-        name: 'CSS',
-        hexColor: '#2563eb',
-      },
-    },
-  ],
+  categories: postCategories,
 };
 
 describe('Post (e2e)', () => {
@@ -45,6 +48,7 @@ describe('Post (e2e)', () => {
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
     await app.init();
@@ -170,18 +174,10 @@ describe('Post (e2e)', () => {
 
     it('should return 404 if post with provided slug does not exist', () => {
       const slug = 'not exists';
-      const notFoundResponseBody = {
-        error: 'Not Found',
-        message: 'Post with slug not exists not found',
-        statusCode: 404,
-      };
 
       return request(app.getHttpServer())
         .get(`/post/article/${slug}`)
-        .expect(HttpStatus.NOT_FOUND)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject(notFoundResponseBody);
-        });
+        .expect(HttpStatus.NOT_FOUND);
     });
   });
 
@@ -261,6 +257,39 @@ describe('Post (e2e)', () => {
         });
     });
 
+    it('should return 409 on unique constraint viiolation', () => {
+      const newPost: CreatePostData = {
+        title: postWithNoContent.title,
+        excerpt:
+          'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
+        content: 'Content',
+        published: true,
+        coverImage: 'http://loremflickr.com/1200/480/business',
+      };
+      const categoriesForNewPost: CreateCategoryDto[] = [
+        {
+          name: 'name',
+          description: 'description',
+        },
+        {
+          name: 'JavaScript',
+          description: 'description',
+          hexColor: '#ca8a04',
+        },
+        {
+          name: 'PHP',
+          description: 'description',
+          hexColor: '#9333ea',
+        },
+      ];
+
+      return agent
+        .post(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ post: newPost, categories: categoriesForNewPost })
+        .expect(HttpStatus.CONFLICT);
+    });
+
     it('should return 400 if bad body provided', () => {
       return agent
         .post(`/post`)
@@ -324,14 +353,14 @@ describe('Post (e2e)', () => {
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })
         .send({
-          post: updatedPost,
+          ...updatedPost,
           categories: categoriesForUpdatedPost,
         })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
             title: updatedPost.title,
-            slug: slugify(updatedPost.title),
+            slug: slugify(updatedPost.title, { lower: true }),
             excerpt: updatedPost.excerpt,
             content: updatedPost.content,
             coverImage: updatedPost.coverImage,
@@ -341,18 +370,31 @@ describe('Post (e2e)', () => {
         });
     });
 
+    it('should return 409 on unique constraint violation', () => {
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          ...updatedPost,
+          title: postWithNoContent.title,
+          categories: categoriesForUpdatedPost,
+        })
+        .expect(HttpStatus.CONFLICT);
+    });
+
     it('should return 404 if post with provided id does not exist', () => {
       return agent
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })
         .send({
-          post: { ...updatedPost, id: -12 },
+          ...updatedPost,
+          id: -12,
           categories: categoriesForUpdatedPost,
         })
         .expect(HttpStatus.NOT_FOUND);
     });
 
-    it('should return 401 if requesting user is not author', async () => {
+    it('should return 403 if requesting user is not author', async () => {
       const agent = request.agent(app.getHttpServer());
       const requestingUserAuthCredentials: AuthCredentialsDto = {
         name: 'John Doe',
@@ -367,10 +409,150 @@ describe('Post (e2e)', () => {
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })
         .send({
-          post: { ...updatedPost },
+          ...updatedPost,
           categories: categoriesForUpdatedPost,
         })
+        .expect(HttpStatus.FORBIDDEN);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .put(`/post`)
         .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if bad body provided', () => {
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe('/post (DELETE)', () => {
+    const categoriesForDeletedPost = [
+      {
+        category: {
+          name: 'new category',
+          hexColor: '#9110ea',
+        },
+      },
+    ];
+
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: 'Alice Johnson',
+        email: 'alice@prisma.io',
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it('should delete post with provided id if user is logged in and is author, return deleted PostEntity', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
+      const postId = 1;
+
+      return agent
+        .delete(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          id: postId,
+        })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id: postId,
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: expect.objectContaining(author),
+            categories: expect.arrayContaining(categoriesForDeletedPost),
+          });
+        });
+    });
+
+    it('should delete post with provided slug if user is logged in and is author, return deleted PostEntity', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
+      const postSlug = slugify('Writing Great Unit Tests', { lower: true });
+
+      return agent
+        .delete(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          slug: postSlug,
+        })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            slug: postSlug,
+            id: expect.any(Number),
+            title: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: expect.objectContaining(author),
+            categories: expect.arrayContaining([
+              expect.objectContaining({
+                category: expect.objectContaining({
+                  name: expect.any(String),
+                  hexColor: expect.any(String),
+                }),
+              }),
+            ]),
+          });
+        });
+    });
+
+    it('should return 404 if post with provided id does not exist', () => {
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          id: -12,
+        })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 404 if post with provided slug does not exist', () => {
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          slug: 'NonexistentSlug',
+        })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 403 if requesting user is not author', async () => {
+      const agent = request.agent(app.getHttpServer());
+      const requestingUserAuthCredentials: AuthCredentialsDto = {
+        name: 'John Doe',
+        email: 'john@prisma.io',
+        password: 'password',
+      };
+      const { accessToken } = (
+        await agent.post(`/auth/login`).send(requestingUserAuthCredentials)
+      ).body;
+
+      return agent
+        .put(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          id: 2,
+        })
+        .expect(HttpStatus.FORBIDDEN);
     });
 
     it('should return 401 if user is not logged in', () => {

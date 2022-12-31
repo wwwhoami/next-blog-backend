@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
 import { AppModule } from 'src/app.module';
 import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
+import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import request from 'supertest';
 
 const authCredentials: AuthCredentialsDto = {
@@ -30,6 +31,7 @@ describe('Auth (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
     await app.init();

@@ -4,6 +4,7 @@ import { isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
 import { AppModule } from 'src/app.module';
 import { CategoryEntity } from 'src/category/entities/category.entity';
+import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import request from 'supertest';
 
 const categories: CategoryEntity[] = [
@@ -32,6 +33,7 @@ describe('Category (e2e)', () => {
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
+    app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
     await app.init();
