@@ -13,16 +13,16 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
-  getCategories(
+  getMany(
     @Query() getCategoriesQuery: GetCategoryDto,
   ): Promise<CategoryEntity[]> {
-    return this.categoryService.getCategories(getCategoriesQuery);
+    return this.categoryService.getMany(getCategoriesQuery);
   }
 
   @Get('combo')
-  getCategoryCombinations(
+  getCombinations(
     @Query() getCategoriesQuery: GetCategoryCombinationsDto,
   ): Promise<string[][]> {
-    return this.categoryService.getCategoryCombinations(getCategoriesQuery);
+    return this.categoryService.getCombinations(getCategoriesQuery);
   }
 }

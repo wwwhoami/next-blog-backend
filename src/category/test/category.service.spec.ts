@@ -27,20 +27,20 @@ describe('CategoryService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getCategories', () => {
+  describe('getMany', () => {
     it('should get categories', () => {
       const payload = [
         { name: 'name1', hexColor: 'hexColor1' },
         { name: 'name2', hexColor: 'hexColor2' },
       ];
 
-      categoryRepository.getCategories.mockResolvedValue(payload);
+      categoryRepository.getMany.mockResolvedValue(payload);
 
-      expect(service.getCategories({})).resolves.toEqual(payload);
+      expect(service.getMany({})).resolves.toEqual(payload);
     });
   });
 
-  describe('getCategoryCombinations', () => {
+  describe('getCombinations', () => {
     it('should get category combinations invoking repo.getCategoryCombinations if NO searchTerm provided', () => {
       const payload = [
         ['CSS', 'non'],
@@ -48,9 +48,9 @@ describe('CategoryService', () => {
         ['impedit', 'magnam'],
         ['cumque', 'maxime'],
       ];
-      categoryRepository.getCategoryCombinations.mockResolvedValue(payload);
+      categoryRepository.getCombinations.mockResolvedValue(payload);
 
-      expect(service.getCategoryCombinations({})).resolves.toEqual(payload);
+      expect(service.getCombinations({})).resolves.toEqual(payload);
     });
 
     it('should get category combinations invoking repo.getCategoryCombinationsForSearchTerm if searchTerm IS provided', () => {
@@ -62,17 +62,15 @@ describe('CategoryService', () => {
       ];
       const searchTerm = 'test';
 
-      categoryRepository.getCategoryCombinationsForSearchTerm.mockResolvedValue(
+      categoryRepository.getCombinationsForSearchTerm.mockResolvedValue(
         payload,
       );
 
-      expect(service.getCategoryCombinations({ searchTerm })).resolves.toEqual(
-        payload,
-      );
+      expect(service.getCombinations({ searchTerm })).resolves.toEqual(payload);
     });
   });
 
-  describe('createCategory', () => {
+  describe('create', () => {
     const categoriesToCreate: CreateCategoriesDto = {
       categories: [
         { name: 'category1', description: 'description' },
@@ -87,11 +85,9 @@ describe('CategoryService', () => {
         count: categoriesToCreate.categories.length,
       };
 
-      categoryRepository.createCategory.mockResolvedValue(expected);
+      categoryRepository.create.mockResolvedValue(expected);
 
-      expect(service.createCategory(categoriesToCreate)).resolves.toEqual(
-        expected,
-      );
+      expect(service.create(categoriesToCreate)).resolves.toEqual(expected);
     });
   });
 });

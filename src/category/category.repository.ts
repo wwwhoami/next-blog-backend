@@ -13,7 +13,7 @@ export class CategoryRepository {
     private postRepository: PostRepository,
   ) {}
 
-  getCategories({
+  getMany({
     take = undefined,
     skip = undefined,
   }: GetCategoryDto): Promise<CategoryEntity[]> {
@@ -27,7 +27,7 @@ export class CategoryRepository {
     });
   }
 
-  async getCategoryCombinations(): Promise<string[][]> {
+  async getCombinations(): Promise<string[][]> {
     const categoryComb = await this.prisma.$queryRaw<
       Record<'category_list', string>[]
     >`
@@ -51,9 +51,7 @@ export class CategoryRepository {
     return categoryLists;
   }
 
-  async getCategoryCombinationsForSearchTerm(
-    searchTerm: string,
-  ): Promise<string[][]> {
+  async getCombinationsForSearchTerm(searchTerm: string): Promise<string[][]> {
     const postIds = (await this.postRepository.findIds({ searchTerm })).map(
       (post) => post.id,
     );
@@ -84,7 +82,7 @@ export class CategoryRepository {
     return categoryLists;
   }
 
-  createCategory(category: CreateCategoriesDto) {
+  create(category: CreateCategoriesDto) {
     return this.prisma.category.createMany({
       data: category.categories,
       skipDuplicates: true,

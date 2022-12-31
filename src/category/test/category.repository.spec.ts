@@ -35,7 +35,7 @@ describe('CategoryRepository', () => {
     expect(repository).toBeDefined();
   });
 
-  describe('getCategories', () => {
+  describe('getMany', () => {
     it('should get categories', () => {
       const payload = [
         { name: 'name1', hexColor: 'hexColor1' },
@@ -45,12 +45,12 @@ describe('CategoryRepository', () => {
       prisma.category.findMany.mockResolvedValue(payload);
 
       expect(
-        repository.getCategories({ take: undefined, skip: undefined }),
+        repository.getMany({ take: undefined, skip: undefined }),
       ).resolves.toEqual(payload);
     });
   });
 
-  describe('getCategoryCombinations', () => {
+  describe('getCombinations', () => {
     it('should get category combinations', () => {
       const payload = [
         {
@@ -75,11 +75,11 @@ describe('CategoryRepository', () => {
 
       prisma.$queryRaw.mockResolvedValue(payload);
 
-      expect(repository.getCategoryCombinations()).resolves.toEqual(expected);
+      expect(repository.getCombinations()).resolves.toEqual(expected);
     });
   });
 
-  describe('getCategoryCombinationsForSearchTerm', () => {
+  describe('getCombinationsForSearchTerm', () => {
     it('should get category combinations if postIds found for searchTerm', () => {
       const PostRepositoryPayload = [
         { id: 1 },
@@ -112,7 +112,7 @@ describe('CategoryRepository', () => {
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(
-        repository.getCategoryCombinationsForSearchTerm(searchTerm),
+        repository.getCombinationsForSearchTerm(searchTerm),
       ).resolves.toEqual(expected);
     });
 
@@ -130,12 +130,12 @@ describe('CategoryRepository', () => {
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(
-        repository.getCategoryCombinationsForSearchTerm(searchTerm),
+        repository.getCombinationsForSearchTerm(searchTerm),
       ).resolves.toEqual(expected);
     });
   });
 
-  describe('createCategory', () => {
+  describe('create', () => {
     const categoriesToCreate: CreateCategoriesDto = {
       categories: [
         { name: 'category1', description: 'description' },
@@ -152,9 +152,7 @@ describe('CategoryRepository', () => {
 
       prisma.category.createMany.mockResolvedValue(expected);
 
-      expect(repository.createCategory(categoriesToCreate)).resolves.toEqual(
-        expected,
-      );
+      expect(repository.create(categoriesToCreate)).resolves.toEqual(expected);
     });
   });
 });

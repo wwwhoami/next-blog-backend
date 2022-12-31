@@ -11,22 +11,20 @@ import { CategoryEntity } from './entities/category.entity';
 export class CategoryService {
   constructor(private categoryRepository: CategoryRepository) {}
 
-  getCategories(params: GetCategoryDto): Promise<CategoryEntity[]> {
-    return this.categoryRepository.getCategories(params);
+  getMany(params: GetCategoryDto): Promise<CategoryEntity[]> {
+    return this.categoryRepository.getMany(params);
   }
 
-  getCategoryCombinations({
+  getCombinations({
     searchTerm,
   }: GetCategoryCombinationsDto): Promise<string[][]> {
     if (searchTerm)
-      return this.categoryRepository.getCategoryCombinationsForSearchTerm(
-        searchTerm,
-      );
+      return this.categoryRepository.getCombinationsForSearchTerm(searchTerm);
 
-    return this.categoryRepository.getCategoryCombinations();
+    return this.categoryRepository.getCombinations();
   }
 
-  createCategory(categoriesToCreate: CreateCategoriesDto) {
-    return this.categoryRepository.createCategory(categoriesToCreate);
+  create(categoriesToCreate: CreateCategoriesDto) {
+    return this.categoryRepository.create(categoriesToCreate);
   }
 }
