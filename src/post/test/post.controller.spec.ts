@@ -106,41 +106,41 @@ describe('PostController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('getPosts', () => {
+  describe('getMany', () => {
     it('should get posts', async () => {
-      postService.getPosts.mockResolvedValue(postArray);
+      postService.getMany.mockResolvedValue(postArray);
 
-      const posts = await controller.getPosts({});
+      const posts = await controller.posts({});
 
       expect(posts).toEqual(postArray);
     });
   });
 
-  describe('getPublishedPostsSlugs', () => {
+  describe('getSlugsForPublished', () => {
     it('should get published posts slugs', async () => {
       const payload = [
         { slug: 'slug1' },
         { slug: 'slug2' },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
-      postService.getPublishedPostsSlugs.mockResolvedValue(payload);
+      postService.getSlugsForPublished.mockResolvedValue(payload);
 
-      const posts = await controller.getPublishedPostsSlugs();
+      const posts = await controller.getSlugsForPublished();
 
       expect(posts).toEqual(payload);
     });
   });
 
-  describe('getPublishedPostBySlug', () => {
+  describe('getOnePublishedBySlug', () => {
     it('should get published post by slug', async () => {
-      postService.getPublishedPostBySlug.mockResolvedValue(onePost);
+      postService.getOnePublishedBySlug.mockResolvedValue(onePost);
 
-      const posts = await controller.getPublishedPostBySlug('slug');
+      const posts = await controller.getOnePublishedBySlug('slug');
 
       expect(posts).toEqual(onePost);
     });
   });
 
-  describe('createPost', () => {
+  describe('create', () => {
     const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
@@ -162,14 +162,14 @@ describe('PostController', () => {
     };
 
     it('should create new post with postData, authorId provided', async () => {
-      postService.createPost.mockResolvedValue({
+      postService.create.mockResolvedValue({
         ...postToCreate.post,
         id: 12312,
         author: authorData,
         updatedAt: new Date(),
       });
 
-      const createdPost = await controller.createPost(authorId, postToCreate);
+      const createdPost = await controller.create(authorId, postToCreate);
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
@@ -180,7 +180,7 @@ describe('PostController', () => {
     });
   });
 
-  describe('updatePost', () => {
+  describe('update', () => {
     const postData = {
       id: 12312,
       createdAt: new Date(),
@@ -204,13 +204,13 @@ describe('PostController', () => {
         slug: 'architecto-iustos-nesciunt.',
       };
 
-      postService.updatePost.mockResolvedValue({
+      postService.update.mockResolvedValue({
         ...updatedPostReturn,
         author: authorData,
         updatedAt: new Date(),
       });
 
-      const updatedPost = await controller.updatePost(postToUpdate);
+      const updatedPost = await controller.update(postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -221,12 +221,12 @@ describe('PostController', () => {
     });
   });
 
-  describe('deletePost', () => {
+  describe('delete', () => {
     it('should delete post by id, if id provided', async () => {
       const id = onePost.id;
-      postService.deletePost.mockResolvedValue(onePost);
+      postService.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await controller.deletePost({ id });
+      const deletedPost = await controller.delete({ id });
 
       expect(deletedPost).toEqual(onePost);
     });
@@ -234,9 +234,9 @@ describe('PostController', () => {
     it('should delete post by slug, if no id, but slug provided', async () => {
       const slug = onePost.slug;
 
-      postService.deletePost.mockResolvedValue(onePost);
+      postService.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await controller.deletePost({ slug });
+      const deletedPost = await controller.delete({ slug });
 
       expect(deletedPost).toEqual(onePost);
     });

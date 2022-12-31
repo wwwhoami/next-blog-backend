@@ -17,7 +17,7 @@ import { selectPostWithAuthorCategories } from './utils/select.objects';
 export class PostRepository {
   constructor(private prisma: PrismaService) {}
 
-  async getPostIds({
+  async getIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -36,7 +36,7 @@ export class PostRepository {
     });
   }
 
-  async findPostIds({
+  async findIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -64,7 +64,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getPosts({
+  async getMany({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -85,7 +85,7 @@ export class PostRepository {
     });
   }
 
-  async findPosts({
+  async findMany({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -132,7 +132,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getPostsByCategories({
+  async getManyByCategories({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -193,7 +193,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async findPostsByCategories({
+  async findManyByCategories({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -259,7 +259,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getPublishedPostsSlugs(): Promise<{ slug: string }[]> {
+  async getSlugsForPublished(): Promise<{ slug: string }[]> {
     return this.prisma.post.findMany({
       select: {
         slug: true,
@@ -270,7 +270,7 @@ export class PostRepository {
     });
   }
 
-  async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
+  async getOnePublishedBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.findFirstOrThrow({
       select: {
         ...selectPostWithAuthorCategories,
@@ -283,7 +283,7 @@ export class PostRepository {
     });
   }
 
-  async getPostAuthorById(id: number): Promise<{ authorId: string }> {
+  async getAuthorById(id: number): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
         authorId: true,
@@ -294,7 +294,7 @@ export class PostRepository {
     });
   }
 
-  async getPostAuthorBySlug(slug: string): Promise<{ authorId: string }> {
+  async getAuthorBySlug(slug: string): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
         authorId: true,
@@ -305,7 +305,7 @@ export class PostRepository {
     });
   }
 
-  async publishPostBySlug(slug: string): Promise<PostEntity> {
+  async publishOneBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
       where: {
         slug,
@@ -320,7 +320,7 @@ export class PostRepository {
     });
   }
 
-  async createPost(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+  async create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
     const { post: postData, categories } = post;
     const slug = slugify(postData.title, { lower: true });
 
@@ -347,7 +347,7 @@ export class PostRepository {
     });
   }
 
-  async updatePost(post: UpdatePostDto): Promise<PostEntity> {
+  async update(post: UpdatePostDto): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
 
@@ -390,7 +390,7 @@ export class PostRepository {
     });
   }
 
-  async deletePostById(id: number): Promise<PostEntity> {
+  async deleteById(id: number): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
         id,
@@ -401,7 +401,7 @@ export class PostRepository {
     });
   }
 
-  async deletePostBySlug(slug: string): Promise<PostEntity> {
+  async deleteBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
         slug,

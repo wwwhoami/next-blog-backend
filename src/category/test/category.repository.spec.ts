@@ -108,7 +108,7 @@ describe('CategoryRepository', () => {
         ['cumque', 'maxime'],
       ];
 
-      postRepository.findPostIds.mockResolvedValue(PostRepositoryPayload);
+      postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(
@@ -126,7 +126,7 @@ describe('CategoryRepository', () => {
       const searchTerm = 'test';
       const expected: any[] = [];
 
-      postRepository.findPostIds.mockResolvedValue(PostRepositoryPayload);
+      postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(

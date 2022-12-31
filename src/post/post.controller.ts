@@ -26,44 +26,40 @@ export class PostController {
   constructor(private readonly postService: PostService) {}
 
   @Get()
-  getPosts(@Query() getPostsQuery: GetPostDto): Promise<PostEntity[]> {
-    return this.postService.getPosts(getPostsQuery);
+  posts(@Query() getPostsQuery: GetPostDto): Promise<PostEntity[]> {
+    return this.postService.getMany(getPostsQuery);
   }
 
   @Get('article/:slug')
-  async getPublishedPostBySlug(
+  async getOnePublishedBySlug(
     @Param('slug') slug: string,
   ): Promise<PostEntity> {
-    return this.postService.getPublishedPostBySlug(slug);
+    return this.postService.getOnePublishedBySlug(slug);
   }
 
   @Get('slug')
-  getPublishedPostsSlugs(): Promise<Slug[]> {
-    return this.postService.getPublishedPostsSlugs();
+  getSlugsForPublished(): Promise<Slug[]> {
+    return this.postService.getSlugsForPublished();
   }
 
   @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Put()
-  async updatePost(
-    @Body() post: UpdatePostDto,
-  ): Promise<PostEntity | undefined> {
-    return await this.postService.updatePost(post);
+  async update(@Body() post: UpdatePostDto): Promise<PostEntity | undefined> {
+    return await this.postService.update(post);
   }
 
   @UseGuards(AccessTokenGuard)
   @Post()
-  async createPost(
+  async create(
     @GetUser('id') userId: string,
     @Body() post: CreatePostDto,
   ): Promise<PostEntity> {
-    return this.postService.createPost(post, userId);
+    return this.postService.create(post, userId);
   }
 
   @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Delete()
-  async deletePost(
-    @Body() post: DeletePostDto,
-  ): Promise<PostEntity | undefined> {
-    return this.postService.deletePost(post);
+  async delete(@Body() post: DeletePostDto): Promise<PostEntity | undefined> {
+    return this.postService.delete(post);
   }
 }

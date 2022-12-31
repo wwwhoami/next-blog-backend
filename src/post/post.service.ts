@@ -11,68 +11,68 @@ import { PostRepository } from './post.repository';
 export class PostService {
   constructor(private postRepository: PostRepository) {}
 
-  async getPostAuthorId({
+  async getAuthorId({
     id,
     slug,
   }: DeletePostDto): Promise<{ authorId: string }> {
-    if (id) return this.postRepository.getPostAuthorById(id);
-    else if (slug) return this.postRepository.getPostAuthorBySlug(slug);
+    if (id) return this.postRepository.getAuthorById(id);
+    else if (slug) return this.postRepository.getAuthorBySlug(slug);
 
     throw new WrongParamsError('Neither of { id, slug } parameters provided');
   }
 
-  async getPostIds(params: GetPostDto): Promise<{ id: number }[]> {
+  async getIds(params: GetPostDto): Promise<{ id: number }[]> {
     if (typeof params.searchTerm === 'string')
-      return this.postRepository.findPostIds({
+      return this.postRepository.findIds({
         ...params,
         searchTerm: params.searchTerm,
       });
 
-    return this.postRepository.getPostIds(params);
+    return this.postRepository.getIds(params);
   }
 
-  async getPosts(params: GetPostDto): Promise<PostEntity[]> {
+  async getMany(params: GetPostDto): Promise<PostEntity[]> {
     if (typeof params.searchTerm === 'string') {
       if (typeof params.category === 'string')
-        return this.postRepository.findPostsByCategories({
+        return this.postRepository.findManyByCategories({
           ...params,
           searchTerm: params.searchTerm,
           category: params.category,
         });
 
-      return this.postRepository.findPosts({
+      return this.postRepository.findMany({
         ...params,
         searchTerm: params.searchTerm,
       });
     }
 
     if (typeof params.category === 'string')
-      return this.postRepository.getPostsByCategories({
+      return this.postRepository.getManyByCategories({
         ...params,
         category: params.category,
       });
 
-    return this.postRepository.getPosts(params);
+    return this.postRepository.getMany(params);
   }
 
-  async getPublishedPostsSlugs(): Promise<{ slug: string }[]> {
-    return this.postRepository.getPublishedPostsSlugs();
+  async getSlugsForPublished(): Promise<{ slug: string }[]> {
+    return this.postRepository.getSlugsForPublished();
   }
 
-  async getPublishedPostBySlug(slug: string): Promise<PostEntity> {
-    return this.postRepository.getPublishedPostBySlug(slug);
+  async getOnePublishedBySlug(slug: string): Promise<PostEntity> {
+    return this.postRepository.getOnePublishedBySlug(slug);
   }
 
-  async publishPostBySlug(slug: string): Promise<PostEntity> {
-    return this.postRepository.publishPostBySlug(slug);
+  async publishOneBySlug(slug: string): Promise<PostEntity> {
+    return this.postRepository.publishOneBySlug(slug);
   }
 
-  async createPost(post: CreatePostDto, authorId: string): Promise<PostEntity> {
-    return this.postRepository.createPost(post, authorId);
+  async create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+    return this.postRepository.create(post, authorId);
   }
 
-  async updatePost(post: UpdatePostDto): Promise<PostEntity> {
-    return this.postRepository.updatePost(post);
+  async update(post: UpdatePostDto): Promise<PostEntity> {
+    return this.postRepository.update(post);
   }
 
   /**
@@ -82,12 +82,9 @@ export class PostService {
    * @param {string} param0.slug - Post's slug.
    * @returns Post Entity or undefined inside promise
    */
-  async deletePost({
-    id,
-    slug,
-  }: DeletePostDto): Promise<PostEntity | undefined> {
-    if (id) return this.postRepository.deletePostById(id);
-    else if (slug) return this.postRepository.deletePostBySlug(slug);
+  async delete({ id, slug }: DeletePostDto): Promise<PostEntity | undefined> {
+    if (id) return this.postRepository.deleteById(id);
+    else if (slug) return this.postRepository.deleteBySlug(slug);
 
     throw new WrongParamsError('Neither of { id, slug } parameters provided');
   }

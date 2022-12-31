@@ -75,7 +75,7 @@ describe('PostRepository', () => {
     expect(repository).toBeDefined();
   });
 
-  describe('getPostIds', () => {
+  describe('getIds', () => {
     it('should get postIds', async () => {
       const payload = [
         { id: 12 },
@@ -84,13 +84,13 @@ describe('PostRepository', () => {
 
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const postsIds = await repository.getPostIds({});
+      const postsIds = await repository.getIds({});
 
       expect(postsIds).toEqual(payload);
     });
   });
 
-  describe('findPostIds', () => {
+  describe('findIds', () => {
     it('should find postIds', async () => {
       const payload = [
         { id: 12 },
@@ -101,7 +101,7 @@ describe('PostRepository', () => {
 
       // prisma.post.findMany.mockResolvedValue(payload);
 
-      const postsIds = await repository.findPostIds({
+      const postsIds = await repository.findIds({
         searchTerm: 'good search term',
       });
 
@@ -109,31 +109,31 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('getPosts', () => {
+  describe('getMany', () => {
     it('should get posts', async () => {
       prisma.post.findMany.mockResolvedValue(postArray);
 
-      const posts = await repository.getPosts({});
+      const posts = await repository.getMany({});
 
       expect(posts).toEqual(postArray);
     });
   });
 
-  describe('findPosts', () => {
+  describe('findMany', () => {
     it('should find posts', async () => {
       prisma.$queryRaw.mockResolvedValue(postArray);
 
-      const posts = await repository.findPosts({ searchTerm: 'test' });
+      const posts = await repository.findMany({ searchTerm: 'test' });
 
       expect(posts).toEqual(postArray);
     });
   });
 
-  describe('getPostsByCategories', () => {
+  describe('getManyByCategories', () => {
     it('should get posts', async () => {
       prisma.$queryRaw.mockResolvedValue(postArray);
 
-      const posts = await repository.getPostsByCategories({
+      const posts = await repository.getManyByCategories({
         category: 'test',
       });
 
@@ -141,11 +141,11 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('findPostsByCategories', () => {
+  describe('findManyByCategories', () => {
     it('should find posts', async () => {
       prisma.$queryRaw.mockResolvedValue(postArray);
 
-      const posts = await repository.findPostsByCategories({
+      const posts = await repository.findManyByCategories({
         searchTerm: 'test',
         category: 'test',
       });
@@ -154,7 +154,7 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('getPublishedPostsSlugs', () => {
+  describe('getSlugsForPublished', () => {
     it('should get published posts slugs', async () => {
       const payload = [
         { slug: 'slug1' },
@@ -162,17 +162,17 @@ describe('PostRepository', () => {
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const posts = await repository.getPublishedPostsSlugs();
+      const posts = await repository.getSlugsForPublished();
 
       expect(posts).toEqual(payload);
     });
   });
 
-  describe('getPublishedPostBySlug', () => {
+  describe('getOnePublishedBySlug', () => {
     it('should get published post by slug', async () => {
       prisma.post.findFirstOrThrow.mockResolvedValue(onePost);
 
-      const post = await repository.getPublishedPostBySlug('slug');
+      const post = await repository.getOnePublishedBySlug('slug');
 
       expect(post).toEqual(onePost);
     });
@@ -188,13 +188,13 @@ describe('PostRepository', () => {
 
       prisma.post.findFirstOrThrow.mockRejectedValue(exception);
 
-      const post = repository.getPublishedPostBySlug('slug');
+      const post = repository.getOnePublishedBySlug('slug');
 
       await expect(post).rejects.toThrowError(exception);
     });
   });
 
-  describe('getPostAuthorById', () => {
+  describe('getAuthorById', () => {
     it("should get post's author by post id", async () => {
       const expectedAuthor = {
         authorId: 'afe39927-eb6b-4e73-8d06-239fe6b14eb4',
@@ -203,23 +203,53 @@ describe('PostRepository', () => {
 
       prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
 
-      const author = await repository.getPostAuthorById(postId);
+      const author = await repository.getAuthorById(postId);
 
       expect(author).toEqual(expectedAuthor);
     });
   });
 
-  describe('publishPostBySlug', () => {
+  describe('getAuthorBySlug', () => {
+    it("should get post's author by post slug", async () => {
+      const expectedAuthor = {
+        authorId: 'afe39927-eb6b-4e73-8d06-239fe6b14eb4',
+      } as unknown as Prisma.Prisma__PostClient<Post>;
+      const postSlug = 'slug';
+
+      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+
+      const author = await repository.getAuthorBySlug(postSlug);
+
+      expect(author).toEqual(expectedAuthor);
+    });
+  });
+
+  describe('getAuthorById', () => {
+    it("should get post's author by post id", async () => {
+      const expectedAuthor = {
+        authorId: 'afe39927-eb6b-4e73-8d06-239fe6b14eb4',
+      } as unknown as Prisma.Prisma__PostClient<Post>;
+      const postId = 12;
+
+      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+
+      const author = await repository.getAuthorById(postId);
+
+      expect(author).toEqual(expectedAuthor);
+    });
+  });
+
+  describe('publishOneBySlug', () => {
     it('should publish post by slug', async () => {
       prisma.post.update.mockResolvedValue(onePost);
 
-      const publishedPost = await repository.publishPostBySlug('slug');
+      const publishedPost = await repository.publishOneBySlug('slug');
 
       expect(publishedPost).toEqual(onePost);
     });
   });
 
-  describe('createPost', () => {
+  describe('create', () => {
     const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
@@ -244,7 +274,7 @@ describe('PostRepository', () => {
         updatedAt: new Date(),
       });
 
-      const createdPost = await repository.createPost(postToCreate, authorId);
+      const createdPost = await repository.create(postToCreate, authorId);
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
@@ -255,7 +285,7 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('updatePost', () => {
+  describe('update', () => {
     const postData = {
       id: 12312,
       createdAt: new Date(),
@@ -280,7 +310,7 @@ describe('PostRepository', () => {
         updatedAt: new Date(),
       });
 
-      const updatedPost = await repository.updatePost(postToUpdate);
+      const updatedPost = await repository.update(postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...postToUpdate,
@@ -291,11 +321,11 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('deletePostById', () => {
+  describe('deleteById', () => {
     it('should delete post by id, return deleted post', async () => {
       prisma.post.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await repository.deletePostById(1);
+      const deletedPost = await repository.deleteById(1);
 
       expect(deletedPost).toEqual(onePost);
     });
@@ -312,17 +342,17 @@ describe('PostRepository', () => {
 
       prisma.post.delete.mockRejectedValue(exception);
 
-      const deletePostBySlug = repository.deletePostById(id);
+      const deletePostBySlug = repository.deleteById(id);
 
       await expect(deletePostBySlug).rejects.toThrowError(exception);
     });
   });
 
-  describe('deletePostBySlug', () => {
+  describe('deleteBySlug', () => {
     it('should delete post by slug, return deleted post', async () => {
       prisma.post.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await repository.deletePostBySlug('slug');
+      const deletedPost = await repository.deleteBySlug('slug');
 
       expect(deletedPost).toEqual(onePost);
     });
@@ -339,7 +369,7 @@ describe('PostRepository', () => {
 
       prisma.post.delete.mockRejectedValue(exception);
 
-      const deletePostBySlug = repository.deletePostBySlug(slug);
+      const deletePostBySlug = repository.deleteBySlug(slug);
 
       await expect(deletePostBySlug).rejects.toThrowError(exception);
     });

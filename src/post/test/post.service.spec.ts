@@ -107,16 +107,16 @@ describe('PostService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getPostIds', () => {
+  describe('getIds', () => {
     it('should get postIds', async () => {
       const payload = [
         { id: 12 },
         { id: 11 },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
 
-      postRepository.getPostIds.mockResolvedValue(payload);
+      postRepository.getIds.mockResolvedValue(payload);
 
-      const postsIds = await service.getPostIds({});
+      const postsIds = await service.getIds({});
 
       expect(postsIds).toEqual(payload);
     });
@@ -128,37 +128,37 @@ describe('PostService', () => {
         { id: 11 },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
 
-      postRepository.findPostIds.mockResolvedValue(payload);
+      postRepository.findIds.mockResolvedValue(payload);
 
-      const postsIds = await service.getPostIds({ searchTerm });
+      const postsIds = await service.getIds({ searchTerm });
 
       expect(postsIds).toEqual(payload);
     });
   });
 
-  describe('getPosts', () => {
+  describe('getMany', () => {
     it('should get posts', async () => {
-      postRepository.getPosts.mockResolvedValue(postArray);
+      postRepository.getMany.mockResolvedValue(postArray);
 
-      const posts = await service.getPosts({});
+      const posts = await service.getMany({});
 
       expect(posts).toEqual(postArray);
     });
 
     it('should get posts by category if category property is provided', async () => {
       const category = 'category';
-      postRepository.getPostsByCategories.mockResolvedValue(postArray);
+      postRepository.getManyByCategories.mockResolvedValue(postArray);
 
-      const posts = await service.getPosts({ category });
+      const posts = await service.getMany({ category });
 
       expect(posts).toEqual(postArray);
     });
 
     it('should find posts if searchTerm property is provided', async () => {
       const searchTerm = 'search term';
-      postRepository.findPosts.mockResolvedValue(postArray);
+      postRepository.findMany.mockResolvedValue(postArray);
 
-      const posts = await service.getPosts({ searchTerm });
+      const posts = await service.getMany({ searchTerm });
 
       expect(posts).toEqual(postArray);
     });
@@ -166,33 +166,33 @@ describe('PostService', () => {
     it('should find posts by category if both searchTerm and category properties are provided', async () => {
       const category = 'category';
       const searchTerm = 'search term';
-      postRepository.findPostsByCategories.mockResolvedValue(postArray);
+      postRepository.findManyByCategories.mockResolvedValue(postArray);
 
-      const posts = await service.getPosts({ category, searchTerm });
+      const posts = await service.getMany({ category, searchTerm });
 
       expect(posts).toEqual(postArray);
     });
   });
 
-  describe('getPublishedPostsSlugs', () => {
+  describe('getSlugsForPublished', () => {
     it('should get published posts slugs', async () => {
       const payload = [
         { slug: 'slug1' },
         { slug: 'slug2' },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
-      postRepository.getPublishedPostsSlugs.mockResolvedValue(payload);
+      postRepository.getSlugsForPublished.mockResolvedValue(payload);
 
-      const posts = await service.getPublishedPostsSlugs();
+      const posts = await service.getSlugsForPublished();
 
       expect(posts).toEqual(payload);
     });
   });
 
-  describe('getPublishedPostBySlug', () => {
+  describe('getOnePublishedBySlug', () => {
     it('should get published post by slug', async () => {
-      postRepository.getPublishedPostBySlug.mockResolvedValue(onePost);
+      postRepository.getOnePublishedBySlug.mockResolvedValue(onePost);
 
-      const posts = await service.getPublishedPostBySlug('slug');
+      const posts = await service.getOnePublishedBySlug('slug');
 
       expect(posts).toEqual(onePost);
     });
@@ -206,15 +206,15 @@ describe('PostService', () => {
         },
       );
 
-      postRepository.getPublishedPostBySlug.mockRejectedValue(exception);
+      postRepository.getOnePublishedBySlug.mockRejectedValue(exception);
 
-      const getPublishedPostBySlug = service.getPublishedPostBySlug('slug');
+      const getPublishedPostBySlug = service.getOnePublishedBySlug('slug');
 
       await expect(getPublishedPostBySlug).rejects.toThrowError(exception);
     });
   });
 
-  describe('createPost', () => {
+  describe('create', () => {
     const postData = {
       createdAt: new Date(),
       title: 'Architecto iustos nesciunt.',
@@ -236,14 +236,14 @@ describe('PostService', () => {
     };
 
     it('should create new post with postData, authorId provided', async () => {
-      postRepository.createPost.mockResolvedValue({
+      postRepository.create.mockResolvedValue({
         ...postToCreate.post,
         id: 12312,
         author: authorData,
         updatedAt: new Date(),
       });
 
-      const createdPost = await service.createPost(postToCreate, authorId);
+      const createdPost = await service.create(postToCreate, authorId);
 
       expect(createdPost).toMatchObject({
         ...postToCreate.post,
@@ -254,7 +254,7 @@ describe('PostService', () => {
     });
   });
 
-  describe('updatePost', () => {
+  describe('update', () => {
     const postData = {
       id: 12312,
       createdAt: new Date(),
@@ -279,15 +279,15 @@ describe('PostService', () => {
         slug: 'architecto-iustos-nesciunt.',
       };
 
-      postRepository.updatePost.mockResolvedValue({
+      postRepository.update.mockResolvedValue({
         ...updatedPostReturn,
         author: authorData,
         updatedAt: new Date(),
       });
 
-      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+      postRepository.getAuthorById.mockResolvedValue({ authorId });
 
-      const updatedPost = await service.updatePost(postToUpdate);
+      const updatedPost = await service.update(postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -298,24 +298,24 @@ describe('PostService', () => {
     });
   });
 
-  describe('publishPostBySlug', () => {
+  describe('publishOneBySlug', () => {
     it('should publish post by slug', async () => {
-      postRepository.publishPostBySlug.mockResolvedValue(onePost);
+      postRepository.publishOneBySlug.mockResolvedValue(onePost);
 
-      const publishedPost = await service.publishPostBySlug('slug');
+      const publishedPost = await service.publishOneBySlug('slug');
 
       expect(publishedPost).toEqual(onePost);
     });
   });
 
-  describe('getPostAuthorId', () => {
+  describe('getAuthorId', () => {
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
     it("should get post's author id by post's id", async () => {
       const id = onePost.id;
-      postRepository.getPostAuthorById.mockResolvedValue({ authorId });
+      postRepository.getAuthorById.mockResolvedValue({ authorId });
 
-      const author = await service.getPostAuthorId({ id });
+      const author = await service.getAuthorId({ id });
 
       expect(author).toEqual({ authorId });
     });
@@ -323,26 +323,26 @@ describe('PostService', () => {
     it("should get post's author id by post's slug", async () => {
       const slug = onePost.slug;
 
-      postRepository.getPostAuthorBySlug.mockResolvedValue({ authorId });
+      postRepository.getAuthorBySlug.mockResolvedValue({ authorId });
 
-      const author = await service.getPostAuthorId({ slug });
+      const author = await service.getAuthorId({ slug });
 
       expect(author).toEqual({ authorId });
     });
 
     it('should throw WrongParamsError if neither id nor slug provided', async () => {
-      const deletePost = service.getPostAuthorId({});
+      const deletePost = service.getAuthorId({});
 
       await expect(deletePost).rejects.toThrowError(WrongParamsError);
     });
   });
 
-  describe('deletePost', () => {
+  describe('delete', () => {
     it('should delete post by id, if id provided', async () => {
       const id = onePost.id;
-      postRepository.deletePostById.mockResolvedValue(onePost);
+      postRepository.deleteById.mockResolvedValue(onePost);
 
-      const deletedPost = await service.deletePost({ id });
+      const deletedPost = await service.delete({ id });
 
       expect(deletedPost).toEqual(onePost);
     });
@@ -350,15 +350,15 @@ describe('PostService', () => {
     it('should delete post by slug, if no id, but slug provided', async () => {
       const slug = onePost.slug;
 
-      postRepository.deletePostBySlug.mockResolvedValue(onePost);
+      postRepository.deleteBySlug.mockResolvedValue(onePost);
 
-      const deletedPost = await service.deletePost({ slug });
+      const deletedPost = await service.delete({ slug });
 
       expect(deletedPost).toEqual(onePost);
     });
 
     it('should throw WrongParamsError if neither id nor slug provided', async () => {
-      const deletePost = service.deletePost({});
+      const deletePost = service.delete({});
 
       await expect(deletePost).rejects.toThrowError(WrongParamsError);
     });

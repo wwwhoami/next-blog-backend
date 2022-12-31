@@ -32,7 +32,7 @@ export class IsAuthorGuard implements CanActivate {
 
     try {
       // Determine if logged-in user is the same as the user that created the feed post
-      const { authorId } = await this.postService.getPostAuthorId({ id, slug });
+      const { authorId } = await this.postService.getAuthorId({ id, slug });
       return userId === authorId;
     } catch (error) {
       if (

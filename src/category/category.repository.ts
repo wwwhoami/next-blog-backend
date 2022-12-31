@@ -54,7 +54,7 @@ export class CategoryRepository {
   async getCategoryCombinationsForSearchTerm(
     searchTerm: string,
   ): Promise<string[][]> {
-    const postIds = (await this.postRepository.findPostIds({ searchTerm })).map(
+    const postIds = (await this.postRepository.findIds({ searchTerm })).map(
       (post) => post.id,
     );
 
