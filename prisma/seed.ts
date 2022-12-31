@@ -31,7 +31,7 @@ async function main() {
   console.time(timeTakenToGetMocks);
   console.log('Mock data reading 📚');
 
-  const postData = await getMockPostData();
+  const postData = await getMockPostData(true);
 
   console.timeEnd(timeTakenToGetMocks);
 

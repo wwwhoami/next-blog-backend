@@ -12,7 +12,7 @@ type PostFromFile = Frontmatter & {
 
 dayjs.extend(utc);
 
-export async function getMockPostData() {
+export async function getMockPostData(usedWithRandomGeneratedPosts = false) {
   const slugs = await getMockSlugs();
 
   const posts: PostFromFile[] = [];
@@ -23,7 +23,7 @@ export async function getMockPostData() {
 
   const postData: Prisma.PostUncheckedCreateInput[] = posts.map(
     (post, index) => ({
-      id: index + 1,
+      id: usedWithRandomGeneratedPosts ? undefined : index + 1,
       createdAt: dayjs.utc(post.date, 'YYYY-MM-DD').format(),
       title: post.title,
       slug: slugify(post.title, { lower: true }),
