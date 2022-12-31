@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { genSalt, hash } from 'bcrypt';
+import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { CreateUserDto } from './dto/create-user.dto';
 import { GetUserDto } from './dto/get-user.dto';
 import { UserNoPasswordEntity } from './entities/user.entity';
@@ -29,7 +30,9 @@ export class UserService {
     else if (name) return this.userRepository.getByName(name, returnOptions);
     else if (email) return this.userRepository.getByEmail(email, returnOptions);
 
-    throw new Error('Neither of { name, email, id } parameters provided');
+    throw new WrongParamsError(
+      'Neither of { name, email, id } parameters provided',
+    );
   }
 
   async createUser(

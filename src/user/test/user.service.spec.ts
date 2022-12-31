@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, User } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
 
@@ -89,7 +90,7 @@ describe('UserService', () => {
       expect(service.getUser({ email })).resolves.toEqual(user);
     });
 
-    it('should throw Error if neither username nor email provided', async () => {
+    it('should throw WrongParamsError if neither username nor email provided', async () => {
       const email = undefined;
       const username = undefined;
 
@@ -97,7 +98,7 @@ describe('UserService', () => {
 
       await expect(
         service.getUser({ email, name: username }),
-      ).rejects.toThrowError(Error);
+      ).rejects.toThrowError(WrongParamsError);
     });
   });
 
