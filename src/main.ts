@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Application');
@@ -10,6 +11,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
 
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  app.useGlobalInterceptors(new ErrorInterceptor());
   app.use(cookieParser());
 
   const config = new DocumentBuilder()
