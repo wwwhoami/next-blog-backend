@@ -54,14 +54,14 @@ describe('UserService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('getUser', () => {
+  describe('get', () => {
     it('should get user by id if id provided', () => {
       const user = userDataWithId as unknown as Prisma.Prisma__UserClient<User>;
       const id = userDataWithId.id;
 
       repository.getByUuid.mockResolvedValue(user);
 
-      expect(service.getUser({ id })).resolves.toEqual(user);
+      expect(service.get({ id })).resolves.toEqual(user);
     });
 
     it('should get user by username if username provided', () => {
@@ -70,7 +70,7 @@ describe('UserService', () => {
 
       repository.getByName.mockResolvedValue(user);
 
-      expect(service.getUser({ name: username })).resolves.toEqual(user);
+      expect(service.get({ name: username })).resolves.toEqual(user);
     });
 
     it('should throw NotFoundException if no user found', async () => {
@@ -78,7 +78,7 @@ describe('UserService', () => {
 
       repository.getByName.mockResolvedValue(null);
 
-      await expect(service.getUser({ name: username })).resolves.toBeNull();
+      await expect(service.get({ name: username })).resolves.toBeNull();
     });
 
     it('should get user by email if no username but email provided', () => {
@@ -87,7 +87,7 @@ describe('UserService', () => {
 
       repository.getByEmail.mockResolvedValue(user);
 
-      expect(service.getUser({ email })).resolves.toEqual(user);
+      expect(service.get({ email })).resolves.toEqual(user);
     });
 
     it('should throw WrongParamsError if neither username nor email provided', async () => {
@@ -96,23 +96,23 @@ describe('UserService', () => {
 
       repository.getByEmail.mockResolvedValue(null);
 
-      await expect(
-        service.getUser({ email, name: username }),
-      ).rejects.toThrowError(WrongParamsError);
+      await expect(service.get({ email, name: username })).rejects.toThrowError(
+        WrongParamsError,
+      );
     });
   });
 
-  describe('createUser', () => {
+  describe('create', () => {
     it('should create user with password encrypted returning his data', async () => {
       const password = 'password';
       const userToCreate = { ...userData[0], password };
       const createdUser =
         userData[0] as unknown as Prisma.Prisma__UserClient<User>;
 
-      const createUserMock = repository.createUser;
+      const createUserMock = repository.create;
       createUserMock.mockResolvedValue(createdUser);
 
-      const createUserAction = await service.createUser(userToCreate);
+      const createUserAction = await service.create(userToCreate);
 
       expect(createUserAction).toEqual(createdUser);
       expect(createUserMock).toHaveBeenCalledWith(

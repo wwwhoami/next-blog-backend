@@ -54,22 +54,22 @@ describe('UserController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('getUser', () => {
+  describe('get', () => {
     it('should get user by username if username provided', () => {
       const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
       const username = userData[0].name;
 
-      userService.getUser.mockResolvedValue(user);
+      userService.get.mockResolvedValue(user);
 
-      expect(controller.getUser(username)).resolves.toEqual(user);
+      expect(controller.get(username)).resolves.toEqual(user);
     });
 
     it('should throw NotFoundException if no user found', async () => {
       const username = 'test';
 
-      userService.getUser.mockResolvedValue(null);
+      userService.get.mockResolvedValue(null);
 
-      await expect(controller.getUser(username)).rejects.toThrowError(
+      await expect(controller.get(username)).rejects.toThrowError(
         NotFoundException,
       );
     });

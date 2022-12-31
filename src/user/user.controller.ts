@@ -9,10 +9,10 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Get(':username')
-  async getUser(
+  async get(
     @Param('username') username: string,
   ): Promise<UserNoIdPasswordEntity> {
-    const user = await this.userService.getUser({ name: username });
+    const user = await this.userService.get({ name: username });
 
     if (!user)
       throw new NotFoundException(`User with name ${username} not found`);

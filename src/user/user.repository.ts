@@ -89,7 +89,7 @@ export class UserRepository {
     });
   }
 
-  async createUser(user: CreateUserDto): Promise<UserNoPasswordEntity> {
+  async create(user: CreateUserDto): Promise<UserNoPasswordEntity> {
     return this.prisma.user.create({
       data: user,
       select: {

@@ -136,7 +136,7 @@ describe('AuthService', () => {
       const user = authCredentials;
       const retrievedUser = null;
 
-      userService.getUser.mockResolvedValue(retrievedUser);
+      userService.get.mockResolvedValue(retrievedUser);
 
       expect(service.login(user)).resolves.toBeUndefined();
     });
@@ -146,7 +146,7 @@ describe('AuthService', () => {
       const retrievedUser = { ...userData, password: 'other password' };
 
       bcrypt.compare = jest.fn().mockResolvedValueOnce(false);
-      userService.getUser.mockResolvedValue(retrievedUser);
+      userService.get.mockResolvedValue(retrievedUser);
 
       expect(service.login(user)).resolves.toBeUndefined();
     });
@@ -171,7 +171,7 @@ describe('AuthService', () => {
         .fn()
         .mockResolvedValue({ refreshToken, refreshTokenExpiry });
       service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
-      userService.getUser.mockResolvedValue(retrievedUser);
+      userService.get.mockResolvedValue(retrievedUser);
 
       expect(service.login(user)).resolves.toEqual(expectedReturn);
     });
@@ -183,7 +183,7 @@ describe('AuthService', () => {
       const createdUser = undefined;
 
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToCreate.password);
-      userService.createUser.mockResolvedValueOnce(createdUser);
+      userService.create.mockResolvedValueOnce(createdUser);
 
       await expect(service.signUp(userToCreate)).resolves.toBeUndefined();
     });
@@ -208,7 +208,7 @@ describe('AuthService', () => {
         refreshTokenExpiry,
       };
 
-      userService.createUser.mockResolvedValue(createdUser);
+      userService.create.mockResolvedValue(createdUser);
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToCreate.password);
       service.createRefreshToken = jest
         .fn()

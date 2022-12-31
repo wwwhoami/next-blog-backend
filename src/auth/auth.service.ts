@@ -28,7 +28,7 @@ export class AuthService {
     email,
     password,
   }: AuthCredentialsDto): Promise<SignedUpUser | undefined> {
-    const user = await this.userService.getUser(
+    const user = await this.userService.get(
       { name, email },
       { id: true, password: true },
     );
@@ -66,7 +66,7 @@ export class AuthService {
     const salt = await genSalt(10);
     const encryptedPassword = await hash(password, salt);
 
-    const createdUser = await this.userService.createUser({
+    const createdUser = await this.userService.create({
       name,
       email,
       image,

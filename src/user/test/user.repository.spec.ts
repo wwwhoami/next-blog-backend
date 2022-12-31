@@ -82,7 +82,7 @@ describe('UserRepository', () => {
     });
   });
 
-  describe('createUser', () => {
+  describe('create', () => {
     it('should create user returning his data', () => {
       const userToCreate = { ...userData[0], password: 'password' };
       const createdUser =
@@ -90,7 +90,7 @@ describe('UserRepository', () => {
 
       prismaService.user.create.mockResolvedValue(createdUser);
 
-      expect(repository.createUser(userToCreate)).resolves.toEqual(createdUser);
+      expect(repository.create(userToCreate)).resolves.toEqual(createdUser);
     });
   });
 });

@@ -22,7 +22,7 @@ export class UserService {
    * if fully omitted (or partly) data with no id and (or) password will be returned
    * @returns User's data
    */
-  async getUser<B extends boolean, T extends boolean>(
+  async get<B extends boolean, T extends boolean>(
     { name = undefined, email = undefined, id = undefined }: GetUserDto,
     returnOptions?: { id?: T; password?: B },
   ): Promise<UserType<B, T>> {
@@ -35,13 +35,11 @@ export class UserService {
     );
   }
 
-  async createUser(
-    user: CreateUserDto,
-  ): Promise<UserNoPasswordEntity | undefined> {
+  async create(user: CreateUserDto): Promise<UserNoPasswordEntity | undefined> {
     const salt = await genSalt(10);
     const encryptedPassword = await hash(user.password, salt);
 
-    return this.userRepository.createUser({
+    return this.userRepository.create({
       ...user,
       password: encryptedPassword,
     });

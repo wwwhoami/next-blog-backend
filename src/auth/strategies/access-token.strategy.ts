@@ -28,7 +28,7 @@ export class AccessTokenStrategy extends PassportStrategy(
   async validate(payload: JwtPayload): Promise<UserNoPasswordEntity | null> {
     const { sub: id } = payload;
 
-    const user = await this.userService.getUser({ id }, { id: true });
+    const user = await this.userService.get({ id }, { id: true });
 
     if (!user) throw new UnauthorizedException();
 
