@@ -321,7 +321,7 @@ export class PostRepository {
   }
 
   async create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
-    const { post: postData, categories } = post;
+    const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
 
     return this.prisma.post.create({

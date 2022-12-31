@@ -152,7 +152,8 @@ describe('PostController', () => {
       content: 'content',
     };
     const postToCreate = {
-      post: { ...postData, slug: slugify(postData.title, { lower: true }) },
+      ...postData,
+      slug: slugify(postData.title, { lower: true }),
     };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
@@ -163,7 +164,7 @@ describe('PostController', () => {
 
     it('should create new post with postData, authorId provided', async () => {
       postService.create.mockResolvedValue({
-        ...postToCreate.post,
+        ...postToCreate,
         id: 12312,
         author: authorData,
         updatedAt: new Date(),
@@ -172,7 +173,7 @@ describe('PostController', () => {
       const createdPost = await controller.create(authorId, postToCreate);
 
       expect(createdPost).toMatchObject({
-        ...postToCreate.post,
+        ...postToCreate,
         id: expect.any(Number),
         author: expect.objectContaining(authorData),
         updatedAt: expect.any(Date),

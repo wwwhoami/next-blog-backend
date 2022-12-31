@@ -7,7 +7,6 @@ import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
-import { CreatePostData } from 'src/post/dto/create-post.dto';
 import { PostEntity } from 'src/post/entities/post.entity';
 import request from 'supertest';
 
@@ -216,7 +215,7 @@ describe('Post (e2e)', () => {
         image: 'https://randomuser.me/api/portraits/women/12.jpg',
         name: 'Alice Johnson',
       };
-      const newPost: CreatePostData = {
+      const newPost = {
         title: 'Architectom iustoa nesciunts.',
         excerpt:
           'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
@@ -244,7 +243,7 @@ describe('Post (e2e)', () => {
       return agent
         .post(`/post`)
         .auth(accessToken, { type: 'bearer' })
-        .send({ post: newPost, categories: categoriesForNewPost })
+        .send({ ...newPost, categories: categoriesForNewPost })
         .expect(HttpStatus.CREATED)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
@@ -258,7 +257,7 @@ describe('Post (e2e)', () => {
     });
 
     it('should return 409 on unique constraint viiolation', () => {
-      const newPost: CreatePostData = {
+      const newPost = {
         title: postWithNoContent.title,
         excerpt:
           'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
@@ -286,7 +285,7 @@ describe('Post (e2e)', () => {
       return agent
         .post(`/post`)
         .auth(accessToken, { type: 'bearer' })
-        .send({ post: newPost, categories: categoriesForNewPost })
+        .send({ ...newPost, categories: categoriesForNewPost })
         .expect(HttpStatus.CONFLICT);
     });
 
@@ -294,7 +293,7 @@ describe('Post (e2e)', () => {
       return agent
         .post(`/post`)
         .auth(accessToken, { type: 'bearer' })
-        .send({ post: { name: 'name' } })
+        .send({ name: 'name' })
         .expect(HttpStatus.BAD_REQUEST);
     });
 

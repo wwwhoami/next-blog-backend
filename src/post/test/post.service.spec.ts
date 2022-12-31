@@ -226,7 +226,8 @@ describe('PostService', () => {
       content: 'content',
     };
     const postToCreate = {
-      post: { ...postData, slug: slugify(postData.title, { lower: true }) },
+      ...postData,
+      slug: slugify(postData.title, { lower: true }),
     };
 
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
@@ -237,7 +238,7 @@ describe('PostService', () => {
 
     it('should create new post with postData, authorId provided', async () => {
       postRepository.create.mockResolvedValue({
-        ...postToCreate.post,
+        ...postToCreate,
         id: 12312,
         author: authorData,
         updatedAt: new Date(),
@@ -246,7 +247,7 @@ describe('PostService', () => {
       const createdPost = await service.create(postToCreate, authorId);
 
       expect(createdPost).toMatchObject({
-        ...postToCreate.post,
+        ...postToCreate,
         id: expect.any(Number),
         author: expect.objectContaining(authorData),
         updatedAt: expect.any(Date),
