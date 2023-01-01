@@ -6,7 +6,7 @@ import {
   generateUsers,
   generateUuid,
 } from 'data/data-gen';
-import { getMockPostData } from 'data/post';
+import { getPostMocks } from 'data/post';
 import { categoryData, userData } from 'data/seed-data';
 import { PrismaSeeder } from './seeders';
 
@@ -31,7 +31,7 @@ async function main() {
   console.time(timeTakenToGetMocks);
   console.log('Mock data reading 📚');
 
-  const postData = await getMockPostData(true);
+  const postData = await getPostMocks();
 
   console.timeEnd(timeTakenToGetMocks);
 
