@@ -1,11 +1,12 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["fullTextSearch"]
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_URL")
+  provider   = "postgresql"
+  url        = env("POSTGRES_URL")
+  extensions = [pg_trgm, btree_gist]
 }
 
 model User {
@@ -31,6 +32,7 @@ model Post {
   author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   categories PostToCategory[]
 
+  @@index([title(ops: raw("gist_trgm_ops")), excerpt(ops: raw("gist_trgm_ops"))], type: Gist)
   @@index([slug])
   @@index([createdAt])
   @@index([published])
