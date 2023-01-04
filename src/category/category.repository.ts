@@ -3,8 +3,11 @@ import { Prisma } from '@prisma/client';
 import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoriesDto } from './dto/create-category.dto';
-import { GetCategoryDto } from './dto/get-category-dto';
-import { CategoryEntity } from './entities/category.entity';
+import { FindCategoryDto, GetCategoryDto } from './dto/get-category-dto';
+import {
+  CategoryEntity,
+  CategoryWithHotness,
+} from './entities/category.entity';
 
 @Injectable()
 export class CategoryRepository {
@@ -13,10 +16,7 @@ export class CategoryRepository {
     private postRepository: PostRepository,
   ) {}
 
-  getMany({
-    take = undefined,
-    skip = undefined,
-  }: GetCategoryDto): Promise<CategoryEntity[]> {
+  getMany({ take = 25, skip = 0 }: GetCategoryDto): Promise<CategoryEntity[]> {
     return this.prisma.category.findMany({
       select: {
         name: true,
@@ -25,6 +25,45 @@ export class CategoryRepository {
       take,
       skip,
     });
+  }
+
+  async findMany({
+    take = 25,
+    skip = 0,
+    searchTerm,
+  }: FindCategoryDto): Promise<CategoryWithHotness[]> {
+    const categories = await this.prisma.category.findMany({
+      select: {
+        name: true,
+        description: true,
+        hexColor: true,
+        _count: {
+          select: {
+            PostToCategory: true,
+          },
+        },
+      },
+      where: {
+        name: {
+          startsWith: searchTerm,
+          mode: 'insensitive',
+        },
+      },
+      take,
+      skip,
+      orderBy: {
+        PostToCategory: {
+          _count: 'desc',
+        },
+      },
+    });
+
+    return categories.map((category) => ({
+      name: category.name,
+      description: category.description,
+      hexColor: category.hexColor,
+      hotness: category._count.PostToCategory,
+    }));
   }
 
   async getCombinations(): Promise<string[][]> {

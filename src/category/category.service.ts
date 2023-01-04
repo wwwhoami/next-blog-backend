@@ -5,13 +5,24 @@ import {
   GetCategoryCombinationsDto,
   GetCategoryDto,
 } from './dto/get-category-dto';
-import { CategoryEntity } from './entities/category.entity';
+import {
+  CategoryEntity,
+  CategoryWithHotness,
+} from './entities/category.entity';
 
 @Injectable()
 export class CategoryService {
   constructor(private categoryRepository: CategoryRepository) {}
 
-  getMany(params: GetCategoryDto): Promise<CategoryEntity[]> {
+  getMany(
+    params: GetCategoryDto,
+  ): Promise<CategoryEntity[] | CategoryWithHotness[]> {
+    if (params.searchTerm)
+      return this.categoryRepository.findMany({
+        ...params,
+        searchTerm: params.searchTerm,
+      });
+
     return this.categoryRepository.getMany(params);
   }
 

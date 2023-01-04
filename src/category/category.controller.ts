@@ -5,7 +5,10 @@ import {
   GetCategoryCombinationsDto,
   GetCategoryDto,
 } from './dto/get-category-dto';
-import { CategoryEntity } from './entities/category.entity';
+import {
+  CategoryEntity,
+  CategoryWithHotness,
+} from './entities/category.entity';
 
 @Controller('category')
 @ApiTags('category')
@@ -15,7 +18,7 @@ export class CategoryController {
   @Get()
   getMany(
     @Query() getCategoriesQuery: GetCategoryDto,
-  ): Promise<CategoryEntity[]> {
+  ): Promise<CategoryEntity[] | CategoryWithHotness[]> {
     return this.categoryService.getMany(getCategoriesQuery);
   }
 

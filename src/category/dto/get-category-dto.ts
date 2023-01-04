@@ -14,6 +14,19 @@ export class GetCategoryDto {
   @IsInt()
   @Transform(({ value }) => Number.parseInt(value))
   skip?: number;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
+  searchTerm?: string;
+}
+
+export class FindCategoryDto extends GetCategoryDto {
+  @ApiProperty({ type: String, required: false })
+  @IsString()
+  @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
+  searchTerm: string;
 }
 
 export class GetCategoryCombinationsDto {
