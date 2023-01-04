@@ -9,12 +9,12 @@ import request from 'supertest';
 
 const categories: CategoryEntity[] = [
   {
-    name: 'commodi',
-    hexColor: '#e13d1a',
-  },
-  {
     name: 'CSS',
     hexColor: '#2563eb',
+  },
+  {
+    name: 'commodi',
+    hexColor: '#e13d1a',
   },
   {
     name: 'culpa',
@@ -49,6 +49,24 @@ describe('Category (e2e)', () => {
           expect(Object.keys(response.body[0])).toEqual(
             Object.keys(categories[0]),
           );
+        });
+    });
+
+    it('should find categories (if searchTerm provided) as array of CategoryWithHotness in response body', () => {
+      const searchTerm = 'css';
+
+      return request(app.getHttpServer())
+        .get(`/category?searchTerm=${searchTerm}`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body[0]).toMatchObject({
+            name: expect.stringMatching(
+              new RegExp('^' + searchTerm + '.*', 'i'),
+            ),
+            description: expect.any(String),
+            hotness: expect.any(Number),
+          });
         });
     });
 
