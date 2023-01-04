@@ -5,6 +5,7 @@ import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CategoryRepository } from '../category.repository';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
+import { CategoryWithHotness } from '../entities/category.entity';
 
 describe('CategoryRepository', () => {
   let repository: CategoryRepository;
@@ -47,6 +48,40 @@ describe('CategoryRepository', () => {
       expect(
         repository.getMany({ take: undefined, skip: undefined }),
       ).resolves.toEqual(payload);
+    });
+  });
+
+  describe('findMany', () => {
+    it('should find categories, map return to CategoryWithHotness[]', () => {
+      const searchTerm = 'name';
+      const payload = [
+        {
+          name: 'name1',
+          hexColor: 'hexColor1',
+          description: 'description1',
+          _count: { PostToCategory: 34 },
+        },
+        {
+          name: 'name2',
+          hexColor: 'hexColor2',
+          description: 'description2',
+          _count: { PostToCategory: 34 },
+        },
+      ];
+      const expectedPayload: CategoryWithHotness[] = payload.map(
+        (category) => ({
+          name: category.name,
+          description: category.description,
+          hexColor: category.hexColor,
+          hotness: category._count.PostToCategory,
+        }),
+      );
+
+      prisma.category.findMany.mockResolvedValue(payload);
+
+      expect(repository.findMany({ searchTerm })).resolves.toEqual(
+        expectedPayload,
+      );
     });
   });
 

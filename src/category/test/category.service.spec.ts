@@ -38,6 +38,28 @@ describe('CategoryService', () => {
 
       expect(service.getMany({})).resolves.toEqual(payload);
     });
+
+    it('should find categories if searchTerm provided', () => {
+      const searchTerm = 'name';
+      const payload = [
+        {
+          name: 'name1',
+          hexColor: 'hexColor1',
+          description: 'description1',
+          hotness: 34,
+        },
+        {
+          name: 'name2',
+          hexColor: 'hexColor2',
+          description: 'description2',
+          hotness: 34,
+        },
+      ];
+
+      categoryRepository.findMany.mockResolvedValue(payload);
+
+      expect(service.getMany({ searchTerm })).resolves.toEqual(payload);
+    });
   });
 
   describe('getCombinations', () => {
