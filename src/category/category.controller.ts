@@ -1,5 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { CategoryService } from './category.service';
 import {
   GetCategoryCombinationsDto,
@@ -12,9 +17,21 @@ import {
 
 @Controller('category')
 @ApiTags('category')
+@ApiExtraModels(CategoryEntity, CategoryWithHotness) // Add this decorator
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
+  @ApiOkResponse({
+    schema: {
+      type: 'array',
+      items: {
+        oneOf: [
+          { $ref: getSchemaPath(CategoryEntity) },
+          { $ref: getSchemaPath(CategoryWithHotness) },
+        ],
+      },
+    },
+  })
   @Get()
   getMany(
     @Query() getCategoriesQuery: GetCategoryDto,
