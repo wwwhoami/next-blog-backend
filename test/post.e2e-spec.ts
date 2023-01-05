@@ -324,16 +324,29 @@ describe('Post (e2e)', () => {
     let agent: request.SuperAgentTest;
     let accessToken: string;
 
+    let adminAgent: request.SuperAgentTest;
+    let adminAccessToken: string;
+
     beforeEach(async () => {
       const authCredentials: AuthCredentialsDto = {
         name: 'Alice Johnson',
         email: 'alice@prisma.io',
         password: 'password',
       };
+      const adminAuthCredentials: AuthCredentialsDto = {
+        name: 'Admin',
+        email: 'admin@admin.com',
+        password: 'password',
+      };
+
       agent = request.agent(app.getHttpServer());
+      adminAgent = request.agent(app.getHttpServer());
 
       accessToken = (await agent.post(`/auth/login`).send(authCredentials))
         .body['accessToken'];
+      adminAccessToken = (
+        await agent.post(`/auth/login`).send(adminAuthCredentials)
+      ).body['accessToken'];
     });
 
     it('should replace post data with data provided if user is logged in and is author', () => {
@@ -350,6 +363,38 @@ describe('Post (e2e)', () => {
       return agent
         .put(`/post`)
         .auth(accessToken, { type: 'bearer' })
+        .send({
+          ...updatedPost,
+          categories: categoriesForUpdatedPost,
+        })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            title: updatedPost.title,
+            slug: slugify(updatedPost.title, { lower: true }),
+            excerpt: updatedPost.excerpt,
+            content: updatedPost.content,
+            coverImage: updatedPost.coverImage,
+            author: expect.objectContaining(author),
+            categories: expect.arrayContaining(expectedRecievedCategories),
+          });
+        });
+    });
+
+    it('should replace post data with data provided if user is logged in and is admin', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
+      const expectedRecievedCategories = categoriesForUpdatedPost.map(
+        (category) => ({
+          category: { name: category.name, hexColor: category.hexColor },
+        }),
+      );
+
+      return adminAgent
+        .put(`/post`)
+        .auth(adminAccessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
           categories: categoriesForUpdatedPost,
@@ -428,17 +473,11 @@ describe('Post (e2e)', () => {
   });
 
   describe('/post (DELETE)', () => {
-    const categoriesForDeletedPost = [
-      {
-        category: {
-          name: 'new category',
-          hexColor: '#9110ea',
-        },
-      },
-    ];
-
     let agent: request.SuperAgentTest;
     let accessToken: string;
+
+    let adminAgent: request.SuperAgentTest;
+    let adminAccessToken: string;
 
     beforeEach(async () => {
       const authCredentials: AuthCredentialsDto = {
@@ -446,10 +485,19 @@ describe('Post (e2e)', () => {
         email: 'alice@prisma.io',
         password: 'password',
       };
+      const adminAuthCredentials: AuthCredentialsDto = {
+        name: 'Admin',
+        email: 'admin@admin.com',
+        password: 'password',
+      };
       agent = request.agent(app.getHttpServer());
+      adminAgent = request.agent(app.getHttpServer());
 
       accessToken = (await agent.post(`/auth/login`).send(authCredentials))
         .body['accessToken'];
+      adminAccessToken = (
+        await agent.post(`/auth/login`).send(adminAuthCredentials)
+      ).body['accessToken'];
     });
 
     it('should delete post with provided id if user is logged in and is author, return deleted PostEntity', () => {
@@ -474,7 +522,48 @@ describe('Post (e2e)', () => {
             excerpt: expect.any(String),
             coverImage: expect.any(String),
             author: expect.objectContaining(author),
-            categories: expect.arrayContaining(categoriesForDeletedPost),
+            categories: expect.arrayContaining([
+              expect.objectContaining({
+                category: expect.objectContaining({
+                  name: expect.any(String),
+                  hexColor: expect.any(String),
+                }),
+              }),
+            ]),
+          });
+        });
+    });
+
+    it('should delete post with provided id if user is logged in and is admin, return deleted PostEntity', () => {
+      const author = {
+        image: 'https://randomuser.me/api/portraits/women/12.jpg',
+        name: 'Alice Johnson',
+      };
+      const postId = 3;
+
+      return adminAgent
+        .delete(`/post`)
+        .auth(adminAccessToken, { type: 'bearer' })
+        .send({
+          id: postId,
+        })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id: postId,
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: expect.objectContaining(author),
+            categories: expect.arrayContaining([
+              expect.objectContaining({
+                category: expect.objectContaining({
+                  name: expect.any(String),
+                  hexColor: expect.any(String),
+                }),
+              }),
+            ]),
           });
         });
     });
