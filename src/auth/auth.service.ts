@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
 import { compare, genSalt, hash } from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -36,16 +37,17 @@ export class AuthService {
     if (!user) return;
 
     if (await compare(password, user.password)) {
-      const { id, name, email, image } = user;
+      const { id, name, email, image, role } = user;
 
-      const accessToken = await this.createAccessToken(id, name);
+      const accessToken = await this.createAccessToken(id, name, role);
       const { refreshToken, refreshTokenExpiry } =
-        await this.createRefreshToken(id, name);
+        await this.createRefreshToken(id, name, role);
 
       return {
         name,
         email,
         image,
+        role,
         accessToken,
         refreshToken,
         refreshTokenExpiry,
@@ -78,16 +80,19 @@ export class AuthService {
     const { refreshToken, refreshTokenExpiry } = await this.createRefreshToken(
       createdUser.id,
       createdUser.name,
+      createdUser.role,
     );
     const accessToken = await this.createAccessToken(
       createdUser.id,
       createdUser.name,
+      createdUser.role,
     );
 
     return {
       name: createdUser.name,
       email: createdUser.email,
       image: createdUser.image,
+      role: createdUser.role,
       accessToken,
       refreshToken,
       refreshTokenExpiry,
@@ -97,10 +102,12 @@ export class AuthService {
   async createRefreshToken(
     id: string,
     name: string,
+    role: Role,
   ): Promise<{ refreshToken: string; refreshTokenExpiry: number }> {
     const jwtPayload: JwtPayload = {
       sub: id,
       name,
+      role,
     };
     const expiresIn =
       this.configService.get<number>('REFRESH_JWT_EXPIRATION') ?? 86400;
@@ -115,10 +122,15 @@ export class AuthService {
     return { refreshToken, refreshTokenExpiry: expiresIn };
   }
 
-  async createAccessToken(id: string, name: string): Promise<string> {
+  async createAccessToken(
+    id: string,
+    name: string,
+    role: Role,
+  ): Promise<string> {
     const jwtPayload: JwtPayload = {
       sub: id,
       name,
+      role,
     };
     const expiresIn = this.configService.get<number>('ACCESS_JWT_EXPIRATION');
 
@@ -136,7 +148,7 @@ export class AuthService {
     refreshTokenExpiry: number;
     id: string;
   }> {
-    const { sub: id, name } = refreshToken;
+    const { sub: id, name, role } = refreshToken;
 
     const tokenValue = await this.cacheManager.get(id);
     if (!tokenValue) throw new UnauthorizedException('Refresh token expired');
@@ -144,8 +156,8 @@ export class AuthService {
     await this.cacheManager.del(id);
 
     const { refreshToken: createdRefreshToken, refreshTokenExpiry } =
-      await this.createRefreshToken(id, name);
-    const accessToken = await this.createAccessToken(id, name);
+      await this.createRefreshToken(id, name, role);
+    const accessToken = await this.createAccessToken(id, name, role);
 
     return {
       refreshToken: createdRefreshToken,

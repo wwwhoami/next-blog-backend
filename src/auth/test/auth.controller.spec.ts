@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { Role } from 'src/user/entities/role.enum';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
 
@@ -22,6 +23,7 @@ const userData = {
   email: 'alice@prisma.io',
   image: 'https://randomuser.me/api/portraits/women/12.jpg',
   password: 'password',
+  role: Role.User,
 };
 
 // const refreshTokenJwt: JwtPayload = {  };
@@ -83,7 +85,7 @@ describe('AuthController', () => {
 
   describe('signUp', () => {
     it('should return { email, name, image, accessToken }, set cookie with refresh token', async () => {
-      const { email, name, image } = userData;
+      const { email, name, image, role } = userData;
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 123;
       const accessToken = 'access token';
@@ -95,6 +97,7 @@ describe('AuthController', () => {
         email,
         name,
         image,
+        role,
         refreshToken,
         refreshTokenExpiry,
         accessToken,
@@ -178,7 +181,7 @@ describe('AuthController', () => {
 
   describe('login', () => {
     it('should return { email, name, image, accessToken }, set cookie with refresh token', async () => {
-      const { email, name, image } = userData;
+      const { email, name, image, role } = userData;
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 123;
       const accessToken = 'access token';
@@ -190,6 +193,7 @@ describe('AuthController', () => {
         email,
         name,
         image,
+        role,
         refreshToken,
         refreshTokenExpiry,
         accessToken,

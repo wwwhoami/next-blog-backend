@@ -5,6 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { Role } from 'src/user/entities/role.enum';
 import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { AuthService } from '../auth.service';
@@ -22,9 +23,14 @@ const userData: UserEntity = {
   email: 'alice@prisma.io',
   image: 'https://randomuser.me/api/portraits/women/12.jpg',
   password: 'password',
+  role: Role.User,
 };
 
-const refreshTokenJwt: JwtPayload = { name: 'name', sub: 'sub' };
+const refreshTokenJwt: JwtPayload = {
+  name: 'name',
+  sub: 'sub',
+  role: Role.User,
+};
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -63,14 +69,14 @@ describe('AuthService', () => {
 
   describe('createRefreshToken', () => {
     it('should create refresh token, return with expiry', async () => {
-      const { id, name } = userData;
+      const { id, name, role } = userData;
       const refreshToken = 'refresh token';
       const refreshTokenExp =
         configService.get<number>('REFRESH_JWT_EXPIRATION') ?? 86400;
 
       jwtService.signAsync.mockResolvedValue(refreshToken);
 
-      expect(service.createRefreshToken(id, name)).resolves.toEqual({
+      expect(service.createRefreshToken(id, name, role)).resolves.toEqual({
         refreshToken,
         refreshTokenExpiry: refreshTokenExp,
       });
@@ -79,12 +85,14 @@ describe('AuthService', () => {
 
   describe('createAccessToken', () => {
     it('should create refresh token, return it', () => {
-      const { id, name } = userData;
+      const { id, name, role } = userData;
       const accessToken = 'access token';
 
       jwtService.signAsync.mockResolvedValue(accessToken);
 
-      expect(service.createAccessToken(id, name)).resolves.toEqual(accessToken);
+      expect(service.createAccessToken(id, name, role)).resolves.toEqual(
+        accessToken,
+      );
     });
   });
 
@@ -161,6 +169,7 @@ describe('AuthService', () => {
         name: retrievedUser.name,
         email: retrievedUser.email,
         image: retrievedUser.image,
+        role: retrievedUser.role,
         accessToken,
         refreshToken,
         refreshTokenExpiry,
@@ -194,6 +203,7 @@ describe('AuthService', () => {
         name: userToCreate.name,
         email: userToCreate.email,
         image: userToCreate.image,
+        role: Role.User,
         id: userData.id,
       };
       const refreshToken = 'refresh token';
@@ -203,6 +213,7 @@ describe('AuthService', () => {
         name: createdUser.name,
         email: createdUser.email,
         image: createdUser.image,
+        role: createdUser.role,
         accessToken,
         refreshToken,
         refreshTokenExpiry,
