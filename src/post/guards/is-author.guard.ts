@@ -12,7 +12,7 @@ import { PostService } from '../post.service';
 
 @Injectable()
 export class IsAuthorGuard implements CanActivate {
-  constructor(private postService: PostService) {}
+  constructor(protected readonly postService: PostService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

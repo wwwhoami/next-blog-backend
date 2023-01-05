@@ -17,7 +17,7 @@ import { DeletePostDto } from './dto/delete-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
-import { IsAuthorGuard } from './guards/is-author.guard';
+import { IsAdminOrAuthorGuard } from './guards/is-admin-or-author.guard';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -42,7 +42,7 @@ export class PostController {
     return this.postService.getSlugsForPublished();
   }
 
-  @UseGuards(AccessTokenGuard, IsAuthorGuard)
+  @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Put()
   async update(@Body() post: UpdatePostDto): Promise<PostEntity | undefined> {
     return await this.postService.update(post);
@@ -57,7 +57,7 @@ export class PostController {
     return this.postService.create(post, userId);
   }
 
-  @UseGuards(AccessTokenGuard, IsAuthorGuard)
+  @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Delete()
   async delete(@Body() post: DeletePostDto): Promise<PostEntity | undefined> {
     return this.postService.delete(post);
