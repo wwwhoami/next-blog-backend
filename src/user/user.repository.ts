@@ -28,6 +28,7 @@ export class UserRepository {
         email: true,
         image: true,
         password: (returnOptions?.password as boolean) ?? false,
+        role: true,
       },
       where: {
         id: uuid,
@@ -55,6 +56,7 @@ export class UserRepository {
         email: true,
         image: true,
         password: (returnOptions?.password as boolean) ?? false,
+        role: true,
       },
       where: {
         name,
@@ -82,6 +84,7 @@ export class UserRepository {
         email: true,
         image: true,
         password: (returnOptions?.password as boolean) ?? false,
+        role: true,
       },
       where: {
         email,
@@ -97,6 +100,7 @@ export class UserRepository {
         name: true,
         email: true,
         image: true,
+        role: true,
       },
     });
   }

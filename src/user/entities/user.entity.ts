@@ -1,4 +1,5 @@
-import { User } from '@prisma/client';
+import { OmitType } from '@nestjs/swagger';
+import { Role, User } from '@prisma/client';
 
 export class UserEntity implements User {
   id: string;
@@ -6,24 +7,16 @@ export class UserEntity implements User {
   name: string;
   image: string | null;
   password: string;
+  role: Role;
 }
 
-export class UserNoIdEntity implements Omit<User, 'id'> {
-  email: string;
-  name: string;
-  image: string | null;
-  password: string;
-}
+export class UserNoIdEntity extends OmitType(UserEntity, ['id'] as const) {}
 
-export class UserNoPasswordEntity implements Omit<User, 'password'> {
-  id: string;
-  email: string;
-  name: string;
-  image: string | null;
-}
+export class UserNoPasswordEntity extends OmitType(UserEntity, [
+  'password',
+] as const) {}
 
-export class UserNoIdPasswordEntity implements Omit<User, 'id' | 'password'> {
-  email: string;
-  name: string;
-  image: string | null;
-}
+export class UserNoIdPasswordEntity extends OmitType(UserEntity, [
+  'password',
+  'id',
+] as const) {}
