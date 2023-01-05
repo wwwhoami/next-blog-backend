@@ -9,12 +9,18 @@ datasource db {
   extensions = [pg_trgm, btree_gist]
 }
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id       String  @id @default(uuid()) @db.Uuid
   email    String  @unique @db.VarChar
   name     String  @unique @db.VarChar
   password String  @db.Char(60)
   image    String? @db.VarChar
+  role     Role    @default(USER)
   posts    Post[]
 }
 

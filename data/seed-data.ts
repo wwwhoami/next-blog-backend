@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { Role } from 'src/user/entities/role.enum';
 
 export const userData: Prisma.UserCreateWithoutPostsInput[] = [
   {
@@ -25,6 +26,13 @@ export const userData: Prisma.UserCreateWithoutPostsInput[] = [
     email: 'mahmoud@prisma.io',
     password: '$2a$12$lCGhm3HSmjkFJFtViSPpSemPLvSGpak1ljgC5WyGoIh/l5Igfyl/K',
     image: 'https://randomuser.me/api/portraits/men/13.jpg',
+  },
+
+  {
+    name: 'Admin',
+    email: 'admin@admin.com',
+    password: '$2a$12$lCGhm3HSmjkFJFtViSPpSemPLvSGpak1ljgC5WyGoIh/l5Igfyl/K',
+    role: Role.Admin,
   },
 ];
 
