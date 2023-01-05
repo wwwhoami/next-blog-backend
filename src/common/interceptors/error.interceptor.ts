@@ -22,16 +22,16 @@ export class ErrorInterceptor implements NestInterceptor {
             error.code === 'P2025') ||
           error.name === 'NotFoundError'
         )
-          return throwError(() => new NotFoundException(error.message));
+          return throwError(() => new NotFoundException());
 
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         )
-          return throwError(() => new ConflictException(error.message));
+          return throwError(() => new ConflictException());
 
         if (error instanceof WrongParamsError)
-          return throwError(() => new BadRequestException(error.message));
+          return throwError(() => new BadRequestException());
 
         return throwError(() => error);
       }),
