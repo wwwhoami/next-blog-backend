@@ -15,13 +15,14 @@ enum Role {
 }
 
 model User {
-  id       String  @id @default(uuid()) @db.Uuid
-  email    String  @unique @db.VarChar
-  name     String  @unique @db.VarChar
-  password String  @db.Char(60)
-  image    String? @db.VarChar
-  role     Role    @default(USER)
+  id       String    @id @default(uuid()) @db.Uuid
+  email    String    @unique @db.VarChar
+  name     String    @unique @db.VarChar
+  password String    @db.Char(60)
+  image    String?   @db.VarChar
+  role     Role      @default(USER)
   posts    Post[]
+  Comment  Comment[]
 }
 
 model Post {
@@ -37,6 +38,7 @@ model Post {
   slug       String           @unique @db.VarChar
   author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   categories PostToCategory[]
+  comment    Comment[]
 
   @@index([title(ops: raw("gist_trgm_ops")), excerpt(ops: raw("gist_trgm_ops"))], type: Gist)
   @@index([slug])
@@ -58,4 +60,18 @@ model Category {
   description    String           @db.VarChar(350)
   hexColor       String?          @unique @map("hex_color") @db.Char(7)
   PostToCategory PostToCategory[]
+}
+
+model Comment {
+  id          Int       @id @default(autoincrement())
+  authorId    String    @map("author_id") @db.Uuid
+  postId      Int       @map("post_id")
+  ancestorId  Int?      @map("ancestor_id")
+  content     String
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  author      User      @relation(fields: [authorId], references: [id])
+  post        Post      @relation(fields: [postId], references: [id])
+  ancestor    Comment?  @relation("ancestor_descendants", fields: [ancestorId], references: [id])
+  descendants Comment[] @relation("ancestor_descendants")
 }
