@@ -6,7 +6,7 @@ import {
   GetCategoryDto,
 } from './dto/get-category-dto';
 import {
-  CategoryEntity,
+  CategoryNoDescription,
   CategoryWithHotness,
 } from './entities/category.entity';
 
@@ -16,7 +16,7 @@ export class CategoryService {
 
   getMany(
     params: GetCategoryDto,
-  ): Promise<CategoryEntity[] | CategoryWithHotness[]> {
+  ): Promise<CategoryNoDescription[] | CategoryWithHotness[]> {
     if (params.searchTerm)
       return this.categoryRepository.findMany({
         ...params,

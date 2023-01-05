@@ -1,9 +1,11 @@
-export class CategoryEntity {
+import { Category } from '@prisma/client';
+
+export class CategoryNoDescription implements Omit<Category, 'description'> {
   name: string;
   hexColor: string | null;
 }
 
-export class CategoryWithHotness {
+export class CategoryWithHotness implements Category {
   name: string;
   description: string;
   hexColor: string | null;

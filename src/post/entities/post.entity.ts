@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { CategoryNoDescription } from 'src/category/entities/category.entity';
 
 export enum PostEntityKeysEnum {
   id = 'id',
@@ -17,15 +18,13 @@ export class Slug {
   slug: string;
 }
 
-class CategoryEntity {
-  category: {
-    name: string;
-    hexColor: string | null;
-  };
-}
 class AuthorEntity {
   name: string;
   image: string | null;
+}
+
+class PostCategory {
+  category: CategoryNoDescription;
 }
 
 export class PostEntity {
@@ -38,6 +37,9 @@ export class PostEntity {
   excerpt: string;
   slug: string;
   author?: AuthorEntity;
-  @ApiProperty({ type: CategoryEntity, isArray: true })
-  categories?: CategoryEntity[];
+  @ApiProperty({
+    type: PostCategory,
+    isArray: true,
+  })
+  categories?: PostCategory[];
 }

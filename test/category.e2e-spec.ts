@@ -3,11 +3,11 @@ import { Test } from '@nestjs/testing';
 import { isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
 import { AppModule } from 'src/app.module';
-import { CategoryEntity } from 'src/category/entities/category.entity';
+import { CategoryNoDescription } from 'src/category/entities/category.entity';
 import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import request from 'supertest';
 
-const categories: CategoryEntity[] = [
+const categories: CategoryNoDescription[] = [
   {
     name: 'CSS',
     hexColor: '#2563eb',

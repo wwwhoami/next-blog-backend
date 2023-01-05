@@ -5,7 +5,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoriesDto } from './dto/create-category.dto';
 import { FindCategoryDto, GetCategoryDto } from './dto/get-category-dto';
 import {
-  CategoryEntity,
+  CategoryNoDescription,
   CategoryWithHotness,
 } from './entities/category.entity';
 
@@ -16,7 +16,10 @@ export class CategoryRepository {
     private postRepository: PostRepository,
   ) {}
 
-  getMany({ take = 25, skip = 0 }: GetCategoryDto): Promise<CategoryEntity[]> {
+  getMany({
+    take = 25,
+    skip = 0,
+  }: GetCategoryDto): Promise<CategoryNoDescription[]> {
     return this.prisma.category.findMany({
       select: {
         name: true,

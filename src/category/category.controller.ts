@@ -11,13 +11,13 @@ import {
   GetCategoryDto,
 } from './dto/get-category-dto';
 import {
-  CategoryEntity,
+  CategoryNoDescription,
   CategoryWithHotness,
 } from './entities/category.entity';
 
 @Controller('category')
 @ApiTags('category')
-@ApiExtraModels(CategoryEntity, CategoryWithHotness) // Add this decorator
+@ApiExtraModels(CategoryNoDescription, CategoryWithHotness) // Add this decorator
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
@@ -26,7 +26,7 @@ export class CategoryController {
       type: 'array',
       items: {
         oneOf: [
-          { $ref: getSchemaPath(CategoryEntity) },
+          { $ref: getSchemaPath(CategoryNoDescription) },
           { $ref: getSchemaPath(CategoryWithHotness) },
         ],
       },
@@ -35,7 +35,7 @@ export class CategoryController {
   @Get()
   getMany(
     @Query() getCategoriesQuery: GetCategoryDto,
-  ): Promise<CategoryEntity[] | CategoryWithHotness[]> {
+  ): Promise<CategoryNoDescription[] | CategoryWithHotness[]> {
     return this.categoryService.getMany(getCategoriesQuery);
   }
 
