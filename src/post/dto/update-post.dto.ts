@@ -10,9 +10,6 @@ import {
 import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 
 export class UpdatePostDto {
-  @IsNumber()
-  id: number;
-
   @IsString()
   title: string;
 

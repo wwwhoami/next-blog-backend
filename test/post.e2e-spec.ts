@@ -311,8 +311,8 @@ describe('Post (e2e)', () => {
         hexColor: '#9110ea',
       },
     ];
+    const postId = 1;
     const updatedPost = {
-      id: 1,
       title: 'Updated title.',
       excerpt:
         'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
@@ -361,7 +361,7 @@ describe('Post (e2e)', () => {
       );
 
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
@@ -393,7 +393,7 @@ describe('Post (e2e)', () => {
       );
 
       return adminAgent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(adminAccessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
@@ -415,7 +415,7 @@ describe('Post (e2e)', () => {
 
     it('should return 409 on unique constraint violation', () => {
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
@@ -426,12 +426,13 @@ describe('Post (e2e)', () => {
     });
 
     it('should return 404 if post with provided id does not exist', () => {
+      const postId = -12;
+
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
-          id: -12,
           categories: categoriesForUpdatedPost,
         })
         .expect(HttpStatus.NOT_FOUND);
@@ -449,7 +450,7 @@ describe('Post (e2e)', () => {
       ).body;
 
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
         .send({
           ...updatedPost,
@@ -460,13 +461,13 @@ describe('Post (e2e)', () => {
 
     it('should return 401 if user is not logged in', () => {
       return request(app.getHttpServer())
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .expect(HttpStatus.UNAUTHORIZED);
     });
 
     it('should return 400 if bad body provided', () => {
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });
@@ -508,11 +509,8 @@ describe('Post (e2e)', () => {
       const postId = 1;
 
       return agent
-        .delete(`/post`)
+        .delete(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
-        .send({
-          id: postId,
-        })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
@@ -542,11 +540,8 @@ describe('Post (e2e)', () => {
       const postId = 3;
 
       return adminAgent
-        .delete(`/post`)
+        .delete(`/post/${postId}`)
         .auth(adminAccessToken, { type: 'bearer' })
-        .send({
-          id: postId,
-        })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
@@ -568,57 +563,11 @@ describe('Post (e2e)', () => {
         });
     });
 
-    it('should delete post with provided slug if user is logged in and is author, return deleted PostEntity', () => {
-      const author = {
-        image: 'https://randomuser.me/api/portraits/women/12.jpg',
-        name: 'Alice Johnson',
-      };
-      const postSlug = slugify('Writing Great Unit Tests', { lower: true });
-
-      return agent
-        .delete(`/post`)
-        .auth(accessToken, { type: 'bearer' })
-        .send({
-          slug: postSlug,
-        })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject({
-            slug: postSlug,
-            id: expect.any(Number),
-            title: expect.any(String),
-            excerpt: expect.any(String),
-            coverImage: expect.any(String),
-            author: expect.objectContaining(author),
-            categories: expect.arrayContaining([
-              expect.objectContaining({
-                category: expect.objectContaining({
-                  name: expect.any(String),
-                  hexColor: expect.any(String),
-                }),
-              }),
-            ]),
-          });
-        });
-    });
-
     it('should return 404 if post with provided id does not exist', () => {
+      const id = -12;
       return agent
-        .put(`/post`)
+        .put(`/post/${id}`)
         .auth(accessToken, { type: 'bearer' })
-        .send({
-          id: -12,
-        })
-        .expect(HttpStatus.NOT_FOUND);
-    });
-
-    it('should return 404 if post with provided slug does not exist', () => {
-      return agent
-        .put(`/post`)
-        .auth(accessToken, { type: 'bearer' })
-        .send({
-          slug: 'NonexistentSlug',
-        })
         .expect(HttpStatus.NOT_FOUND);
     });
 
@@ -632,25 +581,27 @@ describe('Post (e2e)', () => {
       const { accessToken } = (
         await agent.post(`/auth/login`).send(requestingUserAuthCredentials)
       ).body;
+      const postId = 2;
 
       return agent
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .auth(accessToken, { type: 'bearer' })
-        .send({
-          id: 2,
-        })
         .expect(HttpStatus.FORBIDDEN);
     });
 
     it('should return 401 if user is not logged in', () => {
+      const postId = 3;
+
       return request(app.getHttpServer())
-        .put(`/post`)
+        .put(`/post/${postId}`)
         .expect(HttpStatus.UNAUTHORIZED);
     });
 
-    it('should return 400 if bad body provided', () => {
+    it('should return 400 if post id param is not Int', () => {
+      const id = 'NotInt';
+
       return agent
-        .put(`/post`)
+        .put(`/post/${id}`)
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });

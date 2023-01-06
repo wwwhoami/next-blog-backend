@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
 import slugify from 'slugify';
-import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
 
@@ -263,13 +262,13 @@ describe('PostService', () => {
       content: 'content',
     };
     const postToUpdate = postData;
-    const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
     const authorData = {
       name: 'author name',
       image: 'author image',
     };
 
     it('should update post with postData provided', async () => {
+      const postId = postData.id;
       const updatedPostReturn = {
         ...postData,
         slug: 'architecto-iustos-nesciunt.',
@@ -281,9 +280,7 @@ describe('PostService', () => {
         updatedAt: new Date(),
       });
 
-      postRepository.getAuthorById.mockResolvedValue({ authorId });
-
-      const updatedPost = await service.update(postToUpdate);
+      const updatedPost = await service.update(postId, postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -311,7 +308,7 @@ describe('PostService', () => {
       const id = onePost.id;
       postRepository.getAuthorById.mockResolvedValue({ authorId });
 
-      const author = await service.getAuthorId({ id });
+      const author = await service.getAuthorId(id);
 
       expect(author).toEqual({ authorId });
     });
@@ -321,42 +318,30 @@ describe('PostService', () => {
 
       postRepository.getAuthorBySlug.mockResolvedValue({ authorId });
 
-      const author = await service.getAuthorId({ slug });
+      const author = await service.getAuthorId(slug);
 
       expect(author).toEqual({ authorId });
-    });
-
-    it('should throw WrongParamsError if neither id nor slug provided', async () => {
-      const deletePost = service.getAuthorId({});
-
-      await expect(deletePost).rejects.toThrowError(WrongParamsError);
     });
   });
 
   describe('delete', () => {
-    it('should delete post by id, if id provided', async () => {
+    it('should delete post by id, if id as number provided', async () => {
       const id = onePost.id;
       postRepository.deleteById.mockResolvedValue(onePost);
 
-      const deletedPost = await service.delete({ id });
+      const deletedPost = await service.delete(id);
 
       expect(deletedPost).toEqual(onePost);
     });
 
-    it('should delete post by slug, if no id, but slug provided', async () => {
+    it('should delete post by slug, if slug as string provided', async () => {
       const slug = onePost.slug;
 
       postRepository.deleteBySlug.mockResolvedValue(onePost);
 
-      const deletedPost = await service.delete({ slug });
+      const deletedPost = await service.delete(slug);
 
       expect(deletedPost).toEqual(onePost);
-    });
-
-    it('should throw WrongParamsError if neither id nor slug provided', async () => {
-      const deletePost = service.delete({});
-
-      await expect(deletePost).rejects.toThrowError(WrongParamsError);
     });
   });
 });

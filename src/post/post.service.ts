@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { CreatePostDto } from './dto/create-post.dto';
-import { DeletePostDto } from './dto/delete-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity } from './entities/post.entity';
@@ -11,14 +9,11 @@ import { PostRepository } from './post.repository';
 export class PostService {
   constructor(private postRepository: PostRepository) {}
 
-  async getAuthorId({
-    id,
-    slug,
-  }: DeletePostDto): Promise<{ authorId: string }> {
-    if (id) return this.postRepository.getAuthorById(id);
-    else if (slug) return this.postRepository.getAuthorBySlug(slug);
+  async getAuthorId(idOrSlug: number | string): Promise<{ authorId: string }> {
+    if (typeof idOrSlug === 'number')
+      return this.postRepository.getAuthorById(idOrSlug);
 
-    throw new WrongParamsError('Neither of { id, slug } parameters provided');
+    return this.postRepository.getAuthorBySlug(idOrSlug as string);
   }
 
   async getIds(params: GetPostDto): Promise<{ id: number }[]> {
@@ -71,8 +66,8 @@ export class PostService {
     return this.postRepository.create(post, authorId);
   }
 
-  async update(post: UpdatePostDto): Promise<PostEntity> {
-    return this.postRepository.update(post);
+  async update(id: number, post: UpdatePostDto): Promise<PostEntity> {
+    return this.postRepository.update(id, post);
   }
 
   /**
@@ -82,10 +77,10 @@ export class PostService {
    * @param {string} param0.slug - Post's slug.
    * @returns Post Entity or undefined inside promise
    */
-  async delete({ id, slug }: DeletePostDto): Promise<PostEntity | undefined> {
-    if (id) return this.postRepository.deleteById(id);
-    else if (slug) return this.postRepository.deleteBySlug(slug);
+  async delete(idOrSlug: number | string): Promise<PostEntity | undefined> {
+    if (typeof idOrSlug === 'number')
+      return this.postRepository.deleteById(idOrSlug);
 
-    throw new WrongParamsError('Neither of { id, slug } parameters provided');
+    return this.postRepository.deleteBySlug(idOrSlug as string);
   }
 }
