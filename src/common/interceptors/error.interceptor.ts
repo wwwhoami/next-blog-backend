@@ -31,7 +31,7 @@ export class ErrorInterceptor implements NestInterceptor {
           return throwError(() => new ConflictException());
 
         if (error instanceof WrongParamsError)
-          return throwError(() => new BadRequestException());
+          return throwError(() => new BadRequestException(error.message));
 
         return throwError(() => error);
       }),

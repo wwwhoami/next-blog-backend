@@ -347,13 +347,13 @@ export class PostRepository {
     });
   }
 
-  async update(post: UpdatePostDto): Promise<PostEntity> {
+  async update(id: number, post: UpdatePostDto): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
 
     return this.prisma.post.update({
       where: {
-        id: postData.id,
+        id,
       },
       data: {
         ...postData,
@@ -367,7 +367,7 @@ export class PostRepository {
           upsert: categories?.map((category) => ({
             where: {
               postId_categoryName: {
-                postId: postData.id,
+                postId: id,
                 categoryName: category.name,
               },
             },

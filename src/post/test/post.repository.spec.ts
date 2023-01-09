@@ -299,14 +299,15 @@ describe('PostRepository', () => {
     const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
     it('should update post with postData provided', async () => {
+      const postId = postToUpdate.id;
       prisma.post.update.mockResolvedValue({
         ...postToUpdate,
-        id: 12312,
+        id: postId,
         authorId,
         updatedAt: new Date(),
       });
 
-      const updatedPost = await repository.update(postToUpdate);
+      const updatedPost = await repository.update(postId, postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...postToUpdate,

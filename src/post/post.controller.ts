@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -13,7 +14,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { CreatePostDto } from './dto/create-post.dto';
-import { DeletePostDto } from './dto/delete-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
@@ -43,9 +43,12 @@ export class PostController {
   }
 
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
-  @Put()
-  async update(@Body() post: UpdatePostDto): Promise<PostEntity | undefined> {
-    return await this.postService.update(post);
+  @Put(':postId')
+  async update(
+    @Param('postId', ParseIntPipe) postId: number,
+    @Body() post: UpdatePostDto,
+  ): Promise<PostEntity | undefined> {
+    return await this.postService.update(postId, post);
   }
 
   @UseGuards(AccessTokenGuard)
@@ -58,8 +61,10 @@ export class PostController {
   }
 
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
-  @Delete()
-  async delete(@Body() post: DeletePostDto): Promise<PostEntity | undefined> {
-    return this.postService.delete(post);
+  @Delete(':postId')
+  async delete(
+    @Param('postId', ParseIntPipe) postId: number,
+  ): Promise<PostEntity | undefined> {
+    return this.postService.delete(postId);
   }
 }

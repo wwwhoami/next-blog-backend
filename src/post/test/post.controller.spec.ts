@@ -195,6 +195,7 @@ describe('PostController', () => {
     };
 
     it('should update post with postData provided', async () => {
+      const postId = postData.id;
       const updatedPostReturn = {
         ...postData,
         slug: 'architecto-iustos-nesciunt.',
@@ -206,7 +207,7 @@ describe('PostController', () => {
         updatedAt: new Date(),
       });
 
-      const updatedPost = await controller.update(postToUpdate);
+      const updatedPost = await controller.update(postId, postToUpdate);
 
       expect(updatedPost).toMatchObject({
         ...updatedPostReturn,
@@ -218,21 +219,11 @@ describe('PostController', () => {
   });
 
   describe('delete', () => {
-    it('should delete post by id, if id provided', async () => {
+    it('should delete post by id, if id as number provided', async () => {
       const id = onePost.id;
       postService.delete.mockResolvedValue(onePost);
 
-      const deletedPost = await controller.delete({ id });
-
-      expect(deletedPost).toEqual(onePost);
-    });
-
-    it('should delete post by slug, if no id, but slug provided', async () => {
-      const slug = onePost.slug;
-
-      postService.delete.mockResolvedValue(onePost);
-
-      const deletedPost = await controller.delete({ slug });
+      const deletedPost = await controller.delete(id);
 
       expect(deletedPost).toEqual(onePost);
     });

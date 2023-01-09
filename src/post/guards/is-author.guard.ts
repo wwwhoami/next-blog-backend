@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { Request } from 'express';
 import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { UserNoPasswordEntity } from 'src/user/entities/user.entity';
 import { PostService } from '../post.service';
@@ -15,24 +16,26 @@ export class IsAuthorGuard implements CanActivate {
   constructor(protected readonly postService: PostService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request: Request = context.switchToHttp().getRequest();
     const {
       user,
-      body,
+      params,
     }: {
-      user: UserNoPasswordEntity;
-      body: { id: number | undefined; slug: string | undefined };
+      user?: UserNoPasswordEntity;
+      params: { postId?: string };
     } = request;
 
     if (!user) return false;
-    if (!body) throw new BadRequestException();
+    if (!params.postId) throw new BadRequestException('Post id param missing');
 
     const userId = user.id;
-    const { id, slug } = body;
+    const postId = parseInt(params.postId);
+
+    if (isNaN(postId)) throw new BadRequestException('Bad post id param');
 
     try {
       // Determine if logged-in user is the same as the user that created the feed post
-      const { authorId } = await this.postService.getAuthorId({ id, slug });
+      const { authorId } = await this.postService.getAuthorId(postId);
       return userId === authorId;
     } catch (error) {
       if (
@@ -40,14 +43,10 @@ export class IsAuthorGuard implements CanActivate {
           error.code === 'P2025') ||
         error.name === 'NotFoundError'
       ) {
-        if (id) throw new NotFoundException(`Post with id ${id} not found`);
-        if (slug)
-          throw new NotFoundException(`Post with slug ${slug} not found`);
+        throw new NotFoundException(`Post not found`);
       }
       if (error instanceof WrongParamsError)
-        throw new BadRequestException(
-          'Neither id nor slug provided in request body',
-        );
+        throw new BadRequestException(error.message);
     }
 
     return false;
