@@ -9,8 +9,8 @@ describe('CategoryService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [CategoryController],
       providers: [
-        CategoryController,
         {
           provide: CategoryService,
           useValue: mock<CategoryService>(),

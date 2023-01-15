@@ -34,8 +34,8 @@ describe('AuthController', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [AuthController],
       providers: [
-        AuthController,
         ConfigService,
         {
           provide: AuthService,

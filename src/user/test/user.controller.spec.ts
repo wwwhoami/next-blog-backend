@@ -37,8 +37,8 @@ describe('UserController', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [UserController],
       providers: [
-        UserController,
         {
           provide: UserService,
           useValue: mock<UserService>(),
