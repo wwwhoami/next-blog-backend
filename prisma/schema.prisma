@@ -68,6 +68,7 @@ model Comment {
   postId      Int       @map("post_id")
   ancestorId  Int?      @map("ancestor_id")
   content     String
+  isDeleted   Boolean   @default(false) @map("is_deleted")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   author      User      @relation(fields: [authorId], references: [id])
