@@ -12,6 +12,8 @@ import { SortOrder } from 'src/common/sort-order.enum';
 import { UnionOfObjKeys } from 'src/common/types/union-of-obj-keys.types';
 import { PostEntityKeysEnum } from '../entities/post.entity';
 
+export type PostOrderBy = UnionOfObjKeys<Post>;
+
 export class GetPostDto {
   @IsOptional()
   @IsInt()
@@ -26,7 +28,7 @@ export class GetPostDto {
   @IsOptional()
   @IsEnum(PostEntityKeysEnum)
   @ApiProperty({ enum: PostEntityKeysEnum })
-  orderBy?: UnionOfObjKeys<Post>;
+  orderBy?: PostOrderBy;
 
   @IsOptional()
   @IsEnum(SortOrder)

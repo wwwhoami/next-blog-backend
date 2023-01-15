@@ -6,6 +6,7 @@ import { CreatePostDto } from './dto/create-post.dto';
 import {
   GetPostDto,
   GetPostsByCategoriesDto,
+  PostOrderBy,
   SearchPostDto,
   SearchPostsByCategoriesDto,
 } from './dto/get-post.dto';
@@ -17,7 +18,53 @@ import { selectPostWithAuthorCategories } from './utils/select.objects';
 export class PostRepository {
   constructor(private prisma: PrismaService) {}
 
-  async getIds({
+  private pickOrdering(
+    orderBy: PostOrderBy,
+    order: Prisma.SortOrder,
+  ): Prisma.Sql {
+    switch (orderBy) {
+      case 'createdAt':
+        return order === 'desc'
+          ? Prisma.sql`created_at DESC`
+          : Prisma.sql`created_at ASC`;
+      case 'updatedAt':
+        return order === 'desc'
+          ? Prisma.sql`updated_at DESC`
+          : Prisma.sql`updated_at ASC`;
+      case 'id':
+        return order === 'desc' ? Prisma.sql`id DESC` : Prisma.sql`id ASC`;
+      case 'title':
+        return order === 'desc'
+          ? Prisma.sql`title DESC`
+          : Prisma.sql`title ASC`;
+      case 'content':
+        return order === 'desc'
+          ? Prisma.sql`content DESC`
+          : Prisma.sql`content ASC`;
+      case 'published':
+        return order === 'desc'
+          ? Prisma.sql`published DESC`
+          : Prisma.sql`published ASC`;
+      case 'coverImage':
+        return order === 'desc'
+          ? Prisma.sql`cover_image DESC`
+          : Prisma.sql`cover_image ASC`;
+      case 'authorId':
+        return order === 'desc'
+          ? Prisma.sql`author_id DESC`
+          : Prisma.sql`author_id ASC`;
+      case 'excerpt':
+        return order === 'desc'
+          ? Prisma.sql`excerpt DESC`
+          : Prisma.sql`excerpt ASC`;
+      case 'slug':
+        return order === 'desc' ? Prisma.sql`slug DESC` : Prisma.sql`slug ASC`;
+      default:
+        return Prisma.sql``;
+    }
+  }
+
+  getIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -36,17 +83,14 @@ export class PostRepository {
     });
   }
 
-  async findIds({
+  findIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
     order = 'desc',
     searchTerm,
   }: SearchPostDto): Promise<{ id: number }[]> {
-    const ordering =
-      order === 'desc'
-        ? Prisma.sql`${orderBy} DESC`
-        : Prisma.sql`${orderBy} ASC`;
+    const ordering = this.pickOrdering(orderBy, order);
 
     return this.prisma.$queryRaw`
       SELECT
@@ -64,7 +108,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getMany({
+  getMany({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -85,7 +129,7 @@ export class PostRepository {
     });
   }
 
-  async findMany({
+  findMany({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -94,21 +138,17 @@ export class PostRepository {
     searchTerm,
   }: SearchPostDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
-    const ordering =
-      order === 'desc'
-        ? Prisma.sql`${orderBy} DESC`
-        : Prisma.sql`${orderBy} ASC`;
+    const ordering = this.pickOrdering(orderBy, order);
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
         p.id,
-        p.created_at,
-        p.updated_at,
+        p.created_at AS "createdAt",
+        p.updated_at AS "updatedAt",
         p.title,
         p.slug,
         p.excerpt,
-        p.view_count,
-        p.cover_image,
+        p.cover_image AS "coverImage",
         ${selectContent}
         json_build_object('name', u. "name", 'image', u.image) AS author,
         array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
@@ -132,7 +172,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getManyByCategories({
+  getManyByCategories({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -141,21 +181,17 @@ export class PostRepository {
     category,
   }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
-    const ordering =
-      order === 'desc'
-        ? Prisma.sql`${orderBy} DESC`
-        : Prisma.sql`${orderBy} ASC`;
+    const ordering = this.pickOrdering(orderBy, order);
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
         p.id,
-        p.created_at,
-        p.updated_at,
+        p.created_at AS "createdAt",
+        p.updated_at AS "updatedAt",
         p.title,
         p.slug,
         p.excerpt,
-        p.view_count,
-        p.cover_image,
+        p.cover_image AS "coverImage",
         ${selectContent}
         json_build_object('name', u."name", 'image', u.image) AS author,
         array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
@@ -193,7 +229,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async findManyByCategories({
+  findManyByCategories({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
@@ -203,21 +239,17 @@ export class PostRepository {
     searchTerm,
   }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
-    const ordering =
-      order === 'desc'
-        ? Prisma.sql`${orderBy} DESC`
-        : Prisma.sql`${orderBy} ASC`;
+    const ordering = this.pickOrdering(orderBy, order);
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
         p.id,
-        p.created_at,
-        p.updated_at,
+        p.created_at AS "createdAt",
+        p.updated_at AS "updatedAt",
         p.title,
         p.slug,
         p.excerpt,
-        p.view_count,
-        p.cover_image,
+        p.cover_image AS "coverImage",
         ${selectContent}
         json_build_object('name', u."name", 'image', u.image) AS author,
         array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
@@ -259,7 +291,7 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
-  async getSlugsForPublished(): Promise<{ slug: string }[]> {
+  getSlugsForPublished(): Promise<{ slug: string }[]> {
     return this.prisma.post.findMany({
       select: {
         slug: true,
@@ -270,7 +302,7 @@ export class PostRepository {
     });
   }
 
-  async getOnePublishedBySlug(slug: string): Promise<PostEntity> {
+  getOnePublishedBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.findFirstOrThrow({
       select: {
         ...selectPostWithAuthorCategories,
@@ -283,7 +315,7 @@ export class PostRepository {
     });
   }
 
-  async getAuthorById(id: number): Promise<{ authorId: string }> {
+  getAuthorById(id: number): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
         authorId: true,
@@ -294,7 +326,7 @@ export class PostRepository {
     });
   }
 
-  async getAuthorBySlug(slug: string): Promise<{ authorId: string }> {
+  getAuthorBySlug(slug: string): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
         authorId: true,
@@ -305,7 +337,7 @@ export class PostRepository {
     });
   }
 
-  async publishOneBySlug(slug: string): Promise<PostEntity> {
+  publishOneBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
       where: {
         slug,
@@ -320,7 +352,7 @@ export class PostRepository {
     });
   }
 
-  async create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+  create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
 
@@ -347,7 +379,7 @@ export class PostRepository {
     });
   }
 
-  async update(id: number, post: UpdatePostDto): Promise<PostEntity> {
+  update(id: number, post: UpdatePostDto): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
 
@@ -390,7 +422,7 @@ export class PostRepository {
     });
   }
 
-  async deleteById(id: number): Promise<PostEntity> {
+  deleteById(id: number): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
         id,
@@ -401,7 +433,7 @@ export class PostRepository {
     });
   }
 
-  async deleteBySlug(slug: string): Promise<PostEntity> {
+  deleteBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
         slug,
