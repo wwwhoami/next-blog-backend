@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
 import slugify from 'slugify';
+import { EntityWithAuthorService } from 'src/common/entity-with-author.service';
 import { PostController } from '../post.controller';
 import { PostService } from '../post.service';
 
@@ -86,11 +87,15 @@ describe('PostController', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      controllers: [PostController],
       providers: [
-        PostController,
         {
           provide: PostService,
           useValue: mock<PostService>(),
+        },
+        {
+          provide: EntityWithAuthorService,
+          useExisting: PostService,
         },
       ],
     }).compile();

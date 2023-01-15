@@ -13,11 +13,11 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
+import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
-import { IsAdminOrAuthorGuard } from './guards/is-admin-or-author.guard';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -31,9 +31,7 @@ export class PostController {
   }
 
   @Get('article/:slug')
-  async getOnePublishedBySlug(
-    @Param('slug') slug: string,
-  ): Promise<PostEntity> {
+  getOnePublishedBySlug(@Param('slug') slug: string): Promise<PostEntity> {
     return this.postService.getOnePublishedBySlug(slug);
   }
 
@@ -43,17 +41,17 @@ export class PostController {
   }
 
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
-  @Put(':postId')
-  async update(
-    @Param('postId', ParseIntPipe) postId: number,
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
     @Body() post: UpdatePostDto,
   ): Promise<PostEntity | undefined> {
-    return await this.postService.update(postId, post);
+    return this.postService.update(id, post);
   }
 
   @UseGuards(AccessTokenGuard)
   @Post()
-  async create(
+  create(
     @GetUser('id') userId: string,
     @Body() post: CreatePostDto,
   ): Promise<PostEntity> {
@@ -61,10 +59,10 @@ export class PostController {
   }
 
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
-  @Delete(':postId')
-  async delete(
-    @Param('postId', ParseIntPipe) postId: number,
+  @Delete(':id')
+  delete(
+    @Param('id', ParseIntPipe) id: number,
   ): Promise<PostEntity | undefined> {
-    return this.postService.delete(postId);
+    return this.postService.delete(id);
   }
 }
