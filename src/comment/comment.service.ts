@@ -14,6 +14,14 @@ import {
 export class CommentService implements EntityWithAuthorService {
   constructor(private readonly commentRepository: CommentRepository) {}
 
+  /**
+   *
+   * @param {CreateCommentDto} createCommentOptions - The comment to be created
+   * @param {string} authorId - The id of the author of the comment
+   * @description
+   * If the comment is a response to another comment, the ancestorId is passed
+   * in the createCommentOptions. If it is not, the ancestorId is undefined.
+   */
   create(
     createCommentOptions: CreateCommentDto,
     authorId: string,
@@ -29,10 +37,21 @@ export class CommentService implements EntityWithAuthorService {
     return this.commentRepository.create(createCommentOptions, authorId);
   }
 
+  /**
+   * @param {number} id - The id of the comment
+   * @description
+   * Gets the id of the author of the comment with the given id
+   */
   getAuthorId(id: number): Promise<{ authorId: string }> {
     return this.commentRepository.getAuthorId(id);
   }
 
+  /**
+   * @param {number} postId - The id of the post
+   * @param {GetCommentDto} getCommentOptions - The options to get the comments
+   * @description
+   * Gets the comments for the post with the given id
+   */
   getManyForPostWithChildrenCount(
     postId: number,
     getCommentOptions: GetCommentDto,
@@ -43,6 +62,12 @@ export class CommentService implements EntityWithAuthorService {
     );
   }
 
+  /**
+   * @param {number} id - The id of the comment
+   * @param {GetCommentDto} getCommentOptions - The options to get the comments
+   * @description
+   * Gets the descendants of the comment with the given id
+   */
   getDescendantsWithChildrenCount(
     id: number,
     getCommentOptions: GetCommentDto,
@@ -53,10 +78,21 @@ export class CommentService implements EntityWithAuthorService {
     );
   }
 
+  /**
+   * @param {number} id - The id of the comment
+   * @description
+   * Gets the comment with the given id
+   */
   getOne(id: number): Promise<CommentEntity> {
     return this.commentRepository.getOne(id);
   }
 
+  /**
+   * @param {number} id - The id of the comment
+   * @description
+   * Updates the comment with the given id
+   * @throws {ConflictError} - If the comment is deleted
+   */
   async update(id: number, comment: UpdateCommentDto) {
     const { isDeleted } = await this.commentRepository.getOne(id);
 
@@ -65,6 +101,11 @@ export class CommentService implements EntityWithAuthorService {
     return this.commentRepository.update(id, comment);
   }
 
+  /**
+   * @param {number} id - The id of the comment
+   * @description
+   * Soft deletes the comment with the given id
+   */
   softRemove(id: number) {
     return this.commentRepository.softRemove(id);
   }
