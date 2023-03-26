@@ -25,6 +25,7 @@ export class GetCommentDto {
   @ApiProperty({ enum: SortOrder })
   order?: Prisma.SortOrder;
 
+  // depth is used to get comments with a specific depth in the tree structure of comments
   @IsOptional()
   @IsInt()
   @Transform(({ value }) => Number.parseInt(value))
