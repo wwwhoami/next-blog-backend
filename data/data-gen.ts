@@ -111,3 +111,29 @@ export async function generatePostToCategory(
 
   return postToCount;
 }
+
+export async function generateComments(
+  count: number,
+  authorUuids: string[],
+  generatedPostsCount: number,
+) {
+  if (count <= 0) throw new Error('Count should be positive integer');
+
+  const commentData: Prisma.CommentCreateManyInput[] = [];
+
+  while (count > 0) {
+    commentData.push({
+      createdAt: faker.datatype.datetime({
+        min: 1589315917000,
+        max: 1620851917000,
+      }),
+      content: faker.lorem.paragraph(),
+      postId: Math.floor(Math.random() * (generatedPostsCount - 1) + 1),
+      authorId:
+        authorUuids[Math.floor(Math.random() * (authorUuids.length - 1) + 1)],
+    });
+    count--;
+  }
+
+  return commentData;
+}
