@@ -38,4 +38,18 @@ export class PrismaSeeder {
       data: postToCategory,
     });
   }
+
+  async seedMockComments(comments: Prisma.CommentCreateInput[]) {
+    for (const c of comments) {
+      await this.prisma.comment.create({
+        data: c,
+      });
+    }
+  }
+
+  async seedComments(comments: Prisma.CommentCreateManyInput[]) {
+    await this.prisma.comment.createMany({
+      data: comments,
+    });
+  }
 }

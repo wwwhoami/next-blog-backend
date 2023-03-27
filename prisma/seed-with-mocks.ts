@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { getPostMocksWithId } from 'data/post';
-import { categoryData, userData } from 'data/seed-data';
+import { categoryData, commentData, userData } from 'data/seed-data';
 import { PrismaSeeder } from './seeders';
 
 export async function seedWithMocks(prisma: PrismaClient) {
@@ -10,4 +10,5 @@ export async function seedWithMocks(prisma: PrismaClient) {
   await prismaSeeder.seedUsers(userData);
   await prismaSeeder.seedCategories(categoryData);
   await prismaSeeder.seedMockPosts(postData);
+  await prismaSeeder.seedMockComments(commentData);
 }
