@@ -36,7 +36,7 @@ export class IsAuthorGuard implements CanActivate {
     try {
       // Determine if logged-in user is the same as the user that created the entity
       const { authorId } = await this.service.getAuthorId(id);
-      return userId === authorId;
+      return authorId !== null && userId === authorId;
     } catch (error) {
       if (
         (error instanceof Prisma.PrismaClientKnownRequestError &&

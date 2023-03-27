@@ -342,13 +342,13 @@ export class CommentRepository {
 
   /**
    * @param {number} id - comment id
-   * @returns {Promise<{ authorId: string }>} - author id
+   * @returns {Promise<{ authorId: string | null }>} - author id
    * @throws {Prisma.PrismaClientKnownRequestError} - if comment with given id does not exist
    * @description This method is used to get author id of comment.
    * @example
    * const authorId = await commentRepository.getAuthorId(1);
    */
-  getAuthorId(id: number): Promise<{ authorId: string }> {
+  getAuthorId(id: number): Promise<{ authorId: string | null }> {
     return this.prisma.comment.findFirstOrThrow({
       where: {
         id,

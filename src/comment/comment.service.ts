@@ -42,7 +42,7 @@ export class CommentService implements EntityWithAuthorService {
    * @description
    * Gets the id of the author of the comment with the given id
    */
-  getAuthorId(id: number): Promise<{ authorId: string }> {
+  getAuthorId(id: number): Promise<{ authorId: string | null }> {
     return this.commentRepository.getAuthorId(id);
   }
 
