@@ -61,7 +61,7 @@ export class CommentController {
     );
   }
 
-  @UseGuards(IsAuthorGuard)
+  @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -70,7 +70,7 @@ export class CommentController {
     return this.commentService.update(id, comment);
   }
 
-  @UseGuards(IsAdminOrAuthorGuard)
+  @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.commentService.softRemove(id);
