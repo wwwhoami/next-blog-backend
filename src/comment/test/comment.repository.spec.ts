@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Comment, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { ConflictError } from 'src/common/errors/conflict.error';
+import { NotFoundError } from 'src/common/errors/not-found.error';
+import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CommentRepository } from '../comment.repository';
 import {
@@ -67,11 +69,13 @@ const comments: CommentEntityWithDepth[] = [
 describe('CommentService', () => {
   let repository: CommentRepository;
   let prisma: DeepMockProxy<PrismaService>;
+  let postRepository: DeepMockProxy<PostRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommentRepository,
+        { provide: PostRepository, useValue: mockDeep<PostRepository>() },
         {
           provide: PrismaService,
           useValue: mockDeep<PrismaClient>(),
@@ -80,6 +84,7 @@ describe('CommentService', () => {
     }).compile();
 
     prisma = module.get(PrismaService);
+    postRepository = module.get(PostRepository);
     repository = module.get<CommentRepository>(CommentRepository);
   });
 
@@ -180,6 +185,22 @@ describe('CommentService', () => {
       expect(createdResponse).toEqual(resolvedComment);
     });
 
+    it('should throw NotFoundError if ancestor is not found', async () => {
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+      const getOne = jest.spyOn(repository, 'getOne');
+      getOne.mockRejectedValue(exception);
+
+      const createdResponse = repository.createResponse(commentData, authorId);
+
+      expect(createdResponse).rejects.toThrow(NotFoundError);
+    });
+
     it('should throw ConflictError if ancestor and comment to create have different postIds', async () => {
       const resolvedComment = {
         ...commentData,
@@ -208,7 +229,7 @@ describe('CommentService', () => {
       expect(createdResponse).rejects.toThrow(ConflictError);
     });
 
-    it('should throw ConflictError if ancestor is deleted', async () => {
+    it('should throw ConflictError if ancestor is deleted', () => {
       const resolvedComment = {
         ...commentData,
         id: 12312,
@@ -244,6 +265,23 @@ describe('CommentService', () => {
       prisma.$queryRaw.mockResolvedValue(comments);
 
       expect(repository.getManyForPost(postId)).resolves.toEqual(comments);
+    });
+
+    it('should throw NotFoundError if post is not found', () => {
+      const postId = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      postRepository.getOne.mockRejectedValue(exception);
+
+      const getManyForPost = repository.getManyForPost(postId);
+
+      expect(getManyForPost).rejects.toThrow(NotFoundError);
     });
   });
 
@@ -289,6 +327,25 @@ describe('CommentService', () => {
         repository.getManyForPostWithChildrenCount(postId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
     });
+
+    it('should throw NotFoundError if post is not found', () => {
+      const postId = 1;
+      const depth = 5;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      postRepository.getOne.mockRejectedValue(exception);
+
+      const getManyForPostWithChildrenCount =
+        repository.getManyForPostWithChildrenCount(postId, { depth });
+
+      expect(getManyForPostWithChildrenCount).rejects.toThrow(NotFoundError);
+    });
   });
 
   describe('getDescendants', () => {
@@ -300,6 +357,24 @@ describe('CommentService', () => {
 
       expect(repository.getDescendants(commentId)).resolves.toEqual(
         descendants,
+      );
+    });
+
+    it('throws NotFoundError if comment with provided id does not exist', () => {
+      const commentId = -1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      const getOne = jest.spyOn(repository, 'getOne');
+      getOne.mockRejectedValue(exception);
+
+      expect(repository.getDescendants(commentId)).rejects.toThrow(
+        NotFoundError,
       );
     });
   });
@@ -347,6 +422,25 @@ describe('CommentService', () => {
         repository.getDescendantsWithChildrenCount(commentId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
       expect(getCountOfDescendantsSpy).toBeCalledTimes(0);
+    });
+
+    it('throws NotFoundError if comment with provided id does not exist', () => {
+      const commentId = -1;
+      const depth = 5;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      const getOne = jest.spyOn(repository, 'getOne');
+      getOne.mockRejectedValue(exception);
+
+      expect(
+        repository.getDescendantsWithChildrenCount(commentId, { depth }),
+      ).rejects.toThrow(NotFoundError);
     });
   });
 

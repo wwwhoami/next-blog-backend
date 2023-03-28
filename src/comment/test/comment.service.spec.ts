@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock, MockProxy } from 'jest-mock-extended';
-import { ConflictError } from 'src/common/errors/conflict.error';
+import { NotFoundError } from 'rxjs';
 import { CommentRepository } from '../comment.repository';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
@@ -202,7 +202,7 @@ describe('CommentService', () => {
       expect(updatedComment).toEqual(resolvedComment);
     });
 
-    it('should throw ConflictError if comment is deleted', () => {
+    it('should throw NotFoundError if comment is deleted', () => {
       const commentId = 1;
       const commentData = { content: 'new content' };
       const resolvedComment = {
@@ -213,7 +213,7 @@ describe('CommentService', () => {
       commentRepository.getOne.mockResolvedValue(resolvedComment);
 
       expect(service.update(commentId, commentData)).rejects.toThrow(
-        new ConflictError('Cannot update deleted comment'),
+        new NotFoundError('Comment not found'),
       );
     });
   });

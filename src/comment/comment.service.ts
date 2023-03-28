@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityWithAuthorService } from 'src/common/entity-with-author.service';
-import { ConflictError } from 'src/common/errors/conflict.error';
+import { NotFoundError } from 'src/common/errors/not-found.error';
 import { CommentRepository } from './comment.repository';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetCommentDto } from './dto/get-comment.dto';
@@ -91,12 +91,12 @@ export class CommentService implements EntityWithAuthorService {
    * @param {number} id - The id of the comment
    * @description
    * Updates the comment with the given id
-   * @throws {ConflictError} - If the comment is deleted
+   * @throws {NotFoundError} - If the comment is deleted
    */
   async update(id: number, comment: UpdateCommentDto) {
     const { isDeleted } = await this.commentRepository.getOne(id);
 
-    if (isDeleted) throw new ConflictError('Cannot update deleted comment');
+    if (isDeleted) throw new NotFoundError('Comment not found');
 
     return this.commentRepository.update(id, comment);
   }

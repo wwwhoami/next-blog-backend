@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ConflictError } from 'src/common/errors/conflict.error';
+import { NotFoundError } from 'src/common/errors/not-found.error';
+import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateCommentDto,
@@ -16,7 +18,10 @@ import {
 
 @Injectable()
 export class CommentRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private postRepository: PostRepository,
+  ) {}
 
   /**
    * @param {CommentOrderBy} orderBy - The field to order by
@@ -60,8 +65,18 @@ export class CommentRepository {
     comment: CreateResponseToCommentDto,
     authorId: string,
   ): Promise<CommentEntity> {
-    const ancestor = await this.getOne(comment.ancestorId);
-
+    let ancestor: CommentEntity | undefined;
+    // Check if the comment to respond to exists
+    try {
+      ancestor = await this.getOne(comment.ancestorId);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      )
+        throw new NotFoundError('Comment to respond to does not exist');
+      throw error;
+    }
     if (ancestor.postId !== comment.postId)
       throw new ConflictError('Cannot respond to comment for another post');
     if (ancestor.isDeleted)
@@ -93,6 +108,7 @@ export class CommentRepository {
   /**
    * @param {number} postId - The id of the post to get the comments for
    * @param {GetCommentDto} options - The options to get the comments with
+   * @throws {NotFoundError} if the post does not exist
    * @description This method is used to get the comments for a post
    * @example
    * const comments = await commentRepository.getManyForPost(1, {
@@ -107,6 +123,18 @@ export class CommentRepository {
   ): Promise<CommentEntityWithDepth[]> {
     // Pick the ordering
     const ordering = this.pickOrdering(orderBy, order);
+
+    // Check if the post exists
+    try {
+      await this.postRepository.getOne(postId);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      )
+        throw new NotFoundError('Post does not exist');
+      throw error;
+    }
 
     // Get the comments for the post with the specified depth and ordering (using a recursive CTE)
     return this.prisma.$queryRaw<CommentEntityWithDepth[]>`   
@@ -161,6 +189,7 @@ export class CommentRepository {
   /**
    * @param {number} postId - The id of the post to get the comments for
    * @param {GetCommentDto} options - The options to get the comments with
+   * @throws {NotFoundError} if the post does not exist
    * @description
    * This method is used to get the comments for a post with the children count
    * for comments that could have children (are not at the set maximum depth)
@@ -196,6 +225,7 @@ export class CommentRepository {
   /**
    * @param {number} ancestorId - The id of the ancestor to get the descendants for
    * @param {GetCommentDto} options - The options to get the comments with
+   * @throws {NotFoundError} if the ancestor does not exist
    * @description This method is used to get the descendants for a comment
    * @example
    * const comments = await commentRepository.getDescendants(1, {
@@ -204,12 +234,23 @@ export class CommentRepository {
    *    depth: 10,
    * });
    */
-  getDescendants(
+  async getDescendants(
     ancestorId: number,
     { orderBy = 'createdAt', order = 'desc', depth = 10 }: GetCommentDto = {},
   ): Promise<CommentEntityWithDepth[]> {
     // Pick the ordering
     const ordering = this.pickOrdering(orderBy, order);
+    // If the ancestor does not exist, will throw a NotFoundError
+    try {
+      await this.getOne(ancestorId);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      )
+        throw new NotFoundError('Comment does not exist');
+      throw error;
+    }
 
     // Get the descendants for the ancestor with the specified depth and ordering (using a recursive CTE)
     return this.prisma.$queryRaw<CommentEntityWithDepth[]>`   
@@ -262,6 +303,7 @@ export class CommentRepository {
   /**
    * @param {number} ancestorId - The id of the ancestor to get the descendants for
    * @param {GetCommentDto} options - The options to get the comments with
+   * @throws {NotFoundError} if the ancestor does not exist
    * @description
    * This method is used to get the descendants for a comment with the children count
    * for comments that could have children (are not at the set maximum depth)
@@ -342,7 +384,6 @@ export class CommentRepository {
 
   /**
    * @param {number} id - comment id
-   * @returns {Promise<{ authorId: string | null }>} - author id
    * @throws {Prisma.PrismaClientKnownRequestError} - if comment with given id does not exist
    * @description This method is used to get author id of comment.
    * @example
@@ -362,8 +403,6 @@ export class CommentRepository {
   /**
    * @param {number} id - comment id
    * @param {UpdateCommentDto} comment - comment data
-   * @returns {Promise<CommentEntity>} - updated comment
-   * @throws {Prisma.PrismaClientKnownRequestError} - if comment with given id does not exist
    * @description
    * This method is used to update comment data.
    * It does not allow to change post_id, author_id and ancestor_id.
@@ -379,7 +418,6 @@ export class CommentRepository {
 
   /**
    * @param {number} id - comment id
-   * @throws {Prisma.PrismaClientKnownRequestError} - if comment with given id does not exist
    * @description
    * Soft remove comment by setting isDeleted to true and content to 'COMMENT IS DELETED'
    * It is used to prevent comment from being returned in queries.
