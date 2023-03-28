@@ -106,6 +106,16 @@ describe('PostRepository', () => {
     });
   });
 
+  describe('getOne', () => {
+    it('should get post by id', () => {
+      const postId = 1;
+
+      prisma.post.findFirstOrThrow.mockResolvedValue(onePost);
+
+      expect(repository.getOne(postId)).resolves.toEqual(onePost);
+    });
+  });
+
   describe('getMany', () => {
     it('should get posts', async () => {
       prisma.post.findMany.mockResolvedValue(postArray);

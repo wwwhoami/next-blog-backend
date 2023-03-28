@@ -64,6 +64,18 @@ export class PostRepository {
     }
   }
 
+  /**
+   * @param {number} id - Post id
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post with given id does not exist
+   * @description Get post by id
+   */
+  getOne(id: number): Promise<PostEntity> {
+    return this.prisma.post.findFirstOrThrow({
+      select: selectPostWithAuthorCategories,
+      where: { id },
+    });
+  }
+
   getIds({
     take = 10,
     skip = 0,
