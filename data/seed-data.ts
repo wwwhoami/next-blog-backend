@@ -347,4 +347,20 @@ export const commentData: Prisma.CommentCreateInput[] = [
       },
     },
   },
+  {
+    content: 'COMMENT IS DELETED',
+    isDeleted: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: {
+      connect: {
+        id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
+      },
+    },
+    post: {
+      connect: {
+        id: 1,
+      },
+    },
+  },
 ];
