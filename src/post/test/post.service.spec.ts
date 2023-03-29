@@ -112,7 +112,7 @@ describe('PostService', () => {
 
       postRepository.getIds.mockResolvedValue(payload);
 
-      const postsIds = await service.getIds({});
+      const postsIds = await service.getIds();
 
       expect(postsIds).toEqual(payload);
     });

@@ -17,7 +17,7 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.getAuthorBySlug(idOrSlug as string);
   }
 
-  getIds(params: GetPostDto): Promise<{ id: number }[]> {
+  getIds(params: GetPostDto = {}): Promise<{ id: number }[]> {
     if (typeof params.searchTerm === 'string')
       return this.postRepository.findIds({
         ...params,
@@ -27,7 +27,7 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.getIds(params);
   }
 
-  getMany(params: GetPostDto): Promise<PostEntity[]> {
+  getMany(params: GetPostDto = {}): Promise<PostEntity[]> {
     if (typeof params.searchTerm === 'string') {
       if (typeof params.category === 'string')
         return this.postRepository.findManyByCategories({

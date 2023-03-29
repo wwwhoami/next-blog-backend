@@ -18,6 +18,11 @@ import { selectPostWithAuthorCategories } from './utils/select.objects';
 export class PostRepository {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * @param {PostOrderBy} orderBy - The field to order by
+   * @param {Prisma.SortOrder} order - The order of the field
+   * @description This private method is used to pick the ordering of the posts
+   */
   private pickOrdering(
     orderBy: PostOrderBy,
     order: Prisma.SortOrder,
@@ -76,12 +81,16 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {GetPostDto} getPostOptions - Options for getting posts
+   * @description Get published posts' ids
+   */
   getIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
     order = 'desc',
-  }: GetPostDto): Promise<{ id: number }[]> {
+  }: GetPostDto = {}): Promise<{ id: number }[]> {
     return this.prisma.post.findMany({
       select: {
         id: true,
@@ -95,6 +104,10 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {SearchPostDto} searchPostOptions - Options for searching posts
+   * @description Find published posts' ids by search term
+   */
   findIds({
     take = 10,
     skip = 0,
@@ -120,13 +133,17 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
+  /**
+   * @param {GetPostDto} getPostOptions - Options for getting posts
+   * @description Get published posts
+   */
   getMany({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
-  }: GetPostDto): Promise<PostEntity[]> {
+  }: GetPostDto = {}): Promise<PostEntity[]> {
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
@@ -141,6 +158,10 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {SearchPostDto} searchPostOptions - Options for searching posts
+   * @description Find published posts by search term
+   */
   findMany({
     take = 10,
     skip = 0,
@@ -184,6 +205,10 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
+  /**
+   * @param {GetPostsByCategoriesDto} getPostsByCategoriesOptions - Options for getting posts by categories
+   * @description Get published posts by categories
+   */
   getManyByCategories({
     take = 10,
     skip = 0,
@@ -241,6 +266,10 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
+  /**
+   * @param {SearchPostsByCategoriesDto} searchPostsByCategoriesOptions - Options for searching posts by categories
+   * @description Find published posts by categories and search term
+   */
   findManyByCategories({
     take = 10,
     skip = 0,
@@ -303,6 +332,9 @@ export class PostRepository {
       OFFSET ${skip}`;
   }
 
+  /**
+   * @description Get all published posts' slugs
+   */
   getSlugsForPublished(): Promise<{ slug: string }[]> {
     return this.prisma.post.findMany({
       select: {
@@ -314,6 +346,11 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {string} slug - Post slug
+   * @description Get published post by slug
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   */
   getOnePublishedBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.findFirstOrThrow({
       select: {
@@ -327,6 +364,11 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {number} id - Post id
+   * @description Get post's author id by post id
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   */
   getAuthorById(id: number): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
@@ -338,6 +380,11 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {string} slug - Post slug
+   * @description Get post's author id by post slug
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   */
   getAuthorBySlug(slug: string): Promise<{ authorId: string }> {
     return this.prisma.post.findUniqueOrThrow({
       select: {
@@ -349,6 +396,10 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {string} slug - Post slug
+   * @description Publish post by slug
+   */
   publishOneBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
       where: {
@@ -364,6 +415,11 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {CreatePostDto} post - Post data
+   * @param {string} authorId - Author id
+   * @description Create post
+   */
   create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
@@ -391,6 +447,11 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {number} id - Post id
+   * @param {UpdatePostDto} post - Post data
+   * @description Update post
+   */
   update(id: number, post: UpdatePostDto): Promise<PostEntity> {
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
@@ -434,6 +495,10 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {number} id - Post id
+   * @description Delete post by id
+   */
   deleteById(id: number): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {
@@ -445,6 +510,10 @@ export class PostRepository {
     });
   }
 
+  /**
+   * @param {string} slug - Post slug
+   * @description Delete post by slug
+   */
   deleteBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.delete({
       where: {

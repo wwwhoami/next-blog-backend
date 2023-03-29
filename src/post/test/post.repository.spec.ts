@@ -81,7 +81,7 @@ describe('PostRepository', () => {
 
       prisma.post.findMany.mockResolvedValue(payload);
 
-      const postsIds = await repository.getIds({});
+      const postsIds = await repository.getIds();
 
       expect(postsIds).toEqual(payload);
     });
