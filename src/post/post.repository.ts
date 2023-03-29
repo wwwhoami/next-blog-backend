@@ -83,21 +83,20 @@ export class PostRepository {
 
   /**
    * @param {GetPostDto} getPostOptions - Options for getting posts
-   * @description Get published posts' ids
+   * @description Get posts' ids
    */
   getIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
     order = 'desc',
+    published,
   }: GetPostDto = {}): Promise<{ id: number }[]> {
     return this.prisma.post.findMany({
       select: {
         id: true,
       },
-      where: {
-        published: true,
-      },
+      where: typeof published === 'boolean' ? { published } : undefined,
       orderBy: { [orderBy]: order },
       take,
       skip,
@@ -106,16 +105,21 @@ export class PostRepository {
 
   /**
    * @param {SearchPostDto} searchPostOptions - Options for searching posts
-   * @description Find published posts' ids by search term
+   * @description Find posts' ids by search term
    */
   findIds({
     take = 10,
     skip = 0,
     orderBy = 'createdAt',
     order = 'desc',
+    published,
     searchTerm,
   }: SearchPostDto): Promise<{ id: number }[]> {
     const ordering = this.pickOrdering(orderBy, order);
+    const wherePublished =
+      typeof published === 'boolean'
+        ? Prisma.sql`AND published = ${published}`
+        : Prisma.sql``;
 
     return this.prisma.$queryRaw`
       SELECT
@@ -125,6 +129,7 @@ export class PostRepository {
       WHERE
         title % ${searchTerm} OR 
         excerpt % ${searchTerm}
+        ${wherePublished}
       ORDER BY
         title <-> ${searchTerm},
         excerpt <-> ${searchTerm},
@@ -135,7 +140,7 @@ export class PostRepository {
 
   /**
    * @param {GetPostDto} getPostOptions - Options for getting posts
-   * @description Get published posts
+   * @description Get posts
    */
   getMany({
     take = 10,
@@ -143,15 +148,14 @@ export class PostRepository {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
+    published,
   }: GetPostDto = {}): Promise<PostEntity[]> {
     return this.prisma.post.findMany({
       select: {
         ...selectPostWithAuthorCategories,
         content,
       },
-      where: {
-        published: true,
-      },
+      where: typeof published === 'boolean' ? { published } : undefined,
       orderBy: { [orderBy]: order },
       take,
       skip,
@@ -160,7 +164,7 @@ export class PostRepository {
 
   /**
    * @param {SearchPostDto} searchPostOptions - Options for searching posts
-   * @description Find published posts by search term
+   * @description Find posts by search term
    */
   findMany({
     take = 10,
@@ -168,10 +172,15 @@ export class PostRepository {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
+    published,
     searchTerm,
   }: SearchPostDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
     const ordering = this.pickOrdering(orderBy, order);
+    const wherePublished =
+      typeof published === 'boolean'
+        ? Prisma.sql`AND published = ${published}`
+        : Prisma.sql``;
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
@@ -193,6 +202,7 @@ export class PostRepository {
       WHERE
         title % ${searchTerm}
         OR excerpt % ${searchTerm}
+        ${wherePublished}
       GROUP BY
         p.id,
         u."name",
@@ -207,7 +217,7 @@ export class PostRepository {
 
   /**
    * @param {GetPostsByCategoriesDto} getPostsByCategoriesOptions - Options for getting posts by categories
-   * @description Get published posts by categories
+   * @description Get posts by categories
    */
   getManyByCategories({
     take = 10,
@@ -215,10 +225,15 @@ export class PostRepository {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
+    published,
     category,
   }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
     const ordering = this.pickOrdering(orderBy, order);
+    const wherePublished =
+      typeof published === 'boolean'
+        ? Prisma.sql`p.published = ${published} AND`
+        : Prisma.sql``;
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
@@ -238,8 +253,7 @@ export class PostRepository {
         JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
         JOIN "Category" AS c ON c.name = ptc.category_name
       WHERE
-        p.published = TRUE
-        AND p.id IN(
+        ${wherePublished} p.id IN(
             SELECT
                 p1.id
             FROM
@@ -268,7 +282,7 @@ export class PostRepository {
 
   /**
    * @param {SearchPostsByCategoriesDto} searchPostsByCategoriesOptions - Options for searching posts by categories
-   * @description Find published posts by categories and search term
+   * @description Find posts by categories and search term
    */
   findManyByCategories({
     take = 10,
@@ -276,11 +290,16 @@ export class PostRepository {
     orderBy = 'createdAt',
     order = 'desc',
     content = false,
+    published,
     category,
     searchTerm,
   }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
     const ordering = this.pickOrdering(orderBy, order);
+    const wherePublished =
+      typeof published === 'boolean'
+        ? Prisma.sql`p.published = ${published} AND`
+        : Prisma.sql``;
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
@@ -300,8 +319,7 @@ export class PostRepository {
         JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
         JOIN "Category" AS c ON c.name = ptc.category_name
       WHERE
-        p.published = TRUE
-        AND p.id IN(
+        ${wherePublished} p.id IN(
             SELECT
                 p1.id
             FROM

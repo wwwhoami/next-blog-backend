@@ -15,7 +15,7 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
 import { CreatePostDto } from './dto/create-post.dto';
-import { GetPostDto } from './dto/get-post.dto';
+import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, Slug } from './entities/post.entity';
 import { PostService } from './post.service';
@@ -25,9 +25,10 @@ import { PostService } from './post.service';
 export class PostController {
   constructor(private readonly postService: PostService) {}
 
+  // Can get only published posts from this endpoint
   @Get()
-  posts(@Query() getPostsQuery: GetPostDto): Promise<PostEntity[]> {
-    return this.postService.getMany(getPostsQuery);
+  posts(@Query() getPostsQuery: GetPostPublicDto): Promise<PostEntity[]> {
+    return this.postService.getMany({ ...getPostsQuery, published: true });
   }
 
   @Get('article/:slug')

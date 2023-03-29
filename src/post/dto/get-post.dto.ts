@@ -1,4 +1,4 @@
-import { ApiProperty, IntersectionType } from '@nestjs/swagger';
+import { ApiProperty, IntersectionType, OmitType } from '@nestjs/swagger';
 import { Post, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
@@ -45,6 +45,15 @@ export class GetPostDto {
   content?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  published?: boolean;
+
+  @IsOptional()
   @IsString()
   @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
   searchTerm?: string;
@@ -59,6 +68,8 @@ export class GetPostDto {
   )
   category?: string;
 }
+
+export class GetPostPublicDto extends OmitType(GetPostDto, ['published']) {}
 
 export class SearchPostDto extends GetPostDto {
   @IsString()
