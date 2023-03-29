@@ -24,21 +24,28 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
+  /**
+   * @param {AuthCredentialsDto} authCredentials - The user's credentials
+   * @description Logs in a user and returns an access token and a refresh token
+   */
   async login({
     name,
     email,
     password,
   }: AuthCredentialsDto): Promise<SignedUpUser | undefined> {
+    // Get the user from the database
     const user = await this.userService.get(
       { name, email },
       { id: true, password: true },
     );
 
+    // If the user doesn't exist, return
     if (!user) return;
 
+    // Compare the user's password with the one in the database
     if (await compare(password, user.password)) {
       const { id, name, email, image, role } = user;
-
+      // Create an access and a refresh tokens
       const accessToken = await this.createAccessToken(id, name, role);
       const { refreshToken, refreshTokenExpiry } =
         await this.createRefreshToken(id, name, role);
@@ -55,10 +62,18 @@ export class AuthService {
     }
   }
 
+  /**
+   * @param {string} id - The user's id
+   * @description Logs out a user by deleting the user's refresh token from the cache
+   */
   async logout(id: string): Promise<void> {
     this.cacheManager.del(id);
   }
 
+  /**
+   * @param {CreateUserDto} user - The user's data
+   * @description Signs up a user and returns an access token and a refresh token
+   */
   async signUp({
     name,
     password,
@@ -99,6 +114,12 @@ export class AuthService {
     };
   }
 
+  /**
+   * @param {string} id - The user's id
+   * @param {string} name - The user's name
+   * @param {Role} role - The user's role
+   * @description Creates a refresh token and stores it in the cache
+   */
   async createRefreshToken(
     id: string,
     name: string,
@@ -117,11 +138,18 @@ export class AuthService {
       expiresIn,
     });
 
+    // Store the refresh token in the cache
     await this.cacheManager.set(id, refreshToken, { ttl: expiresIn });
 
     return { refreshToken, refreshTokenExpiry: expiresIn };
   }
 
+  /**
+   * @param {string} id - The user's id
+   * @param {string} name - The user's name
+   * @param {Role} role - The user's role
+   * @description Creates an access token
+   */
   async createAccessToken(
     id: string,
     name: string,
@@ -142,6 +170,10 @@ export class AuthService {
     return accessToken;
   }
 
+  /**
+   * @param {JwtPayload} refreshToken - The refresh token
+   * @description Refreshes the access token and the refresh token
+   */
   async refreshTokens(refreshToken: JwtPayload): Promise<{
     refreshToken: string;
     accessToken: string;
@@ -151,10 +183,13 @@ export class AuthService {
     const { sub: id, name, role } = refreshToken;
 
     const tokenValue = await this.cacheManager.get(id);
+    // Check if the refresh token is valid
     if (!tokenValue) throw new UnauthorizedException('Refresh token expired');
 
+    // Delete the old refresh token
     await this.cacheManager.del(id);
 
+    // Create a new refresh token and an access token
     const { refreshToken: createdRefreshToken, refreshTokenExpiry } =
       await this.createRefreshToken(id, name, role);
     const accessToken = await this.createAccessToken(id, name, role);
