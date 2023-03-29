@@ -15,14 +15,16 @@ enum Role {
 }
 
 model User {
-  id       String    @id @default(uuid()) @db.Uuid
-  email    String    @unique @db.VarChar
-  name     String    @unique @db.VarChar
-  password String    @db.Char(60)
-  image    String?   @db.VarChar
-  role     Role      @default(USER)
-  posts    Post[]
-  Comment  Comment[]
+  id           String         @id @default(uuid()) @db.Uuid
+  email        String         @unique @db.VarChar
+  name         String         @unique @db.VarChar
+  password     String         @db.Char(60)
+  image        String?        @db.VarChar
+  role         Role           @default(USER)
+  posts        Post[]
+  Comment      Comment[]
+  PostLikes    PostLikes[]
+  CommentLikes CommentLikes[]
 }
 
 model Post {
@@ -36,9 +38,11 @@ model Post {
   updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   excerpt    String           @db.VarChar
   slug       String           @unique @db.VarChar
+  likesCount Int              @default(0) @map("likes_count")
   author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   categories PostToCategory[]
   comment    Comment[]
+  PostLikes  PostLikes[]
 
   @@index([title(ops: raw("gist_trgm_ops")), excerpt(ops: raw("gist_trgm_ops"))], type: Gist)
   @@index([slug])
@@ -63,16 +67,36 @@ model Category {
 }
 
 model Comment {
-  id          Int       @id @default(autoincrement())
-  authorId    String?   @map("author_id") @db.Uuid
-  postId      Int       @map("post_id")
-  ancestorId  Int?      @map("ancestor_id")
-  content     String
-  isDeleted   Boolean   @default(false) @map("is_deleted")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
-  author      User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  ancestor    Comment?  @relation("ancestor_descendants", fields: [ancestorId], references: [id])
-  descendants Comment[] @relation("ancestor_descendants")
+  id           Int            @id @default(autoincrement())
+  authorId     String?        @map("author_id") @db.Uuid
+  postId       Int            @map("post_id")
+  ancestorId   Int?           @map("ancestor_id")
+  content      String
+  isDeleted    Boolean        @default(false) @map("is_deleted")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  likesCount   Int            @default(0) @map("likes_count")
+  author       User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  post         Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  ancestor     Comment?       @relation("ancestor_descendants", fields: [ancestorId], references: [id])
+  descendants  Comment[]      @relation("ancestor_descendants")
+  CommentLikes CommentLikes[]
+}
+
+model PostLikes {
+  postId Int    @map("post_id")
+  userId String @map("user_id") @db.Uuid
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+}
+
+model CommentLikes {
+  commentId Int     @map("comment_id")
+  userId    String  @map("user_id") @db.Uuid
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
 }
