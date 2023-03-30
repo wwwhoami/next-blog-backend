@@ -7,8 +7,10 @@ import { PrismaClient } from '@prisma/client';
 import { seedWithMocks } from 'prisma/seed-with-mocks';
 
 const resetAutoIncrement = async (prisma: PrismaClient) => {
-  const resetCommentIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Comment_id_seq" RESTART WITH 1`;
-  await resetCommentIdSeq;
+  const resetCommentIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Comment_id_seq" RESTART`;
+  const resetPostIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Post_id_seq" RESTART`;
+
+  await prisma.$transaction([resetCommentIdSeq, resetPostIdSeq]);
 };
 
 const setup = async () => {
@@ -30,7 +32,7 @@ const setup = async () => {
     ]);
 
     // Reset auto-increment id sequences
-    resetAutoIncrement(prisma);
+    await resetAutoIncrement(prisma);
 
     // Seed database with mocks only
     await seedWithMocks(prisma);
