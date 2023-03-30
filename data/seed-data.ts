@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { Role } from 'src/user/entities/role.enum';
 
 // User seed data
-export const userData: Prisma.UserCreateWithoutPostsInput[] = [
+export const userData = [
   {
     id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
     name: 'Alice Johnson',
@@ -31,8 +31,8 @@ export const userData: Prisma.UserCreateWithoutPostsInput[] = [
     password: '$2a$12$lCGhm3HSmjkFJFtViSPpSemPLvSGpak1ljgC5WyGoIh/l5Igfyl/K',
     image: 'https://randomuser.me/api/portraits/men/13.jpg',
   },
-
   {
+    id: 'ab182222-5603-4b01-909b-a68fbb3a2157',
     name: 'Admin',
     email: 'admin@admin.com',
     password: '$2a$12$lCGhm3HSmjkFJFtViSPpSemPLvSGpak1ljgC5WyGoIh/l5Igfyl/K',
