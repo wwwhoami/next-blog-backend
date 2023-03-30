@@ -1,4 +1,4 @@
-import { OmitType } from '@nestjs/swagger';
+import { OmitType, PickType } from '@nestjs/swagger';
 import { Role, User } from '@prisma/client';
 
 export class UserEntity implements User {
@@ -9,6 +9,11 @@ export class UserEntity implements User {
   password: string;
   role: Role;
 }
+
+export class UserNameImageEntity extends PickType(UserEntity, [
+  'name',
+  'image',
+] as const) {}
 
 export class UserNoIdEntity extends OmitType(UserEntity, ['id'] as const) {}
 

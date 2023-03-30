@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import slugify from 'slugify';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import {
   GetPostDto,
@@ -62,6 +63,10 @@ export class PostRepository {
         return order === 'desc'
           ? Prisma.sql`excerpt DESC`
           : Prisma.sql`excerpt ASC`;
+      case 'likesCount':
+        return order === 'desc'
+          ? Prisma.sql`likes_count DESC`
+          : Prisma.sql`likes_count ASC`;
       case 'slug':
         return order === 'desc' ? Prisma.sql`slug DESC` : Prisma.sql`slug ASC`;
       default:
@@ -417,6 +422,7 @@ export class PostRepository {
   /**
    * @param {string} slug - Post slug
    * @description Publish post by slug
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
   publishOneBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.update({
@@ -469,6 +475,7 @@ export class PostRepository {
    * @param {number} id - Post id
    * @param {UpdatePostDto} post - Post data
    * @description Update post
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
   update(id: number, post: UpdatePostDto): Promise<PostEntity> {
     const { categories, ...postData } = post;
@@ -515,7 +522,105 @@ export class PostRepository {
 
   /**
    * @param {number} id - Post id
+   * @description Get post's likes
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   */
+  async getLikes(id: number): Promise<{ user: UserNameImageEntity }[]> {
+    await this.getOne(id);
+
+    return this.prisma.postLikes.findMany({
+      where: {
+        postId: id,
+      },
+      select: {
+        user: {
+          select: {
+            name: true,
+            image: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * @param {number} id - Post id
+   * @param {string} userId - User id
+   * @description Like post creating like record and incrementing likes count
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
+   */
+  async like(
+    id: number,
+    userId: string,
+  ): Promise<{ likesCount: number; id: number }> {
+    await this.prisma.postLikes.create({
+      data: {
+        postId: id,
+        userId,
+      },
+    });
+
+    return this.prisma.post.update({
+      where: {
+        id,
+      },
+      data: {
+        likesCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+        likesCount: true,
+      },
+    });
+  }
+
+  /**
+   * @param {number} id - Post id
+   * @param {string} userId - User id
+   * @description Unlike post deleting like record and decrementing likes count
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
+   */
+  async unlike(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    await this.prisma.postLikes.delete({
+      where: {
+        postId_userId: {
+          postId: id,
+          userId,
+        },
+      },
+      select: {
+        userId: true,
+        postId: true,
+      },
+    });
+
+    return this.prisma.post.update({
+      where: {
+        id,
+      },
+      data: {
+        likesCount: {
+          decrement: 1,
+        },
+      },
+      select: {
+        id: true,
+        likesCount: true,
+      },
+    });
+  }
+
+  /**
+   * @param {number} id - Post id
    * @description Delete post by id
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
   deleteById(id: number): Promise<PostEntity> {
     return this.prisma.post.delete({
@@ -531,6 +636,7 @@ export class PostRepository {
   /**
    * @param {string} slug - Post slug
    * @description Delete post by slug
+   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
   deleteBySlug(slug: string): Promise<PostEntity> {
     return this.prisma.post.delete({

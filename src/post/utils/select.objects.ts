@@ -6,6 +6,7 @@ export const selectPostWithAuthorCategories = {
   slug: true,
   excerpt: true,
   coverImage: true,
+  likesCount: true,
   author: {
     select: {
       name: true,

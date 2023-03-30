@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityWithAuthorService } from 'src/common/entity-with-author.service';
+import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -59,6 +60,10 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.getOnePublishedBySlug(slug);
   }
 
+  getLikes(id: number): Promise<{ user: UserNameImageEntity }[]> {
+    return this.postRepository.getLikes(id);
+  }
+
   publishOneBySlug(slug: string): Promise<PostEntity> {
     return this.postRepository.publishOneBySlug(slug);
   }
@@ -69,6 +74,20 @@ export class PostService implements EntityWithAuthorService {
 
   update(id: number, post: UpdatePostDto): Promise<PostEntity> {
     return this.postRepository.update(id, post);
+  }
+
+  like(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.postRepository.like(id, userId);
+  }
+
+  unlike(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.postRepository.unlike(id, userId);
   }
 
   delete(idOrSlug: number | string): Promise<PostEntity | undefined> {

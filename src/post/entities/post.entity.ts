@@ -42,4 +42,5 @@ export class PostEntity {
     isArray: true,
   })
   categories?: PostCategory[];
+  likesCount: number;
 }

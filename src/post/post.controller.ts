@@ -14,6 +14,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
+import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -57,6 +58,31 @@ export class PostController {
     @Body() post: CreatePostDto,
   ): Promise<PostEntity> {
     return this.postService.create(post, userId);
+  }
+
+  @Get(':id/likes')
+  getLikes(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ user: UserNameImageEntity }[]> {
+    return this.postService.getLikes(id);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Post(':id/likes')
+  like(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('id') userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.postService.like(id, userId);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Delete(':id/likes')
+  unlike(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('id') userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.postService.unlike(id, userId);
   }
 
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
