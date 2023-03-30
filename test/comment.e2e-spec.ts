@@ -18,6 +18,7 @@ const comment: CommentEntity = {
   isDeleted: false,
   createdAt: new Date(),
   updatedAt: new Date(),
+  likesCount: 0,
 };
 
 describe('Comment (e2e)', () => {
@@ -200,6 +201,7 @@ describe('Comment (e2e)', () => {
             ancestorId: null,
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
+            likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct
           expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
@@ -229,6 +231,7 @@ describe('Comment (e2e)', () => {
             ancestorId,
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
+            likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct
           expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
@@ -355,6 +358,7 @@ describe('Comment (e2e)', () => {
             ancestorId: null,
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
+            likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct
           expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
@@ -461,6 +465,7 @@ describe('Comment (e2e)', () => {
             ancestorId: null,
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
+            likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct
           expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);

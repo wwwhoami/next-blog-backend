@@ -23,6 +23,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
+    likesCount: 0,
   },
   {
     id: 2,
@@ -34,6 +35,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
+    likesCount: 0,
   },
   {
     id: 3,
@@ -45,6 +47,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
+    likesCount: 0,
   },
   {
     id: 4,
@@ -56,6 +59,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
+    likesCount: 0,
   },
 ];
 
@@ -100,6 +104,7 @@ describe('CommentController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
 
       commentService.create.mockResolvedValueOnce(resolvedComment);
@@ -178,6 +183,7 @@ describe('CommentController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
 
       commentService.update.mockResolvedValueOnce(resolvedComment);

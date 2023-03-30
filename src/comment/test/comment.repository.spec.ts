@@ -30,6 +30,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
+    likesCount: 0,
   },
   {
     id: 2,
@@ -41,6 +42,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
+    likesCount: 0,
   },
   {
     id: 3,
@@ -52,6 +54,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
+    likesCount: 0,
   },
   {
     id: 4,
@@ -63,6 +66,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
+    likesCount: 0,
   },
 ];
 
@@ -138,6 +142,7 @@ describe('CommentService', () => {
         createdAt: new Date(),
         ancestorId: null,
         isDeleted: false,
+        likesCount: 0,
       };
       prisma.comment.create.mockResolvedValue(resolvedComment);
 
@@ -162,6 +167,7 @@ describe('CommentService', () => {
         updatedAt: new Date(),
         createdAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
       const commentAncestor = {
         id: 12,
@@ -172,6 +178,7 @@ describe('CommentService', () => {
         isDeleted: false,
         content: 'content',
         ancestorId: null,
+        likesCount: 0,
       };
 
       prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
@@ -209,6 +216,7 @@ describe('CommentService', () => {
         updatedAt: new Date(),
         createdAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
       const commentAncestor = {
         id: 12,
@@ -219,6 +227,7 @@ describe('CommentService', () => {
         isDeleted: false,
         content: 'content',
         ancestorId: null,
+        likesCount: 0,
       };
 
       prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
@@ -237,6 +246,7 @@ describe('CommentService', () => {
         updatedAt: new Date(),
         createdAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
       const commentAncestor = {
         id: 12,
@@ -247,6 +257,7 @@ describe('CommentService', () => {
         isDeleted: true,
         content: 'content',
         ancestorId: null,
+        likesCount: 0,
       };
 
       prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
@@ -471,6 +482,7 @@ describe('CommentService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
       };
 
       prisma.comment.findFirstOrThrow.mockResolvedValue(expectedComment);
@@ -511,6 +523,7 @@ describe('CommentService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         isDeleted: false,
+        likesCount: 0,
         ...comment,
       };
 
@@ -536,6 +549,7 @@ describe('CommentService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         isDeleted: true,
+        likesCount: 0,
       };
 
       prisma.comment.update.mockResolvedValue(softRemovedComment);

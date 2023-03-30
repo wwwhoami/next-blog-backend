@@ -9,6 +9,7 @@ export class CommentEntity implements Comment {
   createdAt: Date;
   updatedAt: Date;
   isDeleted: boolean;
+  likesCount: number;
 }
 
 export class CommentEntityWithDepth extends CommentEntity {
