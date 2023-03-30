@@ -28,6 +28,7 @@ const postArray = [
       },
     ],
     content: 'some content',
+    likesCount: 0,
   },
   {
     id: 335,
@@ -52,6 +53,7 @@ const postArray = [
       },
     ],
     content: 'some content',
+    likesCount: 0,
   },
   {
     id: 995,
@@ -76,6 +78,7 @@ const postArray = [
       },
     ],
     content: 'some content',
+    likesCount: 0,
   },
 ];
 const onePost = postArray[0];
@@ -237,6 +240,7 @@ describe('PostService', () => {
         id: 12312,
         author: authorData,
         updatedAt: new Date(),
+        likesCount: 0,
       });
 
       const createdPost = await service.create(postToCreate, authorId);
@@ -260,6 +264,7 @@ describe('PostService', () => {
       coverImage: 'http://loremflickr.com/1200/480/business',
       published: true,
       content: 'content',
+      likesCount: 0,
     };
     const postToUpdate = postData;
     const authorData = {
@@ -288,6 +293,82 @@ describe('PostService', () => {
         author: expect.objectContaining(authorData),
         updatedAt: expect.any(Date),
       });
+    });
+  });
+
+  describe('getLikes', () => {
+    const likes = [
+      {
+        user: {
+          name: 'John',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+      {
+        user: {
+          name: 'Jane',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+    ];
+
+    it('should get post likes', async () => {
+      const postId = 1;
+
+      postRepository.getLikes.mockResolvedValue(likes);
+
+      const postLikes = await service.getLikes(postId);
+
+      expect(postLikes).toEqual(likes);
+    });
+
+    it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
+      const postId = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      postRepository.getLikes.mockRejectedValue(exception);
+
+      const getPostLikes = service.getLikes(postId);
+
+      await expect(getPostLikes).rejects.toThrow(exception);
+    });
+  });
+
+  describe('like', () => {
+    it('should like post', async () => {
+      const postId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: postId,
+        likesCount: 1,
+      };
+
+      postRepository.like.mockResolvedValue(expected);
+
+      const postLikes = await service.like(postId, userId);
+      expect(postLikes).toEqual(expected);
+    });
+  });
+
+  describe('unlike', () => {
+    it('unlike post', async () => {
+      const postId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: postId,
+        likesCount: 1,
+      };
+
+      postRepository.unlike.mockResolvedValue(expected);
+
+      const postLikes = await service.unlike(postId, userId);
+      expect(postLikes).toEqual(expected);
     });
   });
 

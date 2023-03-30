@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Post, Prisma, PrismaClient } from '@prisma/client';
+import { Post, PostLikes, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import slugify from 'slugify';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PostOrderBy } from '../dto/get-post.dto';
 import { PostRepository } from '../post.repository';
 
 const postArray = [
@@ -18,6 +19,7 @@ const postArray = [
     authorId: '2',
     published: true,
     content: 'content',
+    likesCount: 0,
   },
   {
     id: 335,
@@ -31,6 +33,7 @@ const postArray = [
     authorId: '1',
     published: true,
     content: 'content',
+    likesCount: 0,
   },
   {
     id: 995,
@@ -44,6 +47,7 @@ const postArray = [
     authorId: '4',
     published: true,
     content: 'content',
+    likesCount: 0,
   },
 ];
 
@@ -70,6 +74,67 @@ describe('PostRepository', () => {
 
   it('should be defined', () => {
     expect(repository).toBeDefined();
+  });
+
+  describe('pickOrdering', () => {
+    it('returns correct order as Prisma.sql', () => {
+      const orderBy: PostOrderBy[] = [
+        'id',
+        'title',
+        'content',
+        'published',
+        'coverImage',
+        'authorId',
+        'createdAt',
+        'updatedAt',
+        'excerpt',
+        'slug',
+        'likesCount',
+      ];
+      const order: Prisma.SortOrder[] = ['desc', 'asc'];
+      const expected = [
+        Prisma.sql`id DESC`,
+        Prisma.sql`id ASC`,
+        Prisma.sql`title DESC`,
+        Prisma.sql`title ASC`,
+        Prisma.sql`content DESC`,
+        Prisma.sql`content ASC`,
+        Prisma.sql`published DESC`,
+        Prisma.sql`published ASC`,
+        Prisma.sql`cover_image DESC`,
+        Prisma.sql`cover_image ASC`,
+        Prisma.sql`author_id DESC`,
+        Prisma.sql`author_id ASC`,
+        Prisma.sql`created_at DESC`,
+        Prisma.sql`created_at ASC`,
+        Prisma.sql`updated_at DESC`,
+        Prisma.sql`updated_at ASC`,
+        Prisma.sql`excerpt DESC`,
+        Prisma.sql`excerpt ASC`,
+        Prisma.sql`slug DESC`,
+        Prisma.sql`slug ASC`,
+        Prisma.sql`likes_count DESC`,
+        Prisma.sql`likes_count ASC`,
+      ];
+
+      const results = orderBy.flatMap((postOrderBy) =>
+        order.map((sortOrder) =>
+          (repository as any).pickOrdering(postOrderBy, sortOrder),
+        ),
+      );
+
+      expect(results).toEqual(expected);
+    });
+
+    it('returns empty Prisma.sql as default', () => {
+      const orderBy = 'test' as PostOrderBy;
+      const order: Prisma.SortOrder = 'desc';
+      const expected = Prisma.sql``;
+
+      const result = (repository as any).pickOrdering(orderBy, order);
+
+      expect(result).toEqual(expected);
+    });
   });
 
   describe('getIds', () => {
@@ -279,6 +344,7 @@ describe('PostRepository', () => {
         id: 12312,
         authorId,
         updatedAt: new Date(),
+        likesCount: 0,
       });
 
       const createdPost = await repository.create(postToCreate, authorId);
@@ -303,6 +369,7 @@ describe('PostRepository', () => {
       coverImage: 'http://loremflickr.com/1200/480/business',
       published: true,
       content: 'content',
+      likesCount: 0,
     };
     const postToUpdate = { ...postData };
 
@@ -325,6 +392,92 @@ describe('PostRepository', () => {
         authorId: expect.any(String),
         updatedAt: expect.any(Date),
       });
+    });
+  });
+
+  describe('getLikes', () => {
+    const likes = [
+      {
+        user: {
+          name: 'John',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+      {
+        user: {
+          name: 'Jane',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+    ];
+
+    it('should get post likes', async () => {
+      const postId = 1;
+
+      prisma.postLikes.findMany.mockResolvedValue(
+        likes as unknown as Prisma.Prisma__PostClient<Array<PostLikes>>,
+      );
+
+      const postLikes = await repository.getLikes(postId);
+
+      expect(postLikes).toEqual(likes);
+    });
+
+    it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
+      const postId = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      prisma.postLikes.findMany.mockRejectedValue(exception);
+
+      const getPostLikes = repository.getLikes(postId);
+
+      await expect(getPostLikes).rejects.toThrow(exception);
+    });
+  });
+
+  describe('like', () => {
+    it('should like post', async () => {
+      const postId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: postId,
+        likesCount: 1,
+      } as unknown as Prisma.Prisma__PostClient<Post>;
+
+      prisma.postLikes.create.mockResolvedValue({
+        postId,
+        userId,
+      });
+      prisma.post.update.mockResolvedValue(expected);
+
+      const postLikes = await repository.like(postId, userId);
+      expect(postLikes).toEqual(expected);
+    });
+  });
+
+  describe('unlike', () => {
+    it('unlike post', async () => {
+      const postId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: postId,
+        likesCount: 1,
+      } as unknown as Prisma.Prisma__PostClient<Post>;
+
+      prisma.postLikes.delete.mockResolvedValue({
+        postId,
+        userId,
+      });
+      prisma.post.update.mockResolvedValue(expected);
+
+      const postLikes = await repository.unlike(postId, userId);
+      expect(postLikes).toEqual(expected);
     });
   });
 
