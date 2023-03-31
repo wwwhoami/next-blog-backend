@@ -1,6 +1,7 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import { userData } from 'data/seed-data';
 import slugify from 'slugify';
 import { AppModule } from 'src/app.module';
 import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
@@ -8,6 +9,7 @@ import { CreateCategoryDto } from 'src/category/dto/create-category.dto';
 import { UpdateCategoryDto } from 'src/category/dto/update-category.dto';
 import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import { PostEntity } from 'src/post/entities/post.entity';
+import { PostService } from 'src/post/post.service';
 import request from 'supertest';
 
 const postCategories = [
@@ -33,10 +35,12 @@ const postWithNoContent: PostEntity = {
     image: 'https://randomuser.me/api/portraits/women/12.jpg',
   },
   categories: postCategories,
+  likesCount: 0,
 };
 
 describe('Post (e2e)', () => {
   let app: INestApplication;
+  let postService: PostService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -49,6 +53,8 @@ describe('Post (e2e)', () => {
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
+    postService = moduleRef.get(PostService);
+
     await app.init();
   });
 
@@ -59,9 +65,24 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys(postWithNoContent),
-          );
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
 
@@ -130,9 +151,25 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postWithNoContent, content: 'content' }),
-          );
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            content: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
 
@@ -145,9 +182,24 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ ...postWithNoContent }),
-          );
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
   });
@@ -160,13 +212,25 @@ describe('Post (e2e)', () => {
         .get(`/post/article/${slug}`)
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
-          expect(Object.keys(response.body)).toEqual(
-            Object.keys({
-              ...postWithNoContent,
-              content: 'content',
-            }),
-          );
-          expect(response.body.slug).toMatch(slug);
+          expect(response.body).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug,
+            content: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body.updatedAt).getTime).not.toBe(NaN);
         });
     });
 
@@ -186,9 +250,9 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(Array.isArray(response.body)).toBe(true);
-          expect(Object.keys(response.body[0])).toEqual(
-            Object.keys({ slug: 'slug' }),
-          );
+          expect(response.body[0]).toEqual({
+            slug: expect.any(String),
+          });
         });
     });
   });
@@ -602,6 +666,184 @@ describe('Post (e2e)', () => {
 
       return agent
         .put(`/post/${id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe('/post/:id/likes (GET)', () => {
+    const users = userData.slice(0, 3);
+    const postId = 2;
+
+    beforeAll(async () => {
+      const liked = users.map((user) => postService.like(postId, user.id));
+      await Promise.all(liked);
+    });
+
+    it('should return 200 and array of users who liked post', () => {
+      const expected = users.map((user) => ({
+        user: {
+          name: user.name,
+          image: user.image,
+        },
+      }));
+
+      return request(app.getHttpServer())
+        .get(`/post/${postId}/likes`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body).toEqual(expect.arrayContaining(expected));
+        });
+    });
+
+    it('should return 404 if post with provided id does not exist', () => {
+      const id = 12345;
+      return request(app.getHttpServer())
+        .get(`/post/${id}/likes`)
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 400 if post id param is not Int', () => {
+      const id = 'NotInt';
+      return request(app.getHttpServer())
+        .get(`/post/${id}/likes`)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    afterAll(async () => {
+      const unliked = users.map((user) => postService.unlike(postId, user.id));
+      await Promise.all(unliked);
+    });
+  });
+
+  describe('/post/:id/likes (POST)', () => {
+    const user = userData[0];
+    const postId = 2;
+
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: user.name,
+        email: user.email,
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it("should return 201 and post's likes count if user is logged in", () => {
+      return agent
+        .post(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CREATED)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id: postId,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
+
+    it('should return 422 if post with provided id does not exist', () => {
+      const postId = -1;
+      return agent
+        .post(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.UNPROCESSABLE_ENTITY);
+    });
+
+    it('should return 409 if user has already liked post', () => {
+      return agent
+        .post(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CONFLICT);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .post(`/post/${postId}/likes`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if post id param is not Int', () => {
+      const postId = 'NotInt';
+
+      return agent
+        .post(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    afterAll(async () => {
+      await postService.unlike(postId, user.id);
+    });
+  });
+
+  describe('/post/:id/likes (DELETE)', () => {
+    const user = userData[0];
+    const postId = 2;
+
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: user.name,
+        email: user.email,
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it("should return 200 and post's likes count if user is logged in", async () => {
+      await postService.like(postId, user.id);
+
+      return agent
+        .delete(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id: postId,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
+
+    it('should return 404 if user has not liked post', () => {
+      return agent
+        .delete(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 404 if post with provided id does not exist', () => {
+      const postId = -1;
+      return agent
+        .delete(`/post/${postId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .delete(`/post/${postId}/likes`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if post id param is not Int', () => {
+      const postId = 'NotInt';
+
+      return agent
+        .delete(`/post/${postId}/likes`)
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });
