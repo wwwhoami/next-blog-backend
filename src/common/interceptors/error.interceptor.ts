@@ -6,6 +6,7 @@ import {
   Injectable,
   NestInterceptor,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { catchError, Observable, throwError } from 'rxjs';
@@ -18,6 +19,7 @@ export class ErrorInterceptor implements NestInterceptor {
     context.getArgs;
     return next.handle().pipe(
       catchError((error) => {
+        // Records required but not found
         if (
           (error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === 'P2025') ||
@@ -25,11 +27,19 @@ export class ErrorInterceptor implements NestInterceptor {
         )
           return throwError(() => new NotFoundException());
 
+        // Unique constraint violation
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         )
           return throwError(() => new ConflictException());
+
+        // Foreign key constraint violation
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2003'
+        )
+          return throwError(() => new UnprocessableEntityException());
 
         if (error instanceof ConflictError)
           return throwError(() => new ConflictException(error.message));
