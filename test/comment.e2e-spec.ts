@@ -1,8 +1,10 @@
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
+import { userData } from 'data/seed-data';
 import { AppModule } from 'src/app.module';
 import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
+import { CommentService } from 'src/comment/comment.service';
 import { CommentEntity } from 'src/comment/entities/comment.entity';
 import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
 import request from 'supertest';
@@ -22,6 +24,7 @@ const comment: CommentEntity = {
 };
 
 describe('Comment (e2e)', () => {
+  let commentService: CommentService;
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -34,6 +37,8 @@ describe('Comment (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
+
+    commentService = moduleRef.get(CommentService);
 
     await app.init();
   });
@@ -498,5 +503,206 @@ describe('Comment (e2e)', () => {
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.NOT_FOUND);
     });
+  });
+
+  describe('/comment/:id/likes (GET)', () => {
+    const users = userData.slice(0, 3);
+    const commentId = 2;
+
+    beforeAll(async () => {
+      const liked = users.map((user) =>
+        commentService.like(commentId, user.id),
+      );
+      await Promise.all(liked);
+    });
+
+    it('should return 200 and array of users who liked comment', () => {
+      const expected = users.map((user) => ({
+        user: {
+          name: user.name,
+          image: user.image,
+        },
+      }));
+
+      return request(app.getHttpServer())
+        .get(`/comment/${commentId}/likes`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body).toEqual(expect.arrayContaining(expected));
+        });
+    });
+
+    it('should return 404 if comment with provided id does not exist', () => {
+      const id = 12345;
+      return request(app.getHttpServer())
+        .get(`/comment/${id}/likes`)
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 400 if comment id param is not Int', () => {
+      const id = 'NotInt';
+      return request(app.getHttpServer())
+        .get(`/comment/${id}/likes`)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    afterAll(async () => {
+      const unliked = users.map((user) =>
+        commentService.unlike(commentId, user.id),
+      );
+      await Promise.all(unliked);
+    });
+  });
+
+  describe('/comment/:id/likes (POST)', () => {
+    const user = userData[0];
+    let commentId: number;
+
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: user.name,
+        email: user.email,
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    beforeAll(async () => {
+      const { id } = await commentService.create(
+        {
+          content: 'Comment',
+          postId: 1,
+        },
+        user.id,
+      );
+
+      commentId = id;
+    });
+
+    it("should return 201 and comment's likes count if user is logged in", () => {
+      return agent
+        .post(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CREATED)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id: commentId,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
+
+    it('should return 422 if comment with provided id does not exist', () => {
+      const commentId = -1;
+      return agent
+        .post(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.UNPROCESSABLE_ENTITY);
+    });
+
+    it('should return 409 if user has already liked comment', () => {
+      return agent
+        .post(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CONFLICT);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .post(`/comment/${commentId}/likes`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if comment id param is not Int', () => {
+      const commentId = 'NotInt';
+
+      return agent
+        .post(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe('/comment/:id/likes (DELETE)', () => {
+    const user = userData[0];
+    const commentId = 1;
+
+    let agent: request.SuperAgentTest;
+    let accessToken: string;
+
+    beforeEach(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: user.name,
+        email: user.email,
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it("should return 200 and comment's likes count if user is logged in", async () => {
+      const { id } = await commentService.create(
+        {
+          postId: 2,
+          content: 'test',
+        },
+        user.id,
+      );
+      await commentService.like(id, user.id);
+
+      return agent
+        .delete(`/comment/${id}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.OK)
+        .expect(async (response: request.Response) => {
+          expect(response.body).toMatchObject({
+            id,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
+
+    it('should return 404 if user has not liked comment', () => {
+      return agent
+        .delete(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 404 if comment with provided id does not exist', () => {
+      const commentId = -1;
+      return agent
+        .delete(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .delete(`/comment/${commentId}/likes`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 400 if comment id param is not Int', () => {
+      const commentId = 'NotInt';
+
+      return agent
+        .delete(`/comment/${commentId}/likes`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 });
