@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { catchError, Observable, throwError } from 'rxjs';
 import { ConflictError } from '../errors/conflict.error';
 import { WrongParamsError } from '../errors/wrong-params.error';
+import { UnprocesasbleEntityError } from '../errors/unprocessable-entity.errror';
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
@@ -46,6 +47,12 @@ export class ErrorInterceptor implements NestInterceptor {
 
         if (error instanceof WrongParamsError)
           return throwError(() => new BadRequestException(error.message));
+
+        if (error instanceof UnprocesasbleEntityError) {
+          return throwError(
+            () => new UnprocessableEntityException(error.message),
+          );
+        }
 
         return throwError(() => error);
       }),
