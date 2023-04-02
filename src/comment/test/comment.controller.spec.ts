@@ -9,6 +9,7 @@ import {
   CommentEntity,
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
+import { Prisma } from '@prisma/client';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -165,6 +166,82 @@ describe('CommentController', () => {
         postId,
         {},
       );
+    });
+  });
+
+  describe('getLikes', () => {
+    const likes = [
+      {
+        user: {
+          name: 'John',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+      {
+        user: {
+          name: 'Jane',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+    ];
+
+    it('should get comment likes', async () => {
+      const commentId = 1;
+
+      commentService.getLikes.mockResolvedValue(likes);
+
+      const commentLikes = await controller.getLikes(commentId);
+
+      expect(commentLikes).toEqual(likes);
+    });
+
+    it('should throw Prisma.PrismaClientKnownRequestError if no comment exists', async () => {
+      const commentId = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      commentService.getLikes.mockRejectedValue(exception);
+
+      const getPostLikes = controller.getLikes(commentId);
+
+      await expect(getPostLikes).rejects.toThrow(exception);
+    });
+  });
+
+  describe('like', () => {
+    it('should like comment', async () => {
+      const commentId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: commentId,
+        likesCount: 1,
+      };
+
+      commentService.like.mockResolvedValue(expected);
+
+      const commentLikes = await controller.like(commentId, userId);
+      expect(commentLikes).toEqual(expected);
+    });
+  });
+
+  describe('unlike', () => {
+    it('unlike comment', async () => {
+      const commentId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: commentId,
+        likesCount: 1,
+      };
+
+      commentService.unlike.mockResolvedValue(expected);
+
+      const commentLikes = await controller.unlike(commentId, userId);
+      expect(commentLikes).toEqual(expected);
     });
   });
 

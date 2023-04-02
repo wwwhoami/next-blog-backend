@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Comment, Prisma, PrismaClient } from '@prisma/client';
+import { Comment, CommentLikes, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { ConflictError } from 'src/common/errors/conflict.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
@@ -16,6 +16,7 @@ import {
   CommentEntity,
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
+import { UnprocesasbleEntityError } from 'src/common/errors/unprocessable-entity.errror';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -98,13 +99,19 @@ describe('CommentService', () => {
 
   describe('pickOrdering', () => {
     it('returns correct order as Prisma.sql', () => {
-      const orderBy: CommentOrderBy[] = ['createdAt', 'updatedAt'];
+      const orderBy: CommentOrderBy[] = [
+        'createdAt',
+        'updatedAt',
+        'likesCount',
+      ];
       const order: Prisma.SortOrder[] = ['desc', 'asc'];
       const expected = [
         Prisma.sql`created_at DESC`,
         Prisma.sql`created_at ASC`,
         Prisma.sql`updated_at DESC`,
         Prisma.sql`updated_at ASC`,
+        Prisma.sql`likes_count DESC`,
+        Prisma.sql`likes_count ASC`,
       ];
 
       const results = orderBy.flatMap((commentOrderBy) =>
@@ -532,6 +539,110 @@ describe('CommentService', () => {
       const commentUpdated = await repository.update(commentId, comment);
 
       expect(commentUpdated).toEqual(updatedComment);
+    });
+  });
+
+  describe('getLikes', () => {
+    const likes = [
+      {
+        user: {
+          name: 'John',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+      {
+        user: {
+          name: 'Jane',
+          image: 'http://loremflickr.com/320/240/business',
+        },
+      },
+    ];
+
+    it('should get post likes', async () => {
+      const postId = 1;
+
+      prisma.commentLikes.findMany.mockResolvedValue(
+        likes as unknown as Prisma.Prisma__CommentClient<Array<CommentLikes>>,
+      );
+
+      const commentLikes = await repository.getLikes(postId);
+
+      expect(commentLikes).toEqual(likes);
+    });
+
+    it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
+      const postId = 1;
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      prisma.commentLikes.findMany.mockRejectedValue(exception);
+
+      const getCommentLikes = repository.getLikes(postId);
+
+      await expect(getCommentLikes).rejects.toThrow(exception);
+    });
+  });
+
+  describe('like', () => {
+    it('should like comment', async () => {
+      const commentId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: commentId,
+        likesCount: 1,
+      } as unknown as Prisma.Prisma__CommentClient<Comment>;
+
+      prisma.commentLikes.create.mockResolvedValue({
+        commentId,
+        userId,
+      });
+      prisma.comment.update.mockResolvedValue(expected);
+
+      const commentLikes = await repository.like(commentId, userId);
+      expect(commentLikes).toEqual(expected);
+    });
+
+    it('should throw UnprocesasbleEntityError if no comment exists', () => {
+      const commentId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const exception = new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        {
+          code: 'P2025',
+          clientVersion: '2.19.0',
+        },
+      );
+
+      prisma.comment.findFirstOrThrow.mockRejectedValue(exception);
+
+      expect(repository.like(commentId, userId)).rejects.toThrow(
+        UnprocesasbleEntityError,
+      );
+    });
+  });
+
+  describe('unlike', () => {
+    it('unlike comment', async () => {
+      const commentId = 1;
+      const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const expected = {
+        id: commentId,
+        likesCount: 1,
+      } as unknown as Prisma.Prisma__CommentClient<Comment>;
+
+      prisma.commentLikes.delete.mockResolvedValue({
+        commentId,
+        userId,
+      });
+      prisma.comment.update.mockResolvedValue(expected);
+
+      const commentLikes = await repository.unlike(commentId, userId);
+      expect(commentLikes).toEqual(expected);
     });
   });
 
