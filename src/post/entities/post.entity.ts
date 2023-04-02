@@ -12,6 +12,7 @@ export enum PostEntityKeysEnum {
   updatedAt = 'updatedAt',
   excerpt = 'excerpt',
   slug = 'slug',
+  likesCount = 'likesCount',
 }
 
 export class Slug {
