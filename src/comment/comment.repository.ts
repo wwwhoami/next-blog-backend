@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ConflictError } from 'src/common/errors/conflict.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
+import { UnprocesasbleEntityError } from 'src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from 'src/post/post.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import {
   CreateCommentDto,
   CreateResponseToCommentDto,
@@ -42,6 +44,10 @@ export class CommentRepository {
         return order === 'desc'
           ? Prisma.sql`updated_at DESC`
           : Prisma.sql`updated_at ASC`;
+      case 'likesCount':
+        return order === 'desc'
+          ? Prisma.sql`likes_count DESC`
+          : Prisma.sql`likes_count ASC`;
       default:
         return Prisma.sql``;
     }
@@ -417,19 +423,146 @@ export class CommentRepository {
   }
 
   /**
+   * @param {number} id - Comment id
+   * @description Get comment's likes
+   * @throws {Prisma.PrismaClientKnownRequestError} - If comment is not found
+   * @throws {Prisma.PrismaClientKnownRequestError} - If comment is deleted
+   */
+  async getLikes(id: number): Promise<{ user: UserNameImageEntity }[]> {
+    await this.getOne(id);
+
+    return this.prisma.commentLikes.findMany({
+      where: {
+        commentId: id,
+        comment: {
+          isDeleted: false,
+        },
+      },
+      select: {
+        user: {
+          select: {
+            name: true,
+            image: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * @param {number} id - Comment id
+   * @param {string} userId - User id
+   * @description Like comment creating like record and incrementing likes count
+   * @throws {UnprocesasbleEntityError} - If comment is not found
+   * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
+   * @throws {UnprocesasbleEntityError} - If comment is deleted
+   */
+  async like(
+    id: number,
+    userId: string,
+  ): Promise<{ likesCount: number; id: number }> {
+    try {
+      await this.prisma.comment.findFirstOrThrow({
+        where: {
+          id,
+          isDeleted: false,
+        },
+      });
+    } catch (error) {
+      // If comment is not found or is soft deleted
+      if (error.code === 'P2025') {
+        throw new UnprocesasbleEntityError('Comment does not exist');
+      }
+      throw error;
+    }
+
+    await this.prisma.commentLikes.create({
+      data: {
+        commentId: id,
+        userId,
+      },
+    });
+
+    return this.prisma.comment.update({
+      where: {
+        id,
+      },
+      data: {
+        likesCount: {
+          increment: 1,
+        },
+      },
+      select: {
+        id: true,
+        likesCount: true,
+      },
+    });
+  }
+
+  /**
+   * @param {number} id - Comment id
+   * @param {string} userId - User id
+   * @description Unlike comment deleting like record and decrementing likes count
+   * @throws {Prisma.PrismaClientKnownRequestError} - If comment is not found
+   * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
+   */
+  async unlike(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    await this.prisma.commentLikes.delete({
+      where: {
+        commentId_userId: {
+          commentId: id,
+          userId,
+        },
+      },
+      select: {
+        userId: true,
+        commentId: true,
+      },
+    });
+
+    return this.prisma.comment.update({
+      where: {
+        id,
+      },
+      data: {
+        likesCount: {
+          decrement: 1,
+        },
+      },
+      select: {
+        id: true,
+        likesCount: true,
+      },
+    });
+  }
+
+  /**
    * @param {number} id - comment id
+   * @throws {Prisma.PrismaClientKnownRequestError} - if comment with given id does not exist
+   * @throws {Prisma.PrismaClientKnownRequestError} - if comment is already deleted
    * @description
    * Soft remove comment by setting isDeleted to true and content to 'COMMENT IS DELETED'
    * It is used to prevent comment from being returned in queries.
    * Comments are not actually deleted from the database!
+   * Likes for the comment are actually deleted.
    * @example
    * await commentRepository.softRemove(1);
    */
-  softRemove(id: number): Promise<CommentEntity> {
+  async softRemove(id: number): Promise<CommentEntity> {
+    await this.prisma.commentLikes.deleteMany({
+      where: {
+        commentId: id,
+      },
+    });
+
     return this.prisma.comment.update({
       data: {
         isDeleted: true,
         content: 'COMMENT IS DELETED',
+        likesCount: 0,
       },
       where: {
         id,

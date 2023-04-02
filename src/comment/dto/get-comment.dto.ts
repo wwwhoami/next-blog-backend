@@ -8,10 +8,11 @@ import { UnionOfObjKeys } from 'src/common/types/union-of-obj-keys.types';
 enum CommentOrderByKeyEnum {
   createdAt = 'createdAt',
   updatedAt = 'updatedAt',
+  likesCount = 'likesCount',
 }
 
 export type CommentOrderBy = UnionOfObjKeys<
-  Pick<Comment, 'createdAt' | 'updatedAt'>
+  Pick<Comment, 'createdAt' | 'updatedAt' | 'likesCount'>
 >;
 
 export class GetCommentDto {

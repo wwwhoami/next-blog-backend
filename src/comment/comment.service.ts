@@ -9,6 +9,7 @@ import {
   CommentEntity,
   CommentEntityWithChildrenCount,
 } from './entities/comment.entity';
+import { UserNameImageEntity } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class CommentService implements EntityWithAuthorService {
@@ -99,6 +100,41 @@ export class CommentService implements EntityWithAuthorService {
     if (isDeleted) throw new NotFoundError('Comment not found');
 
     return this.commentRepository.update(id, comment);
+  }
+
+  /**
+   * @param {number} id - The id of the comment
+   * @description
+   * Gets the likes of the comment with the given id
+   */
+  getLikes(id: number): Promise<{ user: UserNameImageEntity }[]> {
+    return this.commentRepository.getLikes(id);
+  }
+
+  /**
+   * @param {number} id - The id of the comment
+   * @param {string} userId - The id of the user
+   * @description
+   * Likes the comment with the given id
+   */
+  like(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.commentRepository.like(id, userId);
+  }
+
+  /**
+   * @param {number} id - The id of the comment
+   * @param {string} userId - The id of the user
+   * @description
+   * Unlikes the comment with the given id
+   */
+  unlike(
+    id: number,
+    userId: string,
+  ): Promise<{ id: number; likesCount: number }> {
+    return this.commentRepository.unlike(id, userId);
   }
 
   /**
