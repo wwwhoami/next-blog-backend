@@ -92,11 +92,125 @@ export class UserRepository {
     });
   }
 
+  /**
+   * @param {CreateUserDto} user - User's data to create.
+   * @returns User's data without password
+   */
   async create(user: CreateUserDto): Promise<UserNoPasswordEntity> {
     return this.prisma.user.create({
       data: user,
       select: {
         id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+      },
+    });
+  }
+
+  /**
+   * @param {string} followerId - Id of the user who wants to follow.
+   * @param {string} followingId - Id of the user to be followed.
+   */
+  follow(
+    followerId: string,
+    followingId: string,
+  ): Promise<{ followerId: string; followingId: string }> {
+    return this.prisma.follows.create({
+      data: {
+        follower: {
+          connect: {
+            id: followerId,
+          },
+        },
+        following: {
+          connect: {
+            id: followingId,
+          },
+        },
+      },
+      select: {
+        followerId: true,
+        followingId: true,
+      },
+    });
+  }
+
+  /**
+   * @param {string} followerId - Id of the user who wants to unfollow.
+   * @param {string} followingId - Id of the user to be unfollowed.
+   */
+  unfollow(
+    followerId: string,
+    followingId: string,
+  ): Promise<{ followerId: string; followingId: string }> {
+    return this.prisma.follows.delete({
+      where: {
+        followerId_followingId: {
+          followerId,
+          followingId,
+        },
+      },
+      select: {
+        followerId: true,
+        followingId: true,
+      },
+    });
+  }
+
+  /**
+   * @param {string} userId - Id of the user to find the followers list for.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If not provided, user's data with no id will be returned.
+   * @returns List of user's followers
+   * @description
+   * If returnOptions.id is not provided, user's data with no id will be returned.
+   */
+  getFollowers<T extends boolean>(
+    userId: string,
+    returnOptions?: { id?: T },
+  ): Promise<NonNullable<UserType<false, T>>[]> {
+    return this.prisma.user.findMany({
+      where: {
+        followers: {
+          some: {
+            followingId: userId,
+          },
+        },
+      },
+      select: {
+        id: (returnOptions?.id as boolean) ?? false,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+      },
+    });
+  }
+
+  /**
+   * @param {string} userId - Id of the user to find the following list for.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If not provided, user's data no with id will be returned.
+   * @returns List of users followed by the user
+   * @description
+   * If returnOptions.id is not provided, user's data with no id will be returned.
+   */
+  getFollowing<T extends boolean>(
+    userId: string,
+    returnOptions?: { id?: T },
+  ): Promise<NonNullable<UserType<false, T>>[]> {
+    return this.prisma.user.findMany({
+      where: {
+        following: {
+          some: {
+            followerId: userId,
+          },
+        },
+      },
+      select: {
+        id: (returnOptions?.id as boolean) ?? false,
         name: true,
         email: true,
         image: true,

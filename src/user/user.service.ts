@@ -23,7 +23,7 @@ export class UserService {
    * @returns User's data
    */
   async get<B extends boolean, T extends boolean>(
-    { name = undefined, email = undefined, id = undefined }: GetUserDto,
+    { name, email, id }: GetUserDto,
     returnOptions?: { id?: T; password?: B },
   ): Promise<UserType<B, T>> {
     if (id) return this.userRepository.getByUuid(id, returnOptions);
@@ -43,5 +43,49 @@ export class UserService {
       ...user,
       password: encryptedPassword,
     });
+  }
+
+  follow(
+    followerId: string,
+    followedId: string,
+  ): Promise<{ followerId: string; followingId: string }> {
+    return this.userRepository.follow(followerId, followedId);
+  }
+
+  unfollow(
+    followerId: string,
+    followedId: string,
+  ): Promise<{ followerId: string; followingId: string }> {
+    return this.userRepository.unfollow(followerId, followedId);
+  }
+
+  /**
+   * @param {string} userId - Id of the user to find the followers list for.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If not provided, user's data with no id will be returned.
+   * @returns List of followers
+   * @description
+   * If returnOptions.id is not provided, user's data with no id will be returned.
+   */
+  getFollowers<T extends boolean>(
+    userId: string,
+    returnOptions?: { id?: T },
+  ): Promise<NonNullable<UserType<false, T>>[]> {
+    return this.userRepository.getFollowers(userId, returnOptions);
+  }
+
+  /**
+   * @param {string} userId - Id of the user to find the following list for.
+   * @param {Object} returnOptions - Additional user's data to return.
+   * @param {boolean} [returnOptions.id] - If not provided, user's data with no id will be returned.
+   * @returns List of following
+   * @description
+   * If returnOptions.id is not provided, user's data with no id will be returned
+   */
+  getFollowing<T extends boolean>(
+    userId: string,
+    returnOptions?: { id?: T },
+  ): Promise<NonNullable<UserType<false, T>>[]> {
+    return this.userRepository.getFollowing(userId, returnOptions);
   }
 }
