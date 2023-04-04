@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNoPasswordEntity } from './entities/user.entity';
 import { UserType } from './types/user-with-password-or-user.type';
 
@@ -17,7 +18,7 @@ export class UserRepository {
    * if fully omitted (or partly) data with no id and (or) password will be returned
    * @returns User's data
    */
-  async getByUuid<B extends boolean, T extends boolean>(
+  getByUuid<B extends boolean, T extends boolean>(
     uuid: string,
     returnOptions?: { id?: T; password?: B },
   ): Promise<UserType<B, T>> {
@@ -45,7 +46,7 @@ export class UserRepository {
    * if fully omitted (or partly) data with no id and (or) password will be returned
    * @returns User's data
    */
-  async getByName<B extends boolean, T extends boolean>(
+  getByName<B extends boolean, T extends boolean>(
     name: string,
     returnOptions?: { id?: T; password?: B },
   ): Promise<UserType<B, T>> {
@@ -73,7 +74,7 @@ export class UserRepository {
    * if fully omitted (or partly) data with no id and (or) password will be returned
    * @returns User's data
    */
-  async getByEmail<B extends boolean, T extends boolean>(
+  getByEmail<B extends boolean, T extends boolean>(
     email: string,
     returnOptions?: { id?: T; password?: B },
   ): Promise<UserType<B, T>> {
@@ -96,9 +97,33 @@ export class UserRepository {
    * @param {CreateUserDto} user - User's data to create.
    * @returns User's data without password
    */
-  async create(user: CreateUserDto): Promise<UserNoPasswordEntity> {
+  create(user: CreateUserDto): Promise<UserNoPasswordEntity> {
     return this.prisma.user.create({
       data: user,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+      },
+    });
+  }
+
+  update(
+    id: string,
+    { name, email, image, newPassword }: UpdateUserDto,
+  ): Promise<UserNoPasswordEntity> {
+    return this.prisma.user.update({
+      where: {
+        id,
+      },
+      data: {
+        name,
+        email,
+        image,
+        password: newPassword,
+      },
       select: {
         id: true,
         name: true,

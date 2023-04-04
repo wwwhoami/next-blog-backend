@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { genSalt, hash } from 'bcrypt';
 import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { CreateUserDto } from './dto/create-user.dto';
 import { GetUserDto } from './dto/get-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNoPasswordEntity } from './entities/user.entity';
 import { UserType } from './types/user-with-password-or-user.type';
 import { UserRepository } from './user.repository';
@@ -36,13 +36,11 @@ export class UserService {
   }
 
   async create(user: CreateUserDto): Promise<UserNoPasswordEntity | undefined> {
-    const salt = await genSalt(10);
-    const encryptedPassword = await hash(user.password, salt);
+    return this.userRepository.create(user);
+  }
 
-    return this.userRepository.create({
-      ...user,
-      password: encryptedPassword,
-    });
+  async update(id: string, user: UpdateUserDto): Promise<UserNoPasswordEntity> {
+    return this.userRepository.update(id, user);
   }
 
   follow(
