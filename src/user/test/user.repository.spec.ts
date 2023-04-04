@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, User } from '@prisma/client';
-import { userData } from '../../../data/seed-data';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { userData } from '../../../data/seed-data';
 import { UserRepository } from '../user.repository';
 
 describe('UserRepository', () => {
@@ -67,6 +67,21 @@ describe('UserRepository', () => {
       prismaService.user.create.mockResolvedValue(createdUser);
 
       expect(repository.create(userToCreate)).resolves.toEqual(createdUser);
+    });
+  });
+
+  describe('update', () => {
+    it('should update user returning his data', () => {
+      const userId = userData[0].id;
+      const userToUpdate = { ...userData[0], newPassword: 'password' };
+      const updatedUser =
+        userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+
+      prismaService.user.update.mockResolvedValue(updatedUser);
+
+      expect(repository.update(userId, userToUpdate)).resolves.toEqual(
+        updatedUser,
+      );
     });
   });
 

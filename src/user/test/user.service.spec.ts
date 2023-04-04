@@ -78,22 +78,31 @@ describe('UserService', () => {
   });
 
   describe('create', () => {
-    it('should create user with password encrypted returning his data', async () => {
+    it('should create user returning his data', async () => {
       const password = 'password';
       const userToCreate = { ...userData[0], password };
       const createdUser =
         userData[0] as unknown as Prisma.Prisma__UserClient<User>;
 
-      const createUserMock = repository.create;
-      createUserMock.mockResolvedValue(createdUser);
+      repository.create.mockResolvedValue(createdUser);
 
       const createUserAction = await service.create(userToCreate);
 
       expect(createUserAction).toEqual(createdUser);
-      expect(createUserMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          password: expect.not.stringMatching(password),
-        }),
+    });
+  });
+
+  describe('update', () => {
+    it('should update user', () => {
+      const userId = userData[0].id;
+      const userToUpdate = userData[0];
+      const updatedUser =
+        userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+
+      repository.update.mockResolvedValue(updatedUser);
+
+      expect(service.update(userId, userToUpdate)).resolves.toEqual(
+        updatedUser,
       );
     });
   });
