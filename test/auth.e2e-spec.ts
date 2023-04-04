@@ -5,6 +5,7 @@ import { userData } from 'data/seed-data';
 import { AppModule } from 'src/app.module';
 import { AuthCredentialsDto } from 'src/auth/dto/auth-credentials.dto';
 import { ErrorInterceptor } from 'src/common/interceptors/error.interceptor';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import request from 'supertest';
 
 const authCredentials: AuthCredentialsDto = {
@@ -193,6 +194,95 @@ describe('Auth (e2e)', () => {
         .post(`/auth/login`)
         .send({ email: 'email', password: 'asdwadaw' })
         .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe('/auth/profile (PATCH)', () => {
+    let accessToken: string;
+    let agent: request.SuperAgentTest;
+
+    beforeAll(async () => {
+      const signUpCredentials: CreateUserDto = {
+        name: 'newUser',
+        email: 'newUser@email.com',
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/sign-up`).send(signUpCredentials))
+        .body['accessToken'];
+    });
+
+    it('should update user profile if user is logged in', () => {
+      const updatedUser = {
+        name: 'newName',
+        email: 'newEmail@email.com',
+        image: 'http://new.newImage.url/',
+        password: 'password',
+        newPassword: 'newPassword',
+      };
+
+      return agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send(updatedUser)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject({
+            email: updatedUser.email,
+            image: updatedUser.image,
+            name: updatedUser.name,
+            accessToken: expect.any(String),
+          });
+        });
+    });
+
+    it('should return 400 if bad body provided', async () => {
+      await agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ name: 14 })
+        .expect(HttpStatus.BAD_REQUEST);
+
+      await agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ email: 13 })
+        .expect(HttpStatus.BAD_REQUEST);
+
+      await agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ image: 12 })
+        .expect(HttpStatus.BAD_REQUEST);
+
+      await agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({ newPassword: 'newPassword' })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 401 if user is not logged in', () => {
+      return request(app.getHttpServer())
+        .patch(`/auth/profile`)
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 401 if user is changing password but stored password and provided password are not equal', () => {
+      const updatedUser = {
+        name: 'newName',
+        email: 'newEmail@email.com',
+        image: 'http://new.newImage.url/',
+        password: 'wrongPassword',
+        newPassword: 'newPassword',
+      };
+
+      return agent
+        .patch(`/auth/profile`)
+        .auth(accessToken, { type: 'bearer' })
+        .send(updatedUser)
+        .expect(HttpStatus.UNAUTHORIZED);
     });
   });
 
