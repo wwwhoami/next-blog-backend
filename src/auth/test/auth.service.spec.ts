@@ -5,8 +5,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { mock, MockProxy } from 'jest-mock-extended';
+import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { Role } from 'src/user/entities/role.enum';
-import { UserEntity } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 import { AuthService } from '../auth.service';
 import { JwtPayload } from '../types/jwt-payload.type';
@@ -17,7 +17,7 @@ const authCredentials = {
   password: 'password',
 };
 
-const userData: UserEntity = {
+const userData = {
   id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
   name: 'Alice Johnson',
   email: 'alice@prisma.io',
@@ -229,6 +229,92 @@ describe('AuthService', () => {
       await expect(service.signUp(userToCreate)).resolves.toEqual(
         expectedReturn,
       );
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should update user profile and return { name, email, image, accessToken, refreshToken, refreshTokenExpiry }', async () => {
+      const userToUpdate = { ...userData };
+      const updatedUser = {
+        name: userToUpdate.name,
+        email: userToUpdate.email,
+        image: userToUpdate.image,
+        role: Role.User,
+        id: userData.id,
+      };
+      const refreshToken = 'refresh token';
+      const refreshTokenExpiry = 60;
+      const accessToken = 'access token';
+
+      userService.update.mockResolvedValue(updatedUser);
+
+      service.createRefreshToken = jest
+        .fn()
+        .mockResolvedValue({ refreshToken, refreshTokenExpiry });
+      service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
+
+      expect(
+        service.updateProfile(userToUpdate.id, userToUpdate),
+      ).resolves.toEqual({
+        ...updatedUser,
+        accessToken,
+        refreshToken,
+        refreshTokenExpiry,
+        id: undefined,
+      });
+    });
+
+    it('should generate encrypted password if old and new passwords are provided', async () => {
+      const userToUpdate = { ...userData, newPassword: 'new password' };
+      const updatedUser = {
+        id: 'userData.id',
+        name: userToUpdate.name,
+        email: userToUpdate.email,
+        image: userToUpdate.image,
+        role: Role.User,
+      };
+      const refreshToken = 'refresh token';
+      const refreshTokenExpiry = 60;
+      const accessToken = 'access token';
+
+      userService.get.mockResolvedValue(userData);
+
+      bcrypt.compare = jest.fn().mockResolvedValueOnce(true);
+      bcrypt.hash = jest.fn().mockResolvedValueOnce(userToUpdate.newPassword);
+
+      userService.update.mockResolvedValue(updatedUser);
+      service.createRefreshToken = jest
+        .fn()
+        .mockResolvedValue({ refreshToken, refreshTokenExpiry });
+      service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
+
+      await service.updateProfile(userToUpdate.id, userToUpdate);
+
+      expect(userService.update).toHaveBeenCalledWith(userToUpdate.id, {
+        ...userToUpdate,
+      });
+    });
+
+    it('should throw UnauthorizedError if user with provided id does not exist', () => {
+      const userToUpdate = { ...userData, newPassword: 'new password' };
+
+      userService.get.mockResolvedValue(null);
+
+      expect(
+        service.updateProfile(userToUpdate.id, userToUpdate),
+      ).rejects.toThrow(UnauthorizedError);
+    });
+
+    it('should throw UnauthorizedError if stored password and provided password are compared unequal', () => {
+      const userToUpdate = { ...userData, newPassword: 'new password' };
+
+      userService.get.mockResolvedValue(userToUpdate);
+
+      bcrypt.compare = jest.fn().mockResolvedValueOnce(false);
+
+      expect(
+        service.updateProfile(userToUpdate.id, userToUpdate),
+      ).rejects.toThrow(UnauthorizedError);
     });
   });
 });

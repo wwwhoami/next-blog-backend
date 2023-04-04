@@ -251,6 +251,39 @@ describe('AuthController', () => {
     });
   });
 
+  describe('updateProfile', () => {
+    it('should return { email, name, image, accessToken }, set cookie with refresh token', async () => {
+      const refreshToken = 'refresh token';
+      const refreshTokenExpiry = 123;
+      const accessToken = 'access token';
+      const user = { ...authCredentials, image: 'image' };
+      const res: any = {};
+
+      res.cookie = jest.fn();
+      authService.updateProfile.mockResolvedValue({
+        ...userData,
+        refreshToken,
+        refreshTokenExpiry,
+        accessToken,
+      });
+
+      await expect(
+        controller.updateProfile('userId', user, res),
+      ).resolves.toEqual({
+        ...userData,
+        accessToken,
+        id: undefined,
+        password: undefined,
+        role: undefined,
+      });
+      expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
+        httpOnly: true,
+        expires: expect.any(Date),
+        secure: false,
+      });
+    });
+  });
+
   describe('logout', () => {
     it('should logout user, clear refreshToken cookie', async () => {
       const user = { ...authCredentials, image: 'image' };
