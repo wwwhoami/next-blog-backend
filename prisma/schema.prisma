@@ -25,6 +25,17 @@ model User {
   Comment      Comment[]
   PostLikes    PostLikes[]
   CommentLikes CommentLikes[]
+  followers    Follows[]      @relation("follower")
+  following    Follows[]      @relation("following")
+}
+
+model Follows {
+  followerId  String @map("follower_id") @db.Uuid
+  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String @map("following_id") @db.Uuid
+  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
 }
 
 model Post {
