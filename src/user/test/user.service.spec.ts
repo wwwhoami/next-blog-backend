@@ -4,32 +4,7 @@ import { mock, MockProxy } from 'jest-mock-extended';
 import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const userDataWithId = {
-  id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
-  name: 'Alice Johnson',
-  email: 'alice@prisma.io',
-  image: 'https://randomuser.me/api/portraits/women/12.jpg',
-};
-
-const userData = [
-  {
-    name: 'John Doe',
-    email: 'john@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/12.jpg',
-  },
-  {
-    name: 'Sam Smith',
-    email: 'sam@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/11.jpg',
-  },
-  {
-    name: 'Mike Richards',
-    email: 'mahmoud@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/13.jpg',
-  },
-];
+import { userData } from '../../../data/seed-data';
 
 describe('UserService', () => {
   let service: UserService;
@@ -56,8 +31,8 @@ describe('UserService', () => {
 
   describe('get', () => {
     it('should get user by id if id provided', () => {
-      const user = userDataWithId as unknown as Prisma.Prisma__UserClient<User>;
-      const id = userDataWithId.id;
+      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+      const id = userData[0].id;
 
       repository.getByUuid.mockResolvedValue(user);
 
@@ -120,6 +95,62 @@ describe('UserService', () => {
           password: expect.not.stringMatching(password),
         }),
       );
+    });
+  });
+
+  describe('follow', () => {
+    it('should follow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      repository.follow.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(service.follow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('unfollow', () => {
+    it('should unfollow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      repository.unfollow.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(service.unfollow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('getFollowers', () => {
+    it('should get followers', () => {
+      const userId = userData[0].id as string;
+      const followers = [userData[1]] as unknown as User[];
+
+      repository.getFollowers.mockResolvedValue(followers);
+
+      expect(service.getFollowers(userId)).resolves.toEqual(followers);
+    });
+  });
+
+  describe('getFollowing', () => {
+    it("should get user's followings", () => {
+      const userId = userData[0].id as string;
+      const following = [userData[1]] as unknown as User[];
+
+      repository.getFollowing.mockResolvedValue(following);
+
+      expect(service.getFollowing(userId)).resolves.toEqual(following);
     });
   });
 });

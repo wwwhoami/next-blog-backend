@@ -4,32 +4,8 @@ import { Prisma, User } from '@prisma/client';
 import { mock, MockProxy } from 'jest-mock-extended';
 import { UserController } from '../user.controller';
 import { UserService } from '../user.service';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const userDataWithId = {
-  id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
-  name: 'Alice Johnson',
-  email: 'alice@prisma.io',
-  image: 'https://randomuser.me/api/portraits/women/12.jpg',
-};
-
-const userData = [
-  {
-    name: 'John Doe',
-    email: 'john@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/12.jpg',
-  },
-  {
-    name: 'Sam Smith',
-    email: 'sam@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/11.jpg',
-  },
-  {
-    name: 'Mike Richards',
-    email: 'mahmoud@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/13.jpg',
-  },
-];
+import { userData } from '../../../data/seed-data';
+import { UserNoIdPasswordEntity } from '../entities/user.entity';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -72,6 +48,62 @@ describe('UserController', () => {
       await expect(controller.get(username)).rejects.toThrowError(
         NotFoundException,
       );
+    });
+  });
+
+  describe('follow', () => {
+    it('should follow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      userService.follow.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(controller.follow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('unfollow', () => {
+    it('should unfollow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      userService.unfollow.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(controller.unfollow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('getFollowers', () => {
+    it("should get user's followers", () => {
+      const userId = userData[0].id as string;
+      const followers = [userData[1]] as unknown as UserNoIdPasswordEntity[];
+
+      userService.getFollowers.mockResolvedValue(followers);
+
+      expect(controller.getFollowers(userId)).resolves.toEqual(followers);
+    });
+  });
+
+  describe('getFollowing', () => {
+    it("should get user's followings", () => {
+      const userId = userData[0].id as string;
+      const followings = [userData[1]] as unknown as UserNoIdPasswordEntity[];
+
+      userService.getFollowing.mockResolvedValue(followings);
+
+      expect(controller.getFollowing(userId)).resolves.toEqual(followings);
     });
   });
 });

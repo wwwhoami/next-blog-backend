@@ -1,33 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma, User } from '@prisma/client';
+import { userData } from '../../../data/seed-data';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserRepository } from '../user.repository';
-
-const userDataWithId = {
-  id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
-  name: 'Alice Johnson',
-  email: 'alice@prisma.io',
-  image: 'https://randomuser.me/api/portraits/women/12.jpg',
-};
-
-const userData = [
-  {
-    name: 'John Doe',
-    email: 'john@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/12.jpg',
-  },
-  {
-    name: 'Sam Smith',
-    email: 'sam@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/11.jpg',
-  },
-  {
-    name: 'Mike Richards',
-    email: 'mahmoud@prisma.io',
-    image: 'https://randomuser.me/api/portraits/men/13.jpg',
-  },
-];
 
 describe('UserRepository', () => {
   let repository: UserRepository;
@@ -62,8 +38,8 @@ describe('UserRepository', () => {
 
   describe('getByUuid', () => {
     it('should get user by uuid', () => {
-      const user = userDataWithId as unknown as Prisma.Prisma__UserClient<User>;
-      const uuid = userDataWithId.id as string;
+      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+      const uuid = userData[0].id as string;
 
       prismaService.user.findUnique.mockResolvedValue(user);
 
@@ -91,6 +67,62 @@ describe('UserRepository', () => {
       prismaService.user.create.mockResolvedValue(createdUser);
 
       expect(repository.create(userToCreate)).resolves.toEqual(createdUser);
+    });
+  });
+
+  describe('follow', () => {
+    it('should follow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      prismaService.follows.create.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(repository.follow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('unfollow', () => {
+    it('should unfollow user', () => {
+      const followerId = userData[0].id as string;
+      const followingId = userData[1].id as string;
+
+      prismaService.follows.delete.mockResolvedValue({
+        followerId,
+        followingId,
+      });
+
+      expect(repository.unfollow(followerId, followingId)).resolves.toEqual({
+        followerId,
+        followingId,
+      });
+    });
+  });
+
+  describe('getFollowers', () => {
+    it("should get user's followers", () => {
+      const userId = userData[0].id as string;
+      const followers = [userData[1], userData[2]] as unknown as User[];
+
+      prismaService.user.findMany.mockResolvedValue(followers);
+
+      expect(repository.getFollowers(userId)).resolves.toEqual(followers);
+    });
+  });
+
+  describe('getFollowing', () => {
+    it("should get user's followings", () => {
+      const userId = userData[0].id as string;
+      const followings = [userData[1], userData[2]] as unknown as User[];
+
+      prismaService.user.findMany.mockResolvedValue(followings);
+
+      expect(repository.getFollowing(userId)).resolves.toEqual(followings);
     });
   });
 });
