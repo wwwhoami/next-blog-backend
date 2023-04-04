@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   InternalServerErrorException,
+  Patch,
   Post,
   Res,
   UnauthorizedException,
@@ -16,6 +17,7 @@ import { Response } from 'express';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { RefreshTokenGuard } from 'src/common/guards/refresh-token.guard';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { UpdateUserDto } from 'src/user/dto/update-user.dto';
 import { AuthService } from './auth.service';
 import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
 import { GetUser } from './decorators/get-user.decorator';
@@ -50,11 +52,12 @@ export class AuthController {
             throw new ConflictException(
               `User with provided name already exists`,
             );
-          else if (error.meta.target.includes('email'))
+          if (error.meta.target.includes('email'))
             throw new ConflictException(
               `User with provided email already exists`,
             );
         }
+      throw new InternalServerErrorException();
     }
 
     if (!signedUpUser) throw new InternalServerErrorException();
@@ -90,6 +93,7 @@ export class AuthController {
         throw new UnauthorizedException('Invalid name or password');
       if (user.email)
         throw new UnauthorizedException('Invalid email or password');
+
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -113,6 +117,32 @@ export class AuthController {
   }
 
   @UseGuards(AccessTokenGuard)
+  @Patch('profile')
+  async updateProfile(
+    @GetUser('id') id: string,
+    @Body() user: UpdateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const {
+      name,
+      email,
+      image,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiry,
+    } = await this.authService.updateProfile(id, user);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      expires: new Date(Date.now() + 1000 * refreshTokenExpiry),
+      secure:
+        this.configService.get<string>('NODE_ENV') === 'prod' ? true : false,
+    });
+
+    return { email, name, image, accessToken };
+  }
+
+  @UseGuards(AccessTokenGuard)
   @Get('logout')
   async logout(
     @GetUser('id') id: string,
@@ -124,7 +154,7 @@ export class AuthController {
   }
 
   @UseGuards(RefreshTokenGuard)
-  @Get('/refresh')
+  @Get('refresh')
   async refreshTokens(
     @GetRefreshToken() jwt: JwtPayload,
     @Res({ passthrough: true }) res: Response,

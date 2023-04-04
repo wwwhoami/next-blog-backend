@@ -1,15 +1,12 @@
-import {
-  CACHE_MANAGER,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CACHE_MANAGER, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { compare, genSalt, hash } from 'bcrypt';
 import { Cache } from 'cache-manager';
+import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { UpdateUserDto } from 'src/user/dto/update-user.dto';
 import { UserService } from 'src/user/user.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { JwtPayload } from './types/jwt-payload.type';
@@ -115,6 +112,63 @@ export class AuthService {
   }
 
   /**
+   * @param {string} id - User's id
+   * @param {UpdateUserDto} user - User's data to update
+   * @throws {NotFoundError} If user with provided id does not exist
+   * @throws {UnauthorizedError} If user's password is wrong
+   * @description
+   * Updates user's data. Creates new access and refresh tokens and returns them.
+   */
+  async updateProfile(id: string, user: UpdateUserDto): Promise<SignedUpUser> {
+    let encryptedPassword: string | undefined;
+
+    // If the user wants to change the password
+    if (user.password && user.newPassword) {
+      // Get the user from the database (including the password)
+      const u = await this.userService.get({ id }, { password: true });
+
+      if (!u) throw new UnauthorizedError('User not found');
+
+      // Compare the user's password with the stored one
+      if (!(await compare(user.password, u.password)))
+        throw new UnauthorizedError('Wrong password');
+
+      // Encrypt the new password
+      const salt = await genSalt(10);
+      encryptedPassword = await hash(user.newPassword, salt);
+    }
+
+    const updatedUser = await this.userService.update(id, {
+      ...user,
+      newPassword: encryptedPassword,
+    });
+
+    // Refresh tokens
+
+    const { refreshToken, refreshTokenExpiry } = await this.createRefreshToken(
+      updatedUser.id,
+      updatedUser.name,
+      updatedUser.role,
+    );
+
+    const accessToken = await this.createAccessToken(
+      updatedUser.id,
+      updatedUser.name,
+      updatedUser.role,
+    );
+
+    return {
+      name: updatedUser.name,
+      email: updatedUser.email,
+      image: updatedUser.image,
+      role: updatedUser.role,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiry,
+    };
+  }
+
+  /**
    * @param {string} id - The user's id
    * @param {string} name - The user's name
    * @param {Role} role - The user's role
@@ -184,7 +238,7 @@ export class AuthService {
 
     const tokenValue = await this.cacheManager.get(id);
     // Check if the refresh token is valid
-    if (!tokenValue) throw new UnauthorizedException('Refresh token expired');
+    if (!tokenValue) throw new UnauthorizedError('Refresh token expired');
 
     // Delete the old refresh token
     await this.cacheManager.del(id);
