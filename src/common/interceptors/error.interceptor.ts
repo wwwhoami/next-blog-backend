@@ -6,6 +6,7 @@ import {
   Injectable,
   NestInterceptor,
   NotFoundException,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -13,6 +14,7 @@ import { catchError, Observable, throwError } from 'rxjs';
 import { ConflictError } from '../errors/conflict.error';
 import { WrongParamsError } from '../errors/wrong-params.error';
 import { UnprocesasbleEntityError } from '../errors/unprocessable-entity.errror';
+import { UnauthorizedError } from '../errors/unauthorized.error';
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
@@ -52,6 +54,10 @@ export class ErrorInterceptor implements NestInterceptor {
           return throwError(
             () => new UnprocessableEntityException(error.message),
           );
+        }
+
+        if (error instanceof UnauthorizedError) {
+          return throwError(() => new UnauthorizedException(error.message));
         }
 
         return throwError(() => error);
