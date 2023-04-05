@@ -80,11 +80,16 @@ export class PostRepository {
     published,
     searchTerm,
     category,
-  }: Pick<GetPostDto, 'category' | 'published' | 'searchTerm'>): Prisma.Sql {
+    authorId,
+  }: Pick<
+    GetPostDto,
+    'category' | 'published' | 'searchTerm' | 'authorId'
+  >): Prisma.Sql {
     const where: Prisma.Sql[] = [];
 
     if (typeof published === 'boolean')
       where.push(Prisma.sql`published = ${published}`);
+    if (authorId?.length) where.push(Prisma.sql`author_id = uuid(${authorId})`);
     if (category?.length)
       where.push(Prisma.sql`
       p.id IN(
@@ -198,6 +203,7 @@ export class PostRepository {
     published,
     category,
     searchTerm,
+    authorId,
   }: GetPostDto = {}): Promise<PostEntity[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.empty;
     const ordering = this.pickOrdering(orderBy, order);
@@ -206,7 +212,12 @@ export class PostRepository {
         title <-> ${searchTerm},
         excerpt <-> ${searchTerm},`
       : Prisma.empty;
-    const whereClause = this.pickWhere({ published, category, searchTerm });
+    const whereClause = this.pickWhere({
+      published,
+      category,
+      searchTerm,
+      authorId,
+    });
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
@@ -235,7 +246,10 @@ export class PostRepository {
         ${orderBySearchTerm}
         ${ordering}
       LIMIT ${take}
-      OFFSET ${skip}`;
+      OFFSET ${skip}`.catch((err) => {
+      console.log(err);
+      return [];
+    });
   }
 
   /**

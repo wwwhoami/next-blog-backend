@@ -140,10 +140,12 @@ describe('PostRepository', () => {
   describe('pickWhere', () => {
     it('returns correct where as Prisma.sql', () => {
       const published = true;
+      const authorId = '00000000-0000-0000-0000-000000000000';
       const category = 'testCategory';
       const searchTerm = 'testSearchTerm';
       const expected = Prisma.sql`
       published = ${published}
+      AND author_id = ${authorId}
       AND p.id IN(
         SELECT
           p1.id
@@ -168,6 +170,7 @@ describe('PostRepository', () => {
         searchTerm,
         category,
         published,
+        authorId,
       });
 
       expect(result.values).toEqual(expected.values);

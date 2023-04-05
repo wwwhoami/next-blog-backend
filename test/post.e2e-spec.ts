@@ -256,6 +256,40 @@ describe('Post (e2e)', () => {
           });
         });
     });
+
+    it('should get posts by author if provided in query param', () => {
+      const author = userData[0];
+
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ authorId: author.id })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: author.name,
+              image: author.image,
+            },
+            categories: expect.arrayContaining([
+              expect.objectContaining({
+                category: expect.objectContaining({
+                  name: expect.any(String),
+                  hexColor: expect.any(String),
+                }),
+              }),
+            ]),
+            likesCount: expect.any(Number),
+          });
+        });
+    });
   });
 
   describe('/post/article/:slug (GET)', () => {

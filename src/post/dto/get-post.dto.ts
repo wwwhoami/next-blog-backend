@@ -7,6 +7,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
 } from 'class-validator';
 import { SortOrder } from 'src/common/sort-order.enum';
 import { UnionOfObjKeys } from 'src/common/types/union-of-obj-keys.types';
@@ -67,6 +68,10 @@ export class GetPostDto {
       .toLowerCase(),
   )
   category?: string;
+
+  @IsOptional()
+  @IsUUID()
+  authorId?: string;
 }
 
 export class GetPostPublicDto extends OmitType(GetPostDto, ['published']) {}
