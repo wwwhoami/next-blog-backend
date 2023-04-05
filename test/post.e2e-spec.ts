@@ -202,6 +202,60 @@ describe('Post (e2e)', () => {
           expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
+
+    it('should get posts by search term if provided in query param', () => {
+      const searchTerm = 'tailwind';
+
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ searchTerm })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
+
+    it('should get posts by category if provided in query param', () => {
+      const category = 'CSS';
+
+      return request(app.getHttpServer())
+        .get('/post')
+        .query({ category })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body[0]).toEqual({
+            id: expect.any(Number),
+            createdAt: expect.any(String),
+            updatedAt: expect.any(String),
+            title: expect.any(String),
+            slug: expect.any(String),
+            excerpt: expect.any(String),
+            coverImage: expect.any(String),
+            author: {
+              name: expect.any(String),
+              image: expect.any(String),
+            },
+            categories: postCategories,
+            likesCount: expect.any(Number),
+          });
+        });
+    });
   });
 
   describe('/post/article/:slug (GET)', () => {

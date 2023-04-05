@@ -4,13 +4,7 @@ import slugify from 'slugify';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
-import {
-  GetPostDto,
-  GetPostsByCategoriesDto,
-  PostOrderBy,
-  SearchPostDto,
-  SearchPostsByCategoriesDto,
-} from './dto/get-post.dto';
+import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
@@ -70,8 +64,56 @@ export class PostRepository {
       case 'slug':
         return order === 'desc' ? Prisma.sql`slug DESC` : Prisma.sql`slug ASC`;
       default:
-        return Prisma.sql``;
+        return Prisma.empty;
     }
+  }
+
+  /**
+   * @param {object} getPostOptions - Post options
+   * @param {boolean} getPostOptions.published - Whether the post is published or not
+   * @param {string} getPostOptions.searchTerm - Search term
+   * @param {string} getPostOptions.category - Category name(s)
+   * @description
+   * This private method is used to construct the where clause of the posts select query
+   */
+  private pickWhere({
+    published,
+    searchTerm,
+    category,
+  }: Pick<GetPostDto, 'category' | 'published' | 'searchTerm'>): Prisma.Sql {
+    const where: Prisma.Sql[] = [];
+
+    if (typeof published === 'boolean')
+      where.push(Prisma.sql`published = ${published}`);
+    if (category?.length)
+      where.push(Prisma.sql`
+      p.id IN(
+        SELECT
+          p1.id
+        FROM
+          (
+          SELECT
+            p2.id,
+            array_agg(LOWER(ptc1.category_name)) AS category_names
+          FROM
+            "Post" AS p2
+          JOIN "PostToCategory" AS ptc1 ON
+            (ptc1.post_id) = (p2.id)
+          GROUP BY
+            p2.id) AS p1
+        WHERE
+          p1.id IS NOT NULL
+          AND p1.category_names @> string_to_array(${category}, ' '))`);
+    if (searchTerm?.length)
+      where.push(Prisma.sql`
+      (title % ${searchTerm} OR
+      excerpt % ${searchTerm})`);
+
+    return where.length
+      ? Prisma.sql`
+    WHERE
+      ${Prisma.join(where, ' AND ')}`
+      : Prisma.empty;
   }
 
   /**
@@ -124,7 +166,7 @@ export class PostRepository {
     const wherePublished =
       typeof published === 'boolean'
         ? Prisma.sql`AND published = ${published}`
-        : Prisma.sql``;
+        : Prisma.empty;
 
     return this.prisma.$queryRaw`
       SELECT
@@ -154,38 +196,17 @@ export class PostRepository {
     order = 'desc',
     content = false,
     published,
-  }: GetPostDto = {}): Promise<PostEntity[]> {
-    return this.prisma.post.findMany({
-      select: {
-        ...selectPostWithAuthorCategories,
-        content,
-      },
-      where: typeof published === 'boolean' ? { published } : undefined,
-      orderBy: { [orderBy]: order },
-      take,
-      skip,
-    });
-  }
-
-  /**
-   * @param {SearchPostDto} searchPostOptions - Options for searching posts
-   * @description Find posts by search term
-   */
-  findMany({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    published,
+    category,
     searchTerm,
-  }: SearchPostDto): Promise<PostEntity[]> {
-    const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
+  }: GetPostDto = {}): Promise<PostEntity[]> {
+    const selectContent = content ? Prisma.sql`content,` : Prisma.empty;
     const ordering = this.pickOrdering(orderBy, order);
-    const wherePublished =
-      typeof published === 'boolean'
-        ? Prisma.sql`AND published = ${published}`
-        : Prisma.sql``;
+    const orderBySearchTerm = searchTerm?.length
+      ? Prisma.sql`
+        title <-> ${searchTerm},
+        excerpt <-> ${searchTerm},`
+      : Prisma.empty;
+    const whereClause = this.pickWhere({ published, category, searchTerm });
 
     return this.prisma.$queryRaw<PostEntity[]>`
       SELECT
@@ -196,6 +217,7 @@ export class PostRepository {
         p.slug,
         p.excerpt,
         p.cover_image AS "coverImage",
+        p.likes_count AS "likesCount",
         ${selectContent}
         json_build_object('name', u. "name", 'image', u.image) AS author,
         array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
@@ -204,152 +226,13 @@ export class PostRepository {
         JOIN "User" AS u ON p.author_id = u.id
         JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
         JOIN "Category" AS c ON c.name = ptc.category_name
-      WHERE
-        title % ${searchTerm}
-        OR excerpt % ${searchTerm}
-        ${wherePublished}
+      ${whereClause}
       GROUP BY
         p.id,
         u."name",
         u.image
       ORDER BY
-        title <-> ${searchTerm},
-        excerpt <-> ${searchTerm},
-        ${ordering}
-      LIMIT ${take}
-      OFFSET ${skip}`;
-  }
-
-  /**
-   * @param {GetPostsByCategoriesDto} getPostsByCategoriesOptions - Options for getting posts by categories
-   * @description Get posts by categories
-   */
-  getManyByCategories({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    published,
-    category,
-  }: GetPostsByCategoriesDto): Promise<PostEntity[]> {
-    const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
-    const ordering = this.pickOrdering(orderBy, order);
-    const wherePublished =
-      typeof published === 'boolean'
-        ? Prisma.sql`p.published = ${published} AND`
-        : Prisma.sql``;
-
-    return this.prisma.$queryRaw<PostEntity[]>`
-      SELECT
-        p.id,
-        p.created_at AS "createdAt",
-        p.updated_at AS "updatedAt",
-        p.title,
-        p.slug,
-        p.excerpt,
-        p.cover_image AS "coverImage",
-        ${selectContent}
-        json_build_object('name', u."name", 'image', u.image) AS author,
-        array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
-      FROM
-        "Post" AS p
-        JOIN "User" AS u ON p.author_id = u.id
-        JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
-        JOIN "Category" AS c ON c.name = ptc.category_name
-      WHERE
-        ${wherePublished} p.id IN(
-            SELECT
-                p1.id
-            FROM
-              (
-              SELECT
-                p2.id,
-                array_agg(LOWER(ptc1.category_name)) AS category_names
-              FROM
-                "Post" AS p2
-              JOIN "PostToCategory" AS ptc1 ON
-                (ptc1.post_id) = (p2.id)
-              GROUP BY
-                p2.id) AS p1
-            WHERE
-              p1.id IS NOT NULL
-              AND p1.category_names @> string_to_array(${category}, ' '))
-      GROUP BY
-        p.id,
-        u.name,
-        u.image
-      ORDER BY
-        ${ordering}
-      LIMIT ${take}
-      OFFSET ${skip}`;
-  }
-
-  /**
-   * @param {SearchPostsByCategoriesDto} searchPostsByCategoriesOptions - Options for searching posts by categories
-   * @description Find posts by categories and search term
-   */
-  findManyByCategories({
-    take = 10,
-    skip = 0,
-    orderBy = 'createdAt',
-    order = 'desc',
-    content = false,
-    published,
-    category,
-    searchTerm,
-  }: SearchPostsByCategoriesDto): Promise<PostEntity[]> {
-    const selectContent = content ? Prisma.sql`content,` : Prisma.sql``;
-    const ordering = this.pickOrdering(orderBy, order);
-    const wherePublished =
-      typeof published === 'boolean'
-        ? Prisma.sql`p.published = ${published} AND`
-        : Prisma.sql``;
-
-    return this.prisma.$queryRaw<PostEntity[]>`
-      SELECT
-        p.id,
-        p.created_at AS "createdAt",
-        p.updated_at AS "updatedAt",
-        p.title,
-        p.slug,
-        p.excerpt,
-        p.cover_image AS "coverImage",
-        ${selectContent}
-        json_build_object('name', u."name", 'image', u.image) AS author,
-        array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
-      FROM
-        "Post" AS p
-        JOIN "User" AS u ON p.author_id = u.id
-        JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
-        JOIN "Category" AS c ON c.name = ptc.category_name
-      WHERE
-        ${wherePublished} p.id IN(
-            SELECT
-                p1.id
-            FROM
-              (
-              SELECT
-                p2.id,
-                array_agg(LOWER(ptc1.category_name)) AS category_names
-              FROM
-                "Post" AS p2
-              JOIN "PostToCategory" AS ptc1 ON
-                (ptc1.post_id) = (p2.id)
-              GROUP BY
-                p2.id) AS p1
-            WHERE
-              p1.id IS NOT NULL
-              AND p1.category_names @> string_to_array(${category}, ' '))
-        AND (title % ${searchTerm}
-        OR excerpt % ${searchTerm})
-      GROUP BY
-        p.id,
-        u.name,
-        u.image
-      ORDER BY
-        title <-> ${searchTerm},
-        excerpt <-> ${searchTerm},
+        ${orderBySearchTerm}
         ${ordering}
       LIMIT ${take}
       OFFSET ${skip}`;

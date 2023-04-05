@@ -29,25 +29,25 @@ export class PostService implements EntityWithAuthorService {
   }
 
   getMany(params: GetPostDto = {}): Promise<PostEntity[]> {
-    if (typeof params.searchTerm === 'string') {
-      if (typeof params.category === 'string')
-        return this.postRepository.findManyByCategories({
-          ...params,
-          searchTerm: params.searchTerm,
-          category: params.category,
-        });
+    // if (typeof params.searchTerm === 'string') {
+    //   if (typeof params.category === 'string')
+    //     return this.postRepository.findManyByCategories({
+    //       ...params,
+    //       searchTerm: params.searchTerm,
+    //       category: params.category,
+    //     });
 
-      return this.postRepository.findMany({
-        ...params,
-        searchTerm: params.searchTerm,
-      });
-    }
+    //   return this.postRepository.findMany({
+    //     ...params,
+    //     searchTerm: params.searchTerm,
+    //   });
+    // }
 
-    if (typeof params.category === 'string')
-      return this.postRepository.getManyByCategories({
-        ...params,
-        category: params.category,
-      });
+    // if (typeof params.category === 'string')
+    //   return this.postRepository.getManyByCategories({
+    //     ...params,
+    //     category: params.category,
+    //   });
 
     return this.postRepository.getMany(params);
   }

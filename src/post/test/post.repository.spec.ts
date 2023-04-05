@@ -137,6 +137,52 @@ describe('PostRepository', () => {
     });
   });
 
+  describe('pickWhere', () => {
+    it('returns correct where as Prisma.sql', () => {
+      const published = true;
+      const category = 'testCategory';
+      const searchTerm = 'testSearchTerm';
+      const expected = Prisma.sql`
+      published = ${published}
+      AND p.id IN(
+        SELECT
+          p1.id
+        FROM
+          (
+          SELECT
+            p2.id,
+            array_agg(LOWER(ptc1.category_name)) AS category_names
+          FROM
+            "Post" AS p2
+          JOIN "PostToCategory" AS ptc1 ON
+            (ptc1.post_id) = (p2.id)
+          GROUP BY
+            p2.id) AS p1
+        WHERE
+          p1.id IS NOT NULL
+          AND p1.category_names @> string_to_array(${category},
+      AND (title % ${searchTerm} OR
+      excerpt % ${searchTerm})`;
+
+      const result: Prisma.Sql = (repository as any).pickWhere({
+        searchTerm,
+        category,
+        published,
+      });
+
+      expect(result.values).toEqual(expected.values);
+    });
+
+    it('returns Prisma.empty as default', () => {
+      const searchTerm = '';
+      const expected = Prisma.empty;
+
+      const result = (repository as any).pickWhere(searchTerm);
+
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe('getIds', () => {
     it('should get postIds', async () => {
       const payload = [
@@ -183,44 +229,9 @@ describe('PostRepository', () => {
 
   describe('getMany', () => {
     it('should get posts', async () => {
-      prisma.post.findMany.mockResolvedValue(postArray);
+      prisma.$queryRaw.mockResolvedValue(postArray);
 
       const posts = await repository.getMany({});
-
-      expect(posts).toEqual(postArray);
-    });
-  });
-
-  describe('findMany', () => {
-    it('should find posts', async () => {
-      prisma.$queryRaw.mockResolvedValue(postArray);
-
-      const posts = await repository.findMany({ searchTerm: 'test' });
-
-      expect(posts).toEqual(postArray);
-    });
-  });
-
-  describe('getManyByCategories', () => {
-    it('should get posts', async () => {
-      prisma.$queryRaw.mockResolvedValue(postArray);
-
-      const posts = await repository.getManyByCategories({
-        category: 'test',
-      });
-
-      expect(posts).toEqual(postArray);
-    });
-  });
-
-  describe('findManyByCategories', () => {
-    it('should find posts', async () => {
-      prisma.$queryRaw.mockResolvedValue(postArray);
-
-      const posts = await repository.findManyByCategories({
-        searchTerm: 'test',
-        category: 'test',
-      });
 
       expect(posts).toEqual(postArray);
     });

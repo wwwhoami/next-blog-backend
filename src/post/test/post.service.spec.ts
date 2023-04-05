@@ -146,7 +146,7 @@ describe('PostService', () => {
 
     it('should get posts by category if category property is provided', async () => {
       const category = 'category';
-      postRepository.getManyByCategories.mockResolvedValue(postArray);
+      postRepository.getMany.mockResolvedValue(postArray);
 
       const posts = await service.getMany({ category });
 
@@ -155,7 +155,7 @@ describe('PostService', () => {
 
     it('should find posts if searchTerm property is provided', async () => {
       const searchTerm = 'search term';
-      postRepository.findMany.mockResolvedValue(postArray);
+      postRepository.getMany.mockResolvedValue(postArray);
 
       const posts = await service.getMany({ searchTerm });
 
@@ -165,7 +165,7 @@ describe('PostService', () => {
     it('should find posts by category if both searchTerm and category properties are provided', async () => {
       const category = 'category';
       const searchTerm = 'search term';
-      postRepository.findManyByCategories.mockResolvedValue(postArray);
+      postRepository.getMany.mockResolvedValue(postArray);
 
       const posts = await service.getMany({ category, searchTerm });
 
