@@ -15,6 +15,10 @@ export class UserNameImageEntity extends PickType(UserEntity, [
   'image',
 ] as const) {}
 
+export class UserNameImage {
+  user: UserNameImageEntity;
+}
+
 export class UserNoIdEntity extends OmitType(UserEntity, ['id'] as const) {}
 
 export class UserNoPasswordEntity extends OmitType(UserEntity, [

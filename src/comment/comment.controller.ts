@@ -15,14 +15,15 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
 import { IsAuthorGuard } from 'src/common/guards/is-author.guard';
+import { UserNameImage } from 'src/user/entities/user.entity';
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetCommentDto } from './dto/get-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
-import { UserNameImageEntity } from 'src/user/entities/user.entity';
 import {
   CommentEntity,
   CommentEntityWithChildrenCount,
+  CommentLikes,
 } from './entities/comment.entity';
 
 @Controller('comment')
@@ -68,9 +69,7 @@ export class CommentController {
   }
 
   @Get(':id/likes')
-  getLikes(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ user: UserNameImageEntity }[]> {
+  getLikes(@Param('id', ParseIntPipe) id: number): Promise<UserNameImage[]> {
     return this.commentService.getLikes(id);
   }
 
@@ -80,7 +79,7 @@ export class CommentController {
   like(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  ): Promise<CommentLikes> {
     return this.commentService.like(id, userId);
   }
 
@@ -90,7 +89,7 @@ export class CommentController {
   unlike(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  ): Promise<CommentLikes> {
     return this.commentService.unlike(id, userId);
   }
 

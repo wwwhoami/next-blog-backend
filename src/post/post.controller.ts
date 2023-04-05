@@ -14,11 +14,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
-import { UserNameImageEntity } from 'src/user/entities/user.entity';
+import { UserNameImage } from 'src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity, Slug } from './entities/post.entity';
+import { PostEntity, PostLike, Slug } from './entities/post.entity';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -63,9 +63,7 @@ export class PostController {
   }
 
   @Get(':id/likes')
-  getLikes(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ user: UserNameImageEntity }[]> {
+  getLikes(@Param('id', ParseIntPipe) id: number): Promise<UserNameImage[]> {
     return this.postService.getLikes(id);
   }
 
@@ -75,7 +73,7 @@ export class PostController {
   like(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  ): Promise<PostLike> {
     return this.postService.like(id, userId);
   }
 
@@ -85,7 +83,7 @@ export class PostController {
   unlike(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  ): Promise<PostLike> {
     return this.postService.unlike(id, userId);
   }
 

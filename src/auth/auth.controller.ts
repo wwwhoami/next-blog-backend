@@ -22,6 +22,8 @@ import { AuthService } from './auth.service';
 import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
 import { GetUser } from './decorators/get-user.decorator';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
+import { AccessTokenEntity } from './entities/access-token.entity';
+import { AuthenticatedUser } from './entities/user-access-token.entity';
 import { JwtPayload } from './types/jwt-payload.type';
 import { SignedUpUser } from './types/signed-up-user.type';
 
@@ -37,7 +39,7 @@ export class AuthController {
   async signUp(
     @Body() user: CreateUserDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthenticatedUser> {
     let signedUpUser: SignedUpUser | undefined;
 
     try {
@@ -63,9 +65,11 @@ export class AuthController {
     if (!signedUpUser) throw new InternalServerErrorException();
 
     const {
+      id,
       email,
       name,
       image,
+      role,
       refreshToken,
       refreshTokenExpiry,
       accessToken,
@@ -78,14 +82,14 @@ export class AuthController {
         this.configService.get<string>('NODE_ENV') === 'prod' ? true : false,
     });
 
-    return { email, name, image, accessToken };
+    return { id, email, name, image, role, accessToken };
   }
 
   @Post('login')
   async login(
     @Body() user: AuthCredentialsDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthenticatedUser> {
     const loggedInUser = await this.authService.login(user);
 
     if (!loggedInUser) {
@@ -98,9 +102,11 @@ export class AuthController {
     }
 
     const {
+      id,
       name,
       email,
       image,
+      role,
       accessToken,
       refreshToken,
       refreshTokenExpiry,
@@ -113,7 +119,7 @@ export class AuthController {
         this.configService.get<string>('NODE_ENV') === 'prod' ? true : false,
     });
 
-    return { email, name, image, accessToken };
+    return { id, email, name, image, role, accessToken };
   }
 
   @ApiBearerAuth('accessToken')
@@ -123,11 +129,12 @@ export class AuthController {
     @GetUser('id') id: string,
     @Body() user: UpdateUserDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthenticatedUser> {
     const {
       name,
       email,
       image,
+      role,
       accessToken,
       refreshToken,
       refreshTokenExpiry,
@@ -140,7 +147,7 @@ export class AuthController {
         this.configService.get<string>('NODE_ENV') === 'prod' ? true : false,
     });
 
-    return { email, name, image, accessToken };
+    return { id, email, name, image, role, accessToken };
   }
 
   @ApiBearerAuth('accessToken')
@@ -161,7 +168,7 @@ export class AuthController {
   async refreshTokens(
     @GetRefreshToken() jwt: JwtPayload,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AccessTokenEntity> {
     const { refreshToken, accessToken, refreshTokenExpiry } =
       await this.authService.refreshTokens(jwt);
 

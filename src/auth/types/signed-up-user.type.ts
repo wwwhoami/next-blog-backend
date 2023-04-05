@@ -1,4 +1,4 @@
-import { UserNoIdPasswordEntity } from 'src/user/entities/user.entity';
+import { UserNoPasswordEntity } from 'src/user/entities/user.entity';
 
 export type AccessRefreshTokens = {
   accessToken: string;
@@ -6,4 +6,4 @@ export type AccessRefreshTokens = {
   refreshTokenExpiry: number;
 };
 
-export type SignedUpUser = UserNoIdPasswordEntity & AccessRefreshTokens;
+export type SignedUpUser = UserNoPasswordEntity & AccessRefreshTokens;

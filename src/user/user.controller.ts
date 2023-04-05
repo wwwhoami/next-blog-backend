@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
+import { UserFollower } from './entities/user-follower.entity';
 import { UserNoPasswordEntity } from './entities/user.entity';
 import { UserService } from './user.service';
 
@@ -37,7 +38,7 @@ export class UserController {
   follow(
     @GetUser('id') userId: string,
     @Param('followingId', ParseUUIDPipe) followingId: string,
-  ): Promise<{ followerId: string; followingId: string }> {
+  ): Promise<UserFollower> {
     return this.userService.follow(userId, followingId);
   }
 
@@ -47,7 +48,7 @@ export class UserController {
   unfollow(
     @GetUser('id') userId: string,
     @Param('followingId', ParseUUIDPipe) followingId: string,
-  ): Promise<{ followerId: string; followingId: string }> {
+  ): Promise<UserFollower> {
     return this.userService.unfollow(userId, followingId);
   }
 

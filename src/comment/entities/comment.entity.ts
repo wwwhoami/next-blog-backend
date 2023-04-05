@@ -1,3 +1,4 @@
+import { PickType } from '@nestjs/swagger';
 import { Comment } from '@prisma/client';
 
 export class CommentEntity implements Comment {
@@ -12,6 +13,10 @@ export class CommentEntity implements Comment {
   likesCount: number;
 }
 
+export class CommentLikes extends PickType(CommentEntity, [
+  'id',
+  'likesCount',
+] as const) {}
 export class CommentEntityWithDepth extends CommentEntity {
   depth: number;
 }

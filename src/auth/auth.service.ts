@@ -48,6 +48,7 @@ export class AuthService {
         await this.createRefreshToken(id, name, role);
 
       return {
+        id,
         name,
         email,
         image,
@@ -101,6 +102,7 @@ export class AuthService {
     );
 
     return {
+      id: createdUser.id,
       name: createdUser.name,
       email: createdUser.email,
       image: createdUser.image,
@@ -158,6 +160,7 @@ export class AuthService {
     );
 
     return {
+      id: updatedUser.id,
       name: updatedUser.name,
       email: updatedUser.email,
       image: updatedUser.image,

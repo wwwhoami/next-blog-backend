@@ -97,7 +97,7 @@ describe('AuthService', () => {
   });
 
   describe('refreshTokens', () => {
-    it('should throw UnauthorizedException if no token found in cache store', async () => {
+    it('should throw UnauthorizedException if no token found in cache store', () => {
       const refreshToken = refreshTokenJwt;
       const exception = new UnauthorizedException('Refresh token expired');
 
@@ -108,7 +108,7 @@ describe('AuthService', () => {
       expect(cacheManager.get).toBeCalledWith(refreshToken.sub);
     });
 
-    it('should return { refreshToken, accessToken, refreshTokenExpiry, id }, if token found in cache', async () => {
+    it('should return { refreshToken, accessToken, refreshTokenExpiry, id }, if token found in cache', () => {
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
@@ -159,13 +159,14 @@ describe('AuthService', () => {
       expect(service.login(user)).resolves.toBeUndefined();
     });
 
-    it('should return { name, email, image, accessToken, refreshToken, refreshTokenExpiry } if password comparison resolves to true', () => {
+    it('should return { id, name, email, image, accessToken, refreshToken, refreshTokenExpiry } if password comparison resolves to true', () => {
       const user = authCredentials;
       const retrievedUser = { ...userData, password: user.password };
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
       const expectedReturn = {
+        id: retrievedUser.id,
         name: retrievedUser.name,
         email: retrievedUser.email,
         image: retrievedUser.image,
@@ -187,29 +188,30 @@ describe('AuthService', () => {
   });
 
   describe('signUp', () => {
-    it('should return undefined if createdUser is undefined', async () => {
+    it('should return undefined if createdUser is undefined', () => {
       const userToCreate = authCredentials;
       const createdUser = undefined;
 
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToCreate.password);
       userService.create.mockResolvedValueOnce(createdUser);
 
-      await expect(service.signUp(userToCreate)).resolves.toBeUndefined();
+      expect(service.signUp(userToCreate)).resolves.toBeUndefined();
     });
 
     it('should return { id, name, email, image, accessToken, refreshToken, refreshTokenExpiry } if user created', async () => {
       const userToCreate = { ...authCredentials, image: 'image' };
       const createdUser = {
+        id: userData.id,
         name: userToCreate.name,
         email: userToCreate.email,
         image: userToCreate.image,
         role: Role.User,
-        id: userData.id,
       };
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
       const expectedReturn = {
+        id: createdUser.id,
         name: createdUser.name,
         email: createdUser.email,
         image: createdUser.image,
@@ -219,12 +221,13 @@ describe('AuthService', () => {
         refreshTokenExpiry,
       };
 
-      userService.create.mockResolvedValue(createdUser);
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToCreate.password);
+      userService.create.mockResolvedValueOnce(createdUser);
+
       service.createRefreshToken = jest
         .fn()
-        .mockResolvedValue({ refreshToken, refreshTokenExpiry });
-      service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
+        .mockResolvedValueOnce({ refreshToken, refreshTokenExpiry });
+      service.createAccessToken = jest.fn().mockResolvedValueOnce(accessToken);
 
       await expect(service.signUp(userToCreate)).resolves.toEqual(
         expectedReturn,
@@ -253,43 +256,55 @@ describe('AuthService', () => {
         .mockResolvedValue({ refreshToken, refreshTokenExpiry });
       service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
 
-      expect(
-        service.updateProfile(userToUpdate.id, userToUpdate),
-      ).resolves.toEqual({
+      const updateProfile = service.updateProfile(
+        userToUpdate.id,
+        userToUpdate,
+      );
+      await expect(updateProfile).resolves.toEqual({
         ...updatedUser,
         accessToken,
         refreshToken,
         refreshTokenExpiry,
-        id: undefined,
       });
     });
 
     it('should generate encrypted password if old and new passwords are provided', async () => {
       const userToUpdate = { ...userData, newPassword: 'new password' };
-      const updatedUser = {
-        id: 'userData.id',
-        name: userToUpdate.name,
-        email: userToUpdate.email,
-        image: userToUpdate.image,
-        role: Role.User,
-      };
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
+      const newUser = {
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        image: userData.image,
+        role: userData.role,
+      };
 
-      userService.get.mockResolvedValue(userData);
+      userService.get.mockResolvedValueOnce(userData);
 
       bcrypt.compare = jest.fn().mockResolvedValueOnce(true);
       bcrypt.hash = jest.fn().mockResolvedValueOnce(userToUpdate.newPassword);
 
-      userService.update.mockResolvedValue(updatedUser);
+      userService.update.mockResolvedValueOnce(newUser);
+
       service.createRefreshToken = jest
         .fn()
-        .mockResolvedValue({ refreshToken, refreshTokenExpiry });
-      service.createAccessToken = jest.fn().mockResolvedValue(accessToken);
+        .mockResolvedValueOnce({ refreshToken, refreshTokenExpiry });
+      service.createAccessToken = jest.fn().mockResolvedValueOnce(accessToken);
 
-      await service.updateProfile(userToUpdate.id, userToUpdate);
+      const updateProfile = service.updateProfile(
+        userToUpdate.id,
+        userToUpdate,
+      );
 
+      await expect(updateProfile).resolves.toEqual({
+        ...newUser,
+        id: 'ab182222-5603-4b01-909b-a68fbb3a2153',
+        accessToken,
+        refreshToken,
+        refreshTokenExpiry,
+      });
       expect(userService.update).toHaveBeenCalledWith(userToUpdate.id, {
         ...userToUpdate,
       });
@@ -309,7 +324,6 @@ describe('AuthService', () => {
       const userToUpdate = { ...userData, newPassword: 'new password' };
 
       userService.get.mockResolvedValue(userToUpdate);
-
       bcrypt.compare = jest.fn().mockResolvedValueOnce(false);
 
       expect(

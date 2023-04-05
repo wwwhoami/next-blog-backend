@@ -84,8 +84,8 @@ describe('AuthController', () => {
   });
 
   describe('signUp', () => {
-    it('should return { email, name, image, accessToken }, set cookie with refresh token', async () => {
-      const { email, name, image, role } = userData;
+    it('should return { id, email, name, image, role, accessToken }, set cookie with refresh token', async () => {
+      const { id, email, name, image, role } = userData;
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 123;
       const accessToken = 'access token';
@@ -94,6 +94,7 @@ describe('AuthController', () => {
 
       res.cookie = jest.fn();
       authService.signUp.mockResolvedValue({
+        id,
         email,
         name,
         image,
@@ -104,9 +105,11 @@ describe('AuthController', () => {
       });
 
       await expect(controller.signUp(user, res)).resolves.toEqual({
+        id,
         email,
         name,
         image,
+        role,
         accessToken,
       });
       expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
@@ -180,8 +183,8 @@ describe('AuthController', () => {
   });
 
   describe('login', () => {
-    it('should return { email, name, image, accessToken }, set cookie with refresh token', async () => {
-      const { email, name, image, role } = userData;
+    it('should return { id, email, name, image, role, accessToken }, set cookie with refresh token', async () => {
+      const { id, email, name, image, role } = userData;
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 123;
       const accessToken = 'access token';
@@ -190,6 +193,7 @@ describe('AuthController', () => {
 
       res.cookie = jest.fn();
       authService.login.mockResolvedValue({
+        id,
         email,
         name,
         image,
@@ -200,9 +204,11 @@ describe('AuthController', () => {
       });
 
       await expect(controller.login(user, res)).resolves.toEqual({
+        id,
         email,
         name,
         image,
+        role,
         accessToken,
       });
       expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
@@ -268,13 +274,11 @@ describe('AuthController', () => {
       });
 
       await expect(
-        controller.updateProfile('userId', user, res),
+        controller.updateProfile(userData.id, user, res),
       ).resolves.toEqual({
         ...userData,
         accessToken,
-        id: undefined,
         password: undefined,
-        role: undefined,
       });
       expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
         httpOnly: true,

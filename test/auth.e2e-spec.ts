@@ -1,3 +1,4 @@
+import { Role } from 'src/user/entities/role.enum';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
@@ -47,9 +48,11 @@ describe('Auth (e2e)', () => {
         .expect('set-cookie', /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
+            id: expect.any(String),
             name: newUser.name,
             email: newUser.email,
             accessToken: expect.any(String),
+            role: Role.User,
           });
         });
     });
@@ -144,9 +147,11 @@ describe('Auth (e2e)', () => {
         .expect('set-cookie', /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
+            id: user.id,
             email: user.email,
             image: user.image,
             name: user.name,
+            role: Role.User,
             accessToken: expect.any(String),
           });
         });
@@ -229,10 +234,12 @@ describe('Auth (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
+            id: expect.any(String),
             email: updatedUser.email,
             image: updatedUser.image,
             name: updatedUser.name,
             accessToken: expect.any(String),
+            role: Role.User,
           });
         });
     });
@@ -298,10 +305,12 @@ describe('Auth (e2e)', () => {
         .expect('set-cookie', /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
+            id: expect.any(String),
             email: user.email,
             image: user.image,
             name: user.name,
             accessToken: expect.any(String),
+            role: Role.User,
           });
           accessToken = response.body.accessToken;
         })
@@ -335,10 +344,12 @@ describe('Auth (e2e)', () => {
         .expect('set-cookie', /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/)
         .expect((response: request.Response) => {
           expect(response.body).toMatchObject({
+            id: user.id,
             email: user.email,
             image: user.image,
             name: user.name,
             accessToken: expect.any(String),
+            role: Role.User,
           });
         })
         .then(() => {

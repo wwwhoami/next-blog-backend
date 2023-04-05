@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { PickType } from '@nestjs/swagger';
 import { CategoryNoDescription } from 'src/category/entities/category.entity';
 
 export enum PostEntityKeysEnum {
@@ -38,10 +38,11 @@ export class PostEntity {
   excerpt: string;
   slug: string;
   author?: AuthorEntity;
-  @ApiProperty({
-    type: PostCategory,
-    isArray: true,
-  })
   categories?: PostCategory[];
   likesCount: number;
 }
+
+export class PostLike extends PickType(PostEntity, [
+  'id',
+  'likesCount',
+] as const) {}
