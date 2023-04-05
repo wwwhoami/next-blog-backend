@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
 import { Response } from 'express';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
@@ -116,6 +116,7 @@ export class AuthController {
     return { email, name, image, accessToken };
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Patch('profile')
   async updateProfile(
@@ -142,6 +143,7 @@ export class AuthController {
     return { email, name, image, accessToken };
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Get('logout')
   async logout(
@@ -153,6 +155,7 @@ export class AuthController {
     res.clearCookie('refreshToken');
   }
 
+  @ApiCookieAuth()
   @UseGuards(RefreshTokenGuard)
   @Get('refresh')
   async refreshTokens(

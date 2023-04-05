@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { UserNoPasswordEntity } from './entities/user.entity';
@@ -31,6 +31,7 @@ export class UserController {
     return user;
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Post('follow/:followingId')
   follow(
@@ -40,6 +41,7 @@ export class UserController {
     return this.userService.follow(userId, followingId);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Delete('follow/:followingId')
   unfollow(

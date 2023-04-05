@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
@@ -42,6 +42,7 @@ export class PostController {
     return this.postService.getSlugsForPublished();
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Put(':id')
   update(
@@ -51,6 +52,7 @@ export class PostController {
     return this.postService.update(id, post);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Post()
   create(
@@ -67,6 +69,7 @@ export class PostController {
     return this.postService.getLikes(id);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Post(':id/likes')
   like(
@@ -76,6 +79,7 @@ export class PostController {
     return this.postService.like(id, userId);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Delete(':id/likes')
   unlike(
@@ -85,6 +89,7 @@ export class PostController {
     return this.postService.unlike(id, userId);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Delete(':id')
   delete(

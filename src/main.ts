@@ -18,6 +18,16 @@ async function bootstrap() {
     .setTitle('nest-blog')
     .setDescription('NextBlog API description')
     .setVersion('0.1')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'Bearer',
+        bearerFormat: 'JWT',
+        in: 'header',
+      },
+      'accessToken',
+    )
+    .addCookieAuth('refreshToken')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from 'src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from 'src/common/guards/is-admin-or-author.guard';
@@ -30,6 +30,7 @@ import {
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Post()
   create(
@@ -73,6 +74,7 @@ export class CommentController {
     return this.commentService.getLikes(id);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Post(':id/likes')
   like(
@@ -82,6 +84,7 @@ export class CommentController {
     return this.commentService.like(id, userId);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Delete(':id/likes')
   unlike(
@@ -91,6 +94,7 @@ export class CommentController {
     return this.commentService.unlike(id, userId);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Patch(':id')
   update(
@@ -100,6 +104,7 @@ export class CommentController {
     return this.commentService.update(id, comment);
   }
 
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number): Promise<CommentEntity> {
