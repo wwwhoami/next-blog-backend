@@ -139,7 +139,7 @@ describe('PostService', () => {
     it('should get posts', async () => {
       postRepository.getMany.mockResolvedValue(postArray);
 
-      const posts = await service.getMany({});
+      const posts = await service.getMany();
 
       expect(posts).toEqual(postArray);
     });
