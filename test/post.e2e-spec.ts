@@ -227,6 +227,9 @@ describe('Post (e2e)', () => {
             categories: postCategories,
             likesCount: expect.any(Number),
           });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
 
@@ -254,6 +257,9 @@ describe('Post (e2e)', () => {
             categories: postCategories,
             likesCount: expect.any(Number),
           });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
 
@@ -288,6 +294,9 @@ describe('Post (e2e)', () => {
             ]),
             likesCount: expect.any(Number),
           });
+          // check that createdAt and updatedAt are correct Dates
+          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
+          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
         });
     });
   });
