@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Request } from 'express';
 import { WrongParamsError } from 'src/common/errors/wrong-params.error';
 import { UserNoPasswordEntity } from 'src/user/entities/user.entity';
 import { EntityWithAuthorService } from '../entity-with-author.service';
@@ -16,7 +15,7 @@ export class IsAuthorGuard implements CanActivate {
   constructor(protected readonly service: EntityWithAuthorService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request: Request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
     const {
       user,
       params,

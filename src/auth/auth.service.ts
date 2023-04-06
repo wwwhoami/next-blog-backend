@@ -1,9 +1,10 @@
-import { CACHE_MANAGER, Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { compare, genSalt, hash } from 'bcrypt';
-import { Cache } from 'cache-manager';
+import { Store } from 'cache-manager';
 import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UpdateUserDto } from 'src/user/dto/update-user.dto';
@@ -18,7 +19,7 @@ export class AuthService {
     private userService: UserService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    @Inject(CACHE_MANAGER) private cacheManager: Store,
   ) {}
 
   /**
@@ -195,8 +196,8 @@ export class AuthService {
       expiresIn,
     });
 
-    // Store the refresh token in the cache
-    await this.cacheManager.set(id, refreshToken, { ttl: expiresIn });
+    // Store the refresh token in the cache (ttl in milliseconds)
+    await this.cacheManager.set(id, refreshToken, expiresIn * 1e3);
 
     return { refreshToken, refreshTokenExpiry: expiresIn };
   }
@@ -239,7 +240,7 @@ export class AuthService {
   }> {
     const { sub: id, name, role } = refreshToken;
 
-    const tokenValue = await this.cacheManager.get(id);
+    const tokenValue = await this.cacheManager.get<string>(id);
     // Check if the refresh token is valid
     if (!tokenValue) throw new UnauthorizedError('Refresh token expired');
 

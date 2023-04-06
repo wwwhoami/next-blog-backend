@@ -1,11 +1,5 @@
-import {
-  CacheModule,
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import redisStore from 'cache-manager-redis-store';
 import { configValidationSchema } from '../config.schema';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
@@ -14,6 +8,8 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { PostModule } from './post/post.module';
 import { PrismaService } from './prisma/prisma.service';
 import { UserModule } from './user/user.module';
+import { CacheModule } from '@nestjs/cache-manager';
+import { redisStore } from 'cache-manager-ioredis-yet';
 
 @Module({
   imports: [
@@ -26,10 +22,11 @@ import { UserModule } from './user/user.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         isGlobal: true,
-        store: redisStore,
-        host: configService.get<string>('REDIS_HOST'),
-        port: configService.get<number>('REDIS_PORT'),
-        auth_pass: configService.get<string>('REDIS_PASSWORD'),
+        store: await redisStore({
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+          password: configService.get<string>('REDIS_PASSWORD'),
+        }),
       }),
       inject: [ConfigService],
       isGlobal: true,

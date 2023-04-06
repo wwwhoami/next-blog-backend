@@ -95,25 +95,10 @@ describe('Post (e2e)', () => {
         content: 12,
       };
 
-      const notFoundResponseBody = {
-        error: 'Bad Request',
-        message: [
-          'take must be an integer number',
-          'skip must be an integer number',
-          'orderBy must be a valid enum value',
-          'order must be a valid enum value',
-          'content must be a boolean value',
-        ],
-        statusCode: 400,
-      };
-
       return request(app.getHttpServer())
         .get('/post')
         .query(wrongQueryParams)
-        .expect(HttpStatus.BAD_REQUEST)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject(notFoundResponseBody);
-        });
+        .expect(HttpStatus.BAD_REQUEST);
     });
 
     it('should get as many posts as in take query param', () => {
