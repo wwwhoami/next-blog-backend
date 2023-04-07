@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { Role } from 'src/user/entities/role.enum';
+import { Role } from '@core/src/user/entities/role.enum';
 
 // User seed data
 export const userData = [

@@ -1,9 +1,33 @@
 {
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
+  "sourceRoot": "apps/core-app/src",
   "compilerOptions": {
     "plugins": [
       "@nestjs/swagger"
-    ]
+    ],
+    "webpack": true,
+    "tsConfigPath": "apps/core-app/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/core-app",
+  "projects": {
+    "core-app": {
+      "type": "application",
+      "root": "apps/core-app",
+      "entryFile": "main",
+      "sourceRoot": "apps/core-app/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/core-app/tsconfig.app.json"
+      }
+    },
+    "notification-service": {
+      "type": "application",
+      "root": "apps/notification-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/notification-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/notification-service/tsconfig.app.json"
+      }
+    }
   }
 }

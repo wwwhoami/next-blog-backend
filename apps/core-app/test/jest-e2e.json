@@ -1,0 +1,23 @@
+{
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "globalSetup": "<rootDir>/apps/core-app/test/setup.ts",
+  "globalTeardown": "<rootDir>/apps/core-app/test/teardown.ts",
+  "rootDir": "../../../.",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "modulePaths": [
+    "<rootDir>"
+  ],
+  "moduleNameMapper": {
+    "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
+    "^data/(.*)$": "<rootDir>/data/$1",
+    "^prisma/(.*)$": "<rootDir>/prisma/$1"
+  }
+}
