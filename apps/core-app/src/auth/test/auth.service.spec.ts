@@ -101,18 +101,20 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if no token found in cache store', () => {
       const refreshToken = refreshTokenJwt;
       const exception = new UnauthorizedException('Refresh token expired');
+      const key = `user_token_${refreshToken.sub}`;
 
       cacheManager.get.mockResolvedValue(null);
       const result = service.refreshTokens(refreshToken);
 
       expect(result).rejects.toThrowError(exception);
-      expect(cacheManager.get).toBeCalledWith(refreshToken.sub);
+      expect(cacheManager.get).toBeCalledWith(key);
     });
 
     it('should return { refreshToken, accessToken, refreshTokenExpiry, id }, if token found in cache', () => {
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
+      const key = `user_token_${refreshTokenJwt.sub}`;
 
       cacheManager.get.mockResolvedValue('old token');
       service.createRefreshToken = jest.fn().mockResolvedValue({
@@ -127,16 +129,17 @@ describe('AuthService', () => {
         accessToken,
         id: refreshTokenJwt.sub,
       });
-      expect(cacheManager.get).toBeCalledWith(refreshTokenJwt.sub);
+      expect(cacheManager.get).toBeCalledWith(key);
     });
   });
 
   describe('logout', () => {
     it('should delete refresh token with provided userId from cache', () => {
       const id = refreshTokenJwt.sub;
+      const key = `user_token_${id}`;
 
       expect(service.logout(id)).resolves.toBeUndefined();
-      expect(cacheManager.del).toBeCalledWith(id);
+      expect(cacheManager.del).toBeCalledWith(key);
     });
   });
 

@@ -66,7 +66,8 @@ export class AuthService {
    * @description Logs out a user by deleting the user's refresh token from the cache
    */
   async logout(id: string): Promise<void> {
-    this.cacheManager.del(id);
+    const key = `user_token_${id}`;
+    this.cacheManager.del(key);
   }
 
   /**
@@ -196,8 +197,9 @@ export class AuthService {
       expiresIn,
     });
 
+    const key = `user_token_${id}`;
     // Store the refresh token in the cache (ttl in milliseconds)
-    await this.cacheManager.set(id, refreshToken, expiresIn * 1e3);
+    await this.cacheManager.set(key, refreshToken, expiresIn * 1e3);
 
     return { refreshToken, refreshTokenExpiry: expiresIn };
   }
@@ -240,12 +242,13 @@ export class AuthService {
   }> {
     const { sub: id, name, role } = refreshToken;
 
-    const tokenValue = await this.cacheManager.get<string>(id);
+    const key = `user_token_${id}`;
+    const tokenValue = await this.cacheManager.get<string>(key);
     // Check if the refresh token is valid
     if (!tokenValue) throw new UnauthorizedError('Refresh token expired');
 
     // Delete the old refresh token
-    await this.cacheManager.del(id);
+    await this.cacheManager.del(key);
 
     // Create a new refresh token and an access token
     const { refreshToken: createdRefreshToken, refreshTokenExpiry } =
