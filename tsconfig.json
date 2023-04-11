@@ -12,7 +12,9 @@
     "baseUrl": "./",
     "paths": {
       "@core/*": ["apps/core-app/*"],
-      "data/*": ["./data/*"]
+      "data/*": ["./data/*"],
+      "@app/auth": ["libs/auth/src"],
+      "@app/auth/*": ["libs/auth/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

@@ -1,3 +1,8 @@
+import { JwtPayload } from '@app/auth/types/jwt-payload.type';
+import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
+import { RefreshTokenGuard } from '@core/src/common/guards/refresh-token.guard';
+import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
+import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
 import {
   Body,
   ConflictException,
@@ -14,17 +19,12 @@ import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
 import { Response } from 'express';
-import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
-import { RefreshTokenGuard } from '@core/src/common/guards/refresh-token.guard';
-import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
-import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
 import { AuthService } from './auth.service';
 import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
 import { GetUser } from './decorators/get-user.decorator';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { AccessTokenEntity } from './entities/access-token.entity';
 import { AuthenticatedUser } from './entities/user-access-token.entity';
-import { JwtPayload } from './types/jwt-payload.type';
 import { SignedUpUser } from './types/signed-up-user.type';
 
 @Controller('auth')

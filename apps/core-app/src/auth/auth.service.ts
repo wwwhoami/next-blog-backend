@@ -1,3 +1,8 @@
+import { JwtPayload } from '@app/auth';
+import { UnauthorizedError } from '@core/src/common/errors/unauthorized.error';
+import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
+import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
+import { UserService } from '@core/src/user/user.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -5,12 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { compare, genSalt, hash } from 'bcrypt';
 import { Store } from 'cache-manager';
-import { UnauthorizedError } from '@core/src/common/errors/unauthorized.error';
-import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
-import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
-import { UserService } from '@core/src/user/user.service';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
-import { JwtPayload } from './types/jwt-payload.type';
 import { SignedUpUser } from './types/signed-up-user.type';
 
 @Injectable()

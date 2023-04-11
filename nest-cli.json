@@ -5,7 +5,7 @@
     "plugins": [
       "@nestjs/swagger"
     ],
-    "webpack": true,
+    "webpack": false,
     "tsConfigPath": "apps/core-app/tsconfig.app.json"
   },
   "monorepo": true,
@@ -20,13 +20,22 @@
         "tsConfigPath": "apps/core-app/tsconfig.app.json"
       }
     },
-    "notification-service": {
+    "ws-notification": {
       "type": "application",
-      "root": "apps/notification-service",
+      "root": "apps/ws-notification",
       "entryFile": "main",
-      "sourceRoot": "apps/notification-service/src",
+      "sourceRoot": "apps/ws-notification/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/notification-service/tsconfig.app.json"
+        "tsConfigPath": "apps/ws-notification/tsconfig.app.json"
+      }
+    },
+    "auth": {
+      "type": "library",
+      "root": "libs/auth",
+      "entryFile": "index",
+      "sourceRoot": "libs/auth/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/auth/tsconfig.lib.json"
       }
     }
   }

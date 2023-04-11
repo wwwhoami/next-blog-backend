@@ -1,3 +1,4 @@
+import { JwtPayload } from '@app/auth';
 import { UnauthorizedError } from '@core/src/common/errors/unauthorized.error';
 import { Role } from '@core/src/user/entities/role.enum';
 import { UserService } from '@core/src/user/user.service';
@@ -10,7 +11,6 @@ import bcrypt from 'bcrypt';
 import { Cache } from 'cache-manager';
 import { MockProxy, mock } from 'jest-mock-extended';
 import { AuthService } from '../auth.service';
-import { JwtPayload } from '../types/jwt-payload.type';
 
 const authCredentials = {
   name: 'Alice Johnson',
