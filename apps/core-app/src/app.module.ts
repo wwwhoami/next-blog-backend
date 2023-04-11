@@ -15,7 +15,13 @@ import { UserModule } from './user/user.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV}`],
+      envFilePath: [
+        `${
+          process.env.NODE_ENV === 'prod'
+            ? '.env'
+            : `.env.${process.env.NODE_ENV}`
+        }`,
+      ],
       validationSchema: configValidationSchema,
     }),
     CacheModule.registerAsync({
