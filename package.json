@@ -3,16 +3,22 @@
   "version": "0.0.1",
   "description": "",
   "author": "",
+  "packageManager": "yarn@3.3.1",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "nest build",
+    "build": "yarn build:core && yarn build:ws-notification",
+    "build:core": "nest build core --webpack",
+    "build:ws-notification": "nest build ws-notification --webpack",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "NODE_ENV=dev dotenv -e .env.dev -- nest start --watch",
-    "start:debug": "NODE_ENV=dev dotenv -e .env.dev -- nest start --debug --watch",
-    "start:prod": "node dist/apps/core-app/main",
+    "start:dev:core": "NODE_ENV=dev dotenv -e .env.dev -- nest start core --watch",
+    "start:dev:ws-notification": "NODE_ENV=dev dotenv -e .env.dev -- nest start ws-notification --watch",
+    "start:debug:core": "NODE_ENV=dev dotenv -e .env.dev -- nest start core --debug --watch",
+    "start:debug:ws-notification": "NODE_ENV=dev dotenv -e .env.dev -- nest start ws-notification --debug --watch",
+    "start:prod:core": "NODE_ENV=prod node dist/apps/core-app/main",
+    "start:prod:ws-notification": "NODE_ENV=prod node dist/apps/ws-notification/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "NODE_ENV=dev jest",
     "test:watch": "jest --watch",
@@ -33,9 +39,12 @@
     "@nestjs/core": "^9.4.0",
     "@nestjs/jwt": "^10.0.3",
     "@nestjs/mapped-types": "^1.2.2",
+    "@nestjs/microservices": "^9.4.0",
     "@nestjs/passport": "^9.0.3",
     "@nestjs/platform-express": "^9.4.0",
+    "@nestjs/platform-socket.io": "^9.4.0",
     "@nestjs/swagger": "^6.3.0",
+    "@nestjs/websockets": "^9.4.0",
     "@prisma/client": "4.12.0",
     "bcrypt": "^5.1.0",
     "cache-manager": "5.2.0",
@@ -43,13 +52,15 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "cookie-parser": "^1.4.6",
+    "ioredis": "^5.3.1",
     "joi": "^17.9.1",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^4.4.1",
     "rxjs": "^7.8.0",
-    "slugify": "^1.6.6"
+    "slugify": "^1.6.6",
+    "socket.io": "^4.6.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^7.6.0",
@@ -111,10 +122,12 @@
     "testEnvironment": "node",
     "moduleNameMapper": {
       "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
-      "^data/(.*)$": "<rootDir>/data/$1"
+      "^data/(.*)$": "<rootDir>/data/$1",
+      "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1"
     },
     "roots": [
-      "<rootDir>/apps/"
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
     ]
   }
 }

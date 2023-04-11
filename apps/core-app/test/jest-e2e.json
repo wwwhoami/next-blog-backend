@@ -18,6 +18,7 @@
   "moduleNameMapper": {
     "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
     "^data/(.*)$": "<rootDir>/data/$1",
-    "^prisma/(.*)$": "<rootDir>/prisma/$1"
+    "^prisma/(.*)$": "<rootDir>/prisma/$1",
+    "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1"
   }
 }
