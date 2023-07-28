@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
-import { Observable, Observer, filter, map } from 'rxjs';
+import { Observable, Observer, filter, map, tap } from 'rxjs';
 import { RedisSocketEventSendDTO } from '../redis-propagator/dto/socket-event-send';
 import {
   REDIS_PUBLISHER_CLIENT,
@@ -30,7 +30,10 @@ export class RedisService {
       ),
     ).pipe(
       filter(({ channel }) => channel === eventName),
-      map(({ message }) => JSON.parse(message)),
+      map(({ message }) => {
+        const jsonMessage = JSON.parse(message);
+        return jsonMessage.data;
+      }),
     );
   }
 

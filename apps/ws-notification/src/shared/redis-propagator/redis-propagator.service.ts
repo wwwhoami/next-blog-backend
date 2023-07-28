@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { tap } from 'rxjs';
 import { Server } from 'socket.io';
 import { RedisService } from '../redis/redis.service';
 import { SocketStateService } from '../socket-state/socket-state.service';
@@ -9,7 +10,6 @@ import {
   REDIS_SOCKET_EVENT_EMIT_AUTHENTICATED_NAME,
   REDIS_SOCKET_EVENT_SEND_NAME,
 } from './redis-propagator.constants';
-import { tap } from 'rxjs';
 
 @Injectable()
 export class RedisPropagatorService {
@@ -44,9 +44,6 @@ export class RedisPropagatorService {
     const { userId, event, data, socketId } = eventInfo;
 
     const userSockets = this.socketStateService.get(userId);
-
-    if (userSockets.length === 0) {
-    }
 
     return userSockets
       .filter((socket) => socket.id !== socketId)
