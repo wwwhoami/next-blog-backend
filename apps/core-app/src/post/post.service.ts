@@ -1,15 +1,20 @@
-import { Injectable } from '@nestjs/common';
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { NOTIFICATION_SERVICE } from '../kafka-client/kafka.constants';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity } from './entities/post.entity';
+import { PostEntity, PostLike } from './entities/post.entity';
 import { PostRepository } from './post.repository';
 
 @Injectable()
 export class PostService implements EntityWithAuthorService {
-  constructor(private postRepository: PostRepository) {}
+  constructor(
+    private postRepository: PostRepository,
+    @Inject(NOTIFICATION_SERVICE) private readonly client: ClientProxy,
+  ) {}
 
   getAuthorId(idOrSlug: number | string): Promise<{ authorId: string }> {
     if (typeof idOrSlug === 'number')
@@ -56,18 +61,32 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.update(id, post);
   }
 
-  like(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
-    return this.postRepository.like(id, userId);
+  async like(id: number, userId: string): Promise<PostLike> {
+    const liked = await this.postRepository.like(id, userId);
+
+    const { authorId } = await this.postRepository.getAuthorById(id);
+
+    this.client.emit('post_like', {
+      actor: userId,
+      target: authorId,
+      data: liked,
+    });
+
+    return liked;
   }
 
-  unlike(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
-    return this.postRepository.unlike(id, userId);
+  async unlike(id: number, userId: string): Promise<PostLike> {
+    const unliked = await this.postRepository.unlike(id, userId);
+
+    const { authorId } = await this.postRepository.getAuthorById(id);
+
+    this.client.emit('post_unlike', {
+      actor: userId,
+      target: authorId,
+      data: unliked,
+    });
+
+    return unliked;
   }
 
   delete(idOrSlug: number | string): Promise<PostEntity | undefined> {

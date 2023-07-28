@@ -4,6 +4,7 @@ import { mock, MockProxy } from 'jest-mock-extended';
 import slugify from 'slugify';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
+import { ClientProxy } from '@nestjs/microservices';
 
 const postArray = [
   {
@@ -94,6 +95,10 @@ describe('PostService', () => {
         {
           provide: PostRepository,
           useValue: mock<PostRepository>(),
+        },
+        {
+          provide: 'NOTIFICATION_SERVICE',
+          useValue: mock<ClientProxy>(),
         },
       ],
     }).compile();
@@ -344,14 +349,17 @@ describe('PostService', () => {
     it('should like post', async () => {
       const postId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb5';
       const expected = {
         id: postId,
         likesCount: 1,
       };
 
       postRepository.like.mockResolvedValue(expected);
+      postRepository.getAuthorById.mockResolvedValue({ authorId });
 
       const postLikes = await service.like(postId, userId);
+
       expect(postLikes).toEqual(expected);
     });
   });
@@ -360,14 +368,17 @@ describe('PostService', () => {
     it('unlike post', async () => {
       const postId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb5';
       const expected = {
         id: postId,
         likesCount: 1,
       };
 
       postRepository.unlike.mockResolvedValue(expected);
+      postRepository.getAuthorById.mockResolvedValue({ authorId });
 
       const postLikes = await service.unlike(postId, userId);
+
       expect(postLikes).toEqual(expected);
     });
   });

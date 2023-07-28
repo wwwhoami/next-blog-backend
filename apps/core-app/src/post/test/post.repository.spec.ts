@@ -1,8 +1,8 @@
+import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, PostLikes, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import slugify from 'slugify';
-import { PrismaService } from '@core/src/prisma/prisma.service';
 import { PostOrderBy } from '../dto/get-post.dto';
 import { PostRepository } from '../post.repository';
 

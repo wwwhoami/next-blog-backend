@@ -1,12 +1,12 @@
+import { PrismaService } from '@app/prisma';
+import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import slugify from 'slugify';
-import { PrismaService } from '@core/src/prisma/prisma.service';
-import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity } from './entities/post.entity';
+import { PostEntity, PostLike } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
 @Injectable()
@@ -447,10 +447,7 @@ export class PostRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
    */
-  async like(
-    id: number,
-    userId: string,
-  ): Promise<{ likesCount: number; id: number }> {
+  async like(id: number, userId: string): Promise<PostLike> {
     await this.prisma.postLikes.create({
       data: {
         postId: id,
@@ -481,10 +478,7 @@ export class PostRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
    */
-  async unlike(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  async unlike(id: number, userId: string): Promise<PostLike> {
     await this.prisma.postLikes.delete({
       where: {
         postId_userId: {

@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { PrismaModule } from '@app/prisma';
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
-import { PrismaModule } from '@core/src/prisma/prisma.module';
+import { Module } from '@nestjs/common';
+import { ClientsModule } from '@nestjs/microservices';
+import { kafkaClientProvider } from '../kafka-client/kafka.provider';
 import { PostController } from './post.controller';
 import { PostRepository } from './post.repository';
 import { PostService } from './post.service';
@@ -15,7 +17,7 @@ import { PostService } from './post.service';
       useExisting: PostService,
     },
   ],
-  imports: [PrismaModule],
+  imports: [PrismaModule, ClientsModule.registerAsync([kafkaClientProvider])],
   exports: [PostRepository],
 })
 export class PostModule {}
