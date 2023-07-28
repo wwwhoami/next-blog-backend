@@ -220,6 +220,7 @@ describe('CommentController', () => {
       const expected = {
         id: commentId,
         likesCount: 1,
+        postId: 1,
       };
 
       commentService.like.mockResolvedValue(expected);
@@ -236,6 +237,7 @@ describe('CommentController', () => {
       const expected = {
         id: commentId,
         likesCount: 1,
+        postId: 1,
       };
 
       commentService.unlike.mockResolvedValue(expected);

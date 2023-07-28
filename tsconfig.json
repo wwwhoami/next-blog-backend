@@ -12,9 +12,14 @@
     "baseUrl": "./",
     "paths": {
       "@core/*": ["apps/core-app/*"],
+      "@ws-notification/*": ["apps/ws-notification/*"],
       "data/*": ["./data/*"],
       "@app/auth": ["libs/auth/src"],
-      "@app/auth/*": ["libs/auth/src/*"]
+      "@app/auth/*": ["libs/auth/src/*"],
+      "@app/prisma": ["libs/prisma/src"],
+      "@app/prisma/*": ["libs/prisma/src/*"],
+      "@app/shared": ["libs/shared/src"],
+      "@app/shared/*": ["libs/shared/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

@@ -23,7 +23,7 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import {
   CommentEntity,
   CommentEntityWithChildrenCount,
-  CommentLikes,
+  CommentLike,
 } from './entities/comment.entity';
 
 @Controller('comment')
@@ -79,7 +79,7 @@ export class CommentController {
   like(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<CommentLikes> {
+  ): Promise<CommentLike> {
     return this.commentService.like(id, userId);
   }
 
@@ -89,7 +89,7 @@ export class CommentController {
   unlike(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: string,
-  ): Promise<CommentLikes> {
+  ): Promise<CommentLike> {
     return this.commentService.unlike(id, userId);
   }
 

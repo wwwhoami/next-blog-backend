@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PrismaService } from '@app/prisma';
 import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { NotFoundError } from '@core/src/common/errors/not-found.error';
 import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from '@core/src/post/post.repository';
-import { PrismaService } from '@core/src/prisma/prisma.service';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   CreateCommentDto,
   CreateResponseToCommentDto,
@@ -16,6 +16,7 @@ import {
   CommentEntity,
   CommentEntityWithChildrenCount,
   CommentEntityWithDepth,
+  CommentLike,
 } from './entities/comment.entity';
 
 @Injectable()
@@ -55,7 +56,7 @@ export class CommentRepository {
 
   /**
    * @param {CreateResponseToCommentDto} comment - The comment to create
-   * @param {string} authorId - The id of the author of the comment
+   * @param {string} authorId - Id of the author of the comment
    * @description This method is used to create a comment that is a response to another comment
    * @throws {NotFoundError} if the comment to respond to does not exist
    * @throws {ConflictError} if the comment is a response to a deleted comment
@@ -93,7 +94,7 @@ export class CommentRepository {
 
   /**
    * @param {CreateCommentDto} comment - The comment to create
-   * @param {string} authorId - The id of the author of the comment
+   * @param {string} authorId - Id of the author of the comment
    * @description This method is used to create a comment
    * @throws {NotFoundError} if the comment does not exist
    * @example
@@ -112,7 +113,7 @@ export class CommentRepository {
   }
 
   /**
-   * @param {number} postId - The id of the post to get the comments for
+   * @param {number} postId - Id of the post to get the comments for
    * @param {GetCommentDto} options - The options to get the comments with
    * @throws {NotFoundError} if the post does not exist
    * @description This method is used to get the comments for a post
@@ -193,7 +194,7 @@ export class CommentRepository {
   }
 
   /**
-   * @param {number} postId - The id of the post to get the comments for
+   * @param {number} postId - Id of the post to get the comments for
    * @param {GetCommentDto} options - The options to get the comments with
    * @throws {NotFoundError} if the post does not exist
    * @description
@@ -229,7 +230,7 @@ export class CommentRepository {
   }
 
   /**
-   * @param {number} ancestorId - The id of the ancestor to get the descendants for
+   * @param {number} ancestorId - Id of the ancestor to get the descendants for
    * @param {GetCommentDto} options - The options to get the comments with
    * @throws {NotFoundError} if the ancestor does not exist
    * @description This method is used to get the descendants for a comment
@@ -307,7 +308,7 @@ export class CommentRepository {
   }
 
   /**
-   * @param {number} ancestorId - The id of the ancestor to get the descendants for
+   * @param {number} ancestorId - Id of the ancestor to get the descendants for
    * @param {GetCommentDto} options - The options to get the comments with
    * @throws {NotFoundError} if the ancestor does not exist
    * @description
@@ -343,7 +344,7 @@ export class CommentRepository {
   }
 
   /**
-   * @param {number} commentId - The id of the comment to get the count of descendants for
+   * @param {number} commentId - Id of the comment to get the count of descendants for
    * @description This method is used to get the count of descendants for a comment
    * @example
    * const count = await commentRepository.getCountOfDescendants(1);
@@ -407,6 +408,15 @@ export class CommentRepository {
   }
 
   /**
+   * @param {number} postId - Id of the post
+   * @description
+   * Gets Id of the author of post with the given id
+   */
+  async getPostAuthorId(postId: number): Promise<{ authorId: string | null }> {
+    return this.postRepository.getAuthorById(postId);
+  }
+
+  /**
    * @param {number} id - comment id
    * @param {UpdateCommentDto} comment - comment data
    * @description
@@ -457,10 +467,7 @@ export class CommentRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
    * @throws {UnprocesasbleEntityError} - If comment is deleted
    */
-  async like(
-    id: number,
-    userId: string,
-  ): Promise<{ likesCount: number; id: number }> {
+  async like(id: number, userId: string): Promise<CommentLike> {
     try {
       await this.prisma.comment.findFirstOrThrow({
         where: {
@@ -495,6 +502,7 @@ export class CommentRepository {
       select: {
         id: true,
         likesCount: true,
+        postId: true,
       },
     });
   }
@@ -506,10 +514,7 @@ export class CommentRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If comment is not found
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
    */
-  async unlike(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
+  async unlike(id: number, userId: string): Promise<CommentLike> {
     await this.prisma.commentLikes.delete({
       where: {
         commentId_userId: {
@@ -535,6 +540,7 @@ export class CommentRepository {
       select: {
         id: true,
         likesCount: true,
+        postId: true,
       },
     });
   }

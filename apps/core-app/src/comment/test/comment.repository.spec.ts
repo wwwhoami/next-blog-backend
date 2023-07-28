@@ -1,10 +1,17 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Comment, CommentLikes, Prisma, PrismaClient } from '@prisma/client';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PrismaService } from '@app/prisma';
 import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { NotFoundError } from '@core/src/common/errors/not-found.error';
+import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from '@core/src/post/post.repository';
-import { PrismaService } from '@core/src/prisma/prisma.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  Comment,
+  CommentLikes,
+  Post,
+  Prisma,
+  PrismaClient,
+} from '@prisma/client';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { CommentRepository } from '../comment.repository';
 import {
   CreateCommentDto,
@@ -16,7 +23,6 @@ import {
   CommentEntity,
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
-import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -510,6 +516,21 @@ describe('CommentService', () => {
       prisma.comment.findFirstOrThrow.mockResolvedValue(expected);
 
       const foundAuthor = await repository.getAuthorId(commentId);
+
+      expect(foundAuthor).toEqual(expected);
+    });
+  });
+
+  describe('getPostAuthorId', () => {
+    const postId = 1;
+
+    it("gets post's authorId by postId", async () => {
+      const expected =
+        authorId as unknown as Prisma.Prisma__CommentClient<Post>;
+
+      postRepository.getAuthorById.mockResolvedValue(expected);
+
+      const foundAuthor = await repository.getPostAuthorId(postId);
 
       expect(foundAuthor).toEqual(expected);
     });

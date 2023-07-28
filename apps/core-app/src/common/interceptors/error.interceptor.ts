@@ -56,7 +56,10 @@ export class ErrorInterceptor implements NestInterceptor {
           );
         }
 
-        if (error instanceof UnauthorizedError) {
+        if (
+          error instanceof UnauthorizedError ||
+          error.name === 'UnauthorizedError'
+        ) {
           return throwError(() => new UnauthorizedException(error.message));
         }
 

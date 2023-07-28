@@ -9,6 +9,8 @@ import {
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
 import { Prisma } from '@prisma/client';
+import { NOTIFICATION_SERVICE } from '@core/src/kafka-client/kafka.constants';
+import { ClientProxy } from '@nestjs/microservices';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -71,7 +73,8 @@ describe('CommentService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommentService,
-        { provide: CommentRepository, useValue: mock<CommentService>() },
+        { provide: CommentRepository, useValue: mock<CommentRepository>() },
+        { provide: NOTIFICATION_SERVICE, useValue: mock<ClientProxy>() },
       ],
     }).compile();
 
@@ -101,6 +104,7 @@ describe('CommentService', () => {
       };
 
       commentRepository.create.mockResolvedValue(resolvedComment);
+      commentRepository.getPostAuthorId.mockResolvedValue({ authorId });
 
       const createdComment = await service.create(commentData, authorId);
 
@@ -125,6 +129,7 @@ describe('CommentService', () => {
       };
 
       commentRepository.createResponse.mockResolvedValue(resolvedComment);
+      commentRepository.getAuthorId.mockResolvedValue({ authorId });
 
       const createdComment = await service.create(commentData, authorId);
 
@@ -141,6 +146,18 @@ describe('CommentService', () => {
       const commentAuthorId = await service.getAuthorId(commentId);
 
       expect(commentAuthorId).toEqual({ authorId });
+    });
+  });
+
+  describe('getPostAuthorId', () => {
+    it('should return authorId of post with provided id', async () => {
+      const postId = 1;
+
+      commentRepository.getPostAuthorId.mockResolvedValue({ authorId });
+
+      const postAuthorId = await service.getPostAuthorId(postId);
+
+      expect(postAuthorId).toEqual({ authorId });
     });
   });
 
@@ -273,12 +290,15 @@ describe('CommentService', () => {
     it('should like comment', async () => {
       const commentId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb5';
       const expected = {
         id: commentId,
         likesCount: 1,
+        postId: 1,
       };
 
       commentRepository.like.mockResolvedValue(expected);
+      commentRepository.getAuthorId.mockResolvedValue({ authorId });
 
       const postLikes = await service.like(commentId, userId);
       expect(postLikes).toEqual(expected);
@@ -289,12 +309,15 @@ describe('CommentService', () => {
     it('unlike comment', async () => {
       const commentId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
+      const authorId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb5';
       const expected = {
         id: commentId,
         likesCount: 1,
+        postId: 1,
       };
 
       commentRepository.unlike.mockResolvedValue(expected);
+      commentRepository.getAuthorId.mockResolvedValue({ authorId });
 
       const postLikes = await service.unlike(commentId, userId);
       expect(postLikes).toEqual(expected);

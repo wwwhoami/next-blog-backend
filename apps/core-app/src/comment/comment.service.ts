@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { NotFoundError } from '@core/src/common/errors/not-found.error';
+import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { NOTIFICATION_SERVICE } from '../kafka-client/kafka.constants';
 import { CommentRepository } from './comment.repository';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetCommentDto } from './dto/get-comment.dto';
@@ -8,47 +11,86 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import {
   CommentEntity,
   CommentEntityWithChildrenCount,
+  CommentLike,
 } from './entities/comment.entity';
-import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 
 @Injectable()
 export class CommentService implements EntityWithAuthorService {
-  constructor(private readonly commentRepository: CommentRepository) {}
+  constructor(
+    private readonly commentRepository: CommentRepository,
+    @Inject(NOTIFICATION_SERVICE) private readonly client: ClientProxy,
+  ) {}
 
   /**
    *
    * @param {CreateCommentDto} createCommentOptions - The comment to be created
-   * @param {string} authorId - The id of the author of the comment
+   * @param {string} authorId - Id of the author of the comment
    * @description
    * If the comment is a response to another comment, the ancestorId is passed
    * in the createCommentOptions. If it is not, the ancestorId is undefined.
    */
-  create(
+  async create(
     createCommentOptions: CreateCommentDto,
     authorId: string,
   ): Promise<CommentEntity> {
     const { ancestorId: responseToCommentId } = createCommentOptions;
 
-    if (responseToCommentId)
-      return this.commentRepository.createResponse(
+    let commentCreated: CommentEntity;
+    let target: string | null;
+
+    if (responseToCommentId) {
+      commentCreated = await this.commentRepository.createResponse(
         { ...createCommentOptions, ancestorId: responseToCommentId },
         authorId,
       );
 
-    return this.commentRepository.create(createCommentOptions, authorId);
+      const { authorId: ancestorCommentAuthor } = await this.getAuthorId(
+        responseToCommentId,
+      );
+
+      target = ancestorCommentAuthor;
+    } else {
+      commentCreated = await this.commentRepository.create(
+        createCommentOptions,
+        authorId,
+      );
+
+      const { authorId: postAuthorId } = await this.getPostAuthorId(
+        commentCreated.postId,
+      );
+
+      target = postAuthorId;
+    }
+
+    this.client.emit('comment_create', {
+      actor: authorId,
+      target,
+      data: commentCreated,
+    });
+
+    return commentCreated;
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @description
-   * Gets the id of the author of the comment with the given id
+   * Gets Id of the author of comment with the given id
    */
   getAuthorId(id: number): Promise<{ authorId: string | null }> {
     return this.commentRepository.getAuthorId(id);
   }
 
   /**
-   * @param {number} postId - The id of the post
+   * @param {number} postId - Id of the post
+   * @description
+   * Gets Id of the author of post with the given id
+   */
+  getPostAuthorId(postId: number): Promise<{ authorId: string | null }> {
+    return this.commentRepository.getPostAuthorId(postId);
+  }
+
+  /**
+   * @param {number} postId - Id of the post
    * @param {GetCommentDto} getCommentOptions - The options to get the comments
    * @description
    * Gets the comments for the post with the given id
@@ -64,7 +106,7 @@ export class CommentService implements EntityWithAuthorService {
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @param {GetCommentDto} getCommentOptions - The options to get the comments
    * @description
    * Gets the descendants of the comment with the given id
@@ -80,7 +122,7 @@ export class CommentService implements EntityWithAuthorService {
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @description
    * Gets the comment with the given id
    */
@@ -89,7 +131,7 @@ export class CommentService implements EntityWithAuthorService {
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @description
    * Updates the comment with the given id
    * @throws {NotFoundError} - If the comment is deleted
@@ -103,7 +145,7 @@ export class CommentService implements EntityWithAuthorService {
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @description
    * Gets the likes of the comment with the given id
    */
@@ -112,33 +154,47 @@ export class CommentService implements EntityWithAuthorService {
   }
 
   /**
-   * @param {number} id - The id of the comment
-   * @param {string} userId - The id of the user
+   * @param {number} id - Id of the comment
+   * @param {string} userId - Id of the user
    * @description
    * Likes the comment with the given id
    */
-  like(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
-    return this.commentRepository.like(id, userId);
+  async like(id: number, userId: string): Promise<CommentLike> {
+    const liked = await this.commentRepository.like(id, userId);
+
+    const { authorId } = await this.commentRepository.getAuthorId(id);
+
+    this.client.emit('comment_like', {
+      actor: userId,
+      target: authorId,
+      data: liked,
+    });
+
+    return liked;
   }
 
   /**
-   * @param {number} id - The id of the comment
-   * @param {string} userId - The id of the user
+   * @param {number} id - Id of the comment
+   * @param {string} userId - Id of the user
    * @description
    * Unlikes the comment with the given id
    */
-  unlike(
-    id: number,
-    userId: string,
-  ): Promise<{ id: number; likesCount: number }> {
-    return this.commentRepository.unlike(id, userId);
+  async unlike(id: number, userId: string): Promise<CommentLike> {
+    const unliked = await this.commentRepository.unlike(id, userId);
+
+    const { authorId } = await this.commentRepository.getAuthorId(id);
+
+    this.client.emit('comment_unlike', {
+      actor: userId,
+      target: authorId,
+      data: unliked,
+    });
+
+    return unliked;
   }
 
   /**
-   * @param {number} id - The id of the comment
+   * @param {number} id - Id of the comment
    * @description
    * Soft deletes the comment with the given id
    */

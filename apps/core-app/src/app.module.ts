@@ -1,3 +1,4 @@
+import { PrismaService } from '@app/prisma';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -7,8 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { CommentModule } from './comment/comment.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { NotificationModule } from './notification/notification.module';
 import { PostModule } from './post/post.module';
-import { PrismaService } from './prisma/prisma.service';
 import { UserModule } from './user/user.module';
 
 @Module({
@@ -42,6 +43,7 @@ import { UserModule } from './user/user.module';
     UserModule,
     AuthModule,
     CommentModule,
+    NotificationModule,
   ],
   providers: [PrismaService],
 })

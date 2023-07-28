@@ -13,9 +13,10 @@ export class CommentEntity implements Comment {
   likesCount: number;
 }
 
-export class CommentLikes extends PickType(CommentEntity, [
+export class CommentLike extends PickType(CommentEntity, [
   'id',
   'likesCount',
+  'postId',
 ] as const) {}
 export class CommentEntityWithDepth extends CommentEntity {
   depth: number;
