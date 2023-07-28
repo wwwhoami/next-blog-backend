@@ -1,5 +1,5 @@
+import { PrismaService } from '@app/prisma';
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@core/src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNoPasswordEntity } from './entities/user.entity';

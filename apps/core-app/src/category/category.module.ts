@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { CategoryService } from './category.service';
-import { CategoryController } from './category.controller';
-import { PrismaModule } from '@core/src/prisma/prisma.module';
-import { CategoryRepository } from './category.repository';
+import { PrismaModule } from '@app/prisma';
 import { PostModule } from '@core/src/post/post.module';
+import { Module } from '@nestjs/common';
+import { CategoryController } from './category.controller';
+import { CategoryRepository } from './category.repository';
+import { CategoryService } from './category.service';
 
 @Module({
   controllers: [CategoryController],
