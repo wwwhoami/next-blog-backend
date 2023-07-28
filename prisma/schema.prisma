@@ -111,3 +111,25 @@ model CommentLikes {
 
   @@id([commentId, userId])
 }
+
+enum NotificationType {
+  COMMENT_CREATE
+  COMMENT_LIKE
+  COMMENT_UNLIKE
+  POST_LIKE
+  POST_UNLIKE
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  actor     String           @db.Uuid
+  target    String           @db.Uuid
+  type      NotificationType
+  data      Json             @db.JsonB
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([target])
+}
