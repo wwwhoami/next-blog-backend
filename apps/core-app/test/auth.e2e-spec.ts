@@ -1,12 +1,12 @@
+import { AppModule } from '@core/src/app.module';
+import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
+import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
+import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import { Role } from '@core/src/user/entities/role.enum';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
-import { AppModule } from '@core/src/app.module';
-import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
-import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
-import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import request from 'supertest';
 
 const authCredentials: AuthCredentialsDto = {
@@ -37,6 +37,10 @@ describe('Auth (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe('/auth/sign-up (POST)', () => {
@@ -373,9 +377,5 @@ describe('Auth (e2e)', () => {
         .get(`/auth/refresh`)
         .expect(HttpStatus.UNAUTHORIZED);
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 });

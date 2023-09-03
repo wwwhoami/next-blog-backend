@@ -1,12 +1,12 @@
-import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import cookieParser from 'cookie-parser';
-import { userData } from 'data/seed-data';
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { CommentService } from '@core/src/comment/comment.service';
 import { CommentEntity } from '@core/src/comment/entities/comment.entity';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
+import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import cookieParser from 'cookie-parser';
+import { userData } from 'data/seed-data';
 import request from 'supertest';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
@@ -32,15 +32,18 @@ describe('Comment (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
+    commentService = moduleRef.get(CommentService);
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
-    commentService = moduleRef.get(CommentService);
-
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe('/comment/:id (GET)', () => {
@@ -700,9 +703,5 @@ describe('Comment (e2e)', () => {
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 });

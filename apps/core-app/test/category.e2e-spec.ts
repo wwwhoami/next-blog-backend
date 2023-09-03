@@ -1,10 +1,10 @@
+import { AppModule } from '@core/src/app.module';
+import { CategoryNoDescription } from '@core/src/category/entities/category.entity';
+import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
-import { AppModule } from '@core/src/app.module';
-import { CategoryNoDescription } from '@core/src/category/entities/category.entity';
-import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import request from 'supertest';
 
 const categories: CategoryNoDescription[] = [
@@ -37,6 +37,10 @@ describe('Category (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe('/category (GET)', () => {
@@ -158,9 +162,5 @@ describe('Category (e2e)', () => {
           expect(response.body[0]).toBeUndefined();
         });
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 });

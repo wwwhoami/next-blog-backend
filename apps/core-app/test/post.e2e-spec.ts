@@ -1,8 +1,3 @@
-import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import cookieParser from 'cookie-parser';
-import { userData } from 'data/seed-data';
-import slugify from 'slugify';
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from '@core/src/category/dto/create-category.dto';
@@ -10,6 +5,11 @@ import { UpdateCategoryDto } from '@core/src/category/dto/update-category.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { PostEntity } from '@core/src/post/entities/post.entity';
 import { PostService } from '@core/src/post/post.service';
+import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import cookieParser from 'cookie-parser';
+import { userData } from 'data/seed-data';
+import slugify from 'slugify';
 import request from 'supertest';
 
 const postCategories = [
@@ -47,15 +47,19 @@ describe('Post (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
+    postService = moduleRef.get(PostService);
+
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
-    postService = moduleRef.get(PostService);
-
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe('/post (GET)', () => {
@@ -929,9 +933,5 @@ describe('Post (e2e)', () => {
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 });

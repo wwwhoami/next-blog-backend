@@ -19,15 +19,18 @@ describe('User (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
+    userService = moduleRef.get(UserService);
     app = moduleRef.createNestApplication();
 
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
 
-    userService = moduleRef.get(UserService);
-
     await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   describe('/user/:username (GET)', () => {
@@ -323,9 +326,5 @@ describe('User (e2e)', () => {
         followers.map(async (id) => await userService.unfollow(id, user.id)),
       );
     });
-  });
-
-  afterAll(async () => {
-    await app.close();
   });
 });

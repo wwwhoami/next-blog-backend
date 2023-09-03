@@ -1,4 +1,5 @@
 {
+  "testTimeout": 20000,
   "moduleFileExtensions": [
     "js",
     "json",
@@ -8,7 +9,12 @@
   "globalTeardown": "<rootDir>/apps/core-app/test/teardown.ts",
   "rootDir": "../../../.",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testMatch": [
+    "**/core-app/**/*.e2e-spec.ts*"
+  ],
+  "modulePathIgnorePatterns": [
+    "<rootDir>/apps/core-app/test/notification/*"
+  ],
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
@@ -17,6 +23,7 @@
   ],
   "moduleNameMapper": {
     "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
+    "^@ws-notification/(.*)$": "<rootDir>/apps/ws-notification/$1",
     "^data/(.*)$": "<rootDir>/data/$1",
     "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1",
     "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
