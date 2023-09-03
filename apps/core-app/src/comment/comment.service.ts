@@ -1,9 +1,8 @@
+import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
-import { NotFoundError } from '@core/src/common/errors/not-found.error';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { NOTIFICATION_SERVICE } from '../kafka-client/kafka.constants';
+import { Injectable } from '@nestjs/common';
+import { NotificationService } from '../notification/notification.service';
 import { CommentRepository } from './comment.repository';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetCommentDto } from './dto/get-comment.dto';
@@ -18,7 +17,7 @@ import {
 export class CommentService implements EntityWithAuthorService {
   constructor(
     private readonly commentRepository: CommentRepository,
-    @Inject(NOTIFICATION_SERVICE) private readonly client: ClientProxy,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -62,11 +61,13 @@ export class CommentService implements EntityWithAuthorService {
       target = postAuthorId;
     }
 
-    this.client.emit('comment_create', {
-      actor: authorId,
-      target,
-      data: commentCreated,
-    });
+    if (target !== null) {
+      this.notificationService.emit('comment_create', {
+        actor: authorId,
+        target,
+        data: commentCreated,
+      });
+    }
 
     return commentCreated;
   }
@@ -164,11 +165,13 @@ export class CommentService implements EntityWithAuthorService {
 
     const { authorId } = await this.commentRepository.getAuthorId(id);
 
-    this.client.emit('comment_like', {
-      actor: userId,
-      target: authorId,
-      data: liked,
-    });
+    if (authorId !== null) {
+      this.notificationService.emit('comment_like', {
+        actor: userId,
+        target: authorId,
+        data: liked,
+      });
+    }
 
     return liked;
   }
@@ -184,11 +187,13 @@ export class CommentService implements EntityWithAuthorService {
 
     const { authorId } = await this.commentRepository.getAuthorId(id);
 
-    this.client.emit('comment_unlike', {
-      actor: userId,
-      target: authorId,
-      data: unliked,
-    });
+    if (authorId !== null) {
+      this.notificationService.emit('comment_unlike', {
+        actor: userId,
+        target: authorId,
+        data: unliked,
+      });
+    }
 
     return unliked;
   }

@@ -1,6 +1,6 @@
 import { PrismaService } from '@app/prisma';
+import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { ConflictError } from '@core/src/common/errors/conflict.error';
-import { NotFoundError } from '@core/src/common/errors/not-found.error';
 import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from '@core/src/post/post.repository';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';

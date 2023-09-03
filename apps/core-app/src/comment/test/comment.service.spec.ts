@@ -1,5 +1,7 @@
+import { NotificationService } from '@core/src/notification/notification.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { Prisma } from '@prisma/client';
+import { MockProxy, mock } from 'jest-mock-extended';
 import { NotFoundError } from 'rxjs';
 import { CommentRepository } from '../comment.repository';
 import { CommentService } from '../comment.service';
@@ -8,9 +10,6 @@ import {
   CommentEntity,
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
-import { Prisma } from '@prisma/client';
-import { NOTIFICATION_SERVICE } from '@core/src/kafka-client/kafka.constants';
-import { ClientProxy } from '@nestjs/microservices';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -74,7 +73,7 @@ describe('CommentService', () => {
       providers: [
         CommentService,
         { provide: CommentRepository, useValue: mock<CommentRepository>() },
-        { provide: NOTIFICATION_SERVICE, useValue: mock<ClientProxy>() },
+        { provide: NotificationService, useValue: mock<NotificationService>() },
       ],
     }).compile();
 
