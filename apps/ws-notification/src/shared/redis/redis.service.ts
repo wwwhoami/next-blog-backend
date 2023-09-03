@@ -1,11 +1,11 @@
+import {
+  REDIS_PUBLISHER_CLIENT,
+  REDIS_SUBSCRIBER_CLIENT,
+} from '@app/shared/redis';
 import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 import { Observable, Observer, filter, map } from 'rxjs';
 import { RedisSocketEventSendDTO } from '../redis-propagator/dto/socket-event-send';
-import {
-  REDIS_PUBLISHER_CLIENT,
-  REDIS_SUBSCRIBER_CLIENT,
-} from './redis.constants';
 
 export type RedisSubscribeMessage = {
   readonly channel: string;
