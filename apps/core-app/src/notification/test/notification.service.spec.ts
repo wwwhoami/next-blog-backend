@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationService } from '../notification.service';
-import { NOTIFICATION_SERVICE } from '@core/src/kafka-client/kafka.constants';
+import { NOTIFICATION_SERVICE } from '@app/shared/kafka/kafka.constants';
 import { ClientKafka } from '@nestjs/microservices';
 import { MockProxy, mock } from 'jest-mock-extended';
 import { lastValueFrom, of, throwError } from 'rxjs';
@@ -23,6 +23,22 @@ describe('NotificationService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('emit', () => {
+    it('should emit a message on a client', () => {
+      const message = {
+        actor: 'afe39927-eb6b-4e73-8d06-239fe6b14eb4',
+        target: '2',
+        data: {
+          id: 1,
+        },
+      };
+
+      service.emit('pattern', message);
+
+      expect(client.emit).toHaveBeenCalledWith('pattern', message);
+    });
   });
 
   describe('getMany', () => {

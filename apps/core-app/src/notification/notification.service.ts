@@ -7,7 +7,7 @@ import {
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
 import { catchError, lastValueFrom, throwError } from 'rxjs';
-import { NOTIFICATION_SERVICE } from '../kafka-client/kafka.constants';
+import { NOTIFICATION_SERVICE } from '../../../../libs/shared/src/kafka/kafka.constants';
 
 @Injectable()
 export class NotificationService implements OnModuleInit {
@@ -17,9 +17,21 @@ export class NotificationService implements OnModuleInit {
 
   logger = new Logger('Notification');
 
-  onModuleInit() {
-    this.client.subscribeToResponseOf('get_notifications');
-    this.client.subscribeToResponseOf('mark_as_read');
+  async onModuleInit() {
+    const requestPatterns = ['get_notifications', 'mark_as_read'];
+
+    for (const pattern of requestPatterns) {
+      this.client.subscribeToResponseOf(pattern);
+    }
+
+    await this.client.connect();
+  }
+
+  emit<T extends CommentPayload | PostPayload>(
+    pattern: string,
+    message: NotificationMessage<T>,
+  ): void {
+    this.client.emit(pattern, message);
   }
 
   getMany(
