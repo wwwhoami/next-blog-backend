@@ -1,10 +1,11 @@
+import { NotificationService } from '@core/src/notification/notification.service';
+import { ClientProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Post, Prisma } from '@prisma/client';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { MockProxy, mock } from 'jest-mock-extended';
 import slugify from 'slugify';
 import { PostRepository } from '../post.repository';
 import { PostService } from '../post.service';
-import { ClientProxy } from '@nestjs/microservices';
 
 const postArray = [
   {
@@ -97,7 +98,7 @@ describe('PostService', () => {
           useValue: mock<PostRepository>(),
         },
         {
-          provide: 'NOTIFICATION_SERVICE',
+          provide: NotificationService,
           useValue: mock<ClientProxy>(),
         },
       ],

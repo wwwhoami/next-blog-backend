@@ -1,8 +1,7 @@
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { NOTIFICATION_SERVICE } from '../kafka-client/kafka.constants';
+import { Injectable } from '@nestjs/common';
+import { NotificationService } from '../notification/notification.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -13,7 +12,7 @@ import { PostRepository } from './post.repository';
 export class PostService implements EntityWithAuthorService {
   constructor(
     private postRepository: PostRepository,
-    @Inject(NOTIFICATION_SERVICE) private readonly client: ClientProxy,
+    private readonly notificationService: NotificationService,
   ) {}
 
   getAuthorId(idOrSlug: number | string): Promise<{ authorId: string }> {
@@ -66,7 +65,7 @@ export class PostService implements EntityWithAuthorService {
 
     const { authorId } = await this.postRepository.getAuthorById(id);
 
-    this.client.emit('post_like', {
+    this.notificationService.emit('post_like', {
       actor: userId,
       target: authorId,
       data: liked,
@@ -80,7 +79,7 @@ export class PostService implements EntityWithAuthorService {
 
     const { authorId } = await this.postRepository.getAuthorById(id);
 
-    this.client.emit('post_unlike', {
+    this.notificationService.emit('post_unlike', {
       actor: userId,
       target: authorId,
       data: unliked,
