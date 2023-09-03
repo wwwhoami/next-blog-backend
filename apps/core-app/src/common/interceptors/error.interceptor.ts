@@ -3,6 +3,7 @@ import {
   CallHandler,
   ConflictException,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   NestInterceptor,
   NotFoundException,
@@ -15,6 +16,7 @@ import { ConflictError } from '../errors/conflict.error';
 import { WrongParamsError } from '../errors/wrong-params.error';
 import { UnprocesasbleEntityError } from '../errors/unprocessable-entity.errror';
 import { UnauthorizedError } from '../errors/unauthorized.error';
+import { ForbiddenError } from '@app/shared/errors/forbidden.error';
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {
@@ -61,6 +63,13 @@ export class ErrorInterceptor implements NestInterceptor {
           error.name === 'UnauthorizedError'
         ) {
           return throwError(() => new UnauthorizedException(error.message));
+        }
+
+        if (
+          error instanceof ForbiddenError ||
+          error.name === 'ForbiddenError'
+        ) {
+          return throwError(() => new ForbiddenException(error.message));
         }
 
         return throwError(() => error);
