@@ -9,8 +9,13 @@ import { seedWithMocks } from 'prisma/seed-with-mocks';
 const resetAutoIncrement = async (prisma: PrismaClient) => {
   const resetCommentIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Comment_id_seq" RESTART`;
   const resetPostIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Post_id_seq" RESTART`;
+  const resetNotificationIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Notification_id_seq" RESTART`;
 
-  await prisma.$transaction([resetCommentIdSeq, resetPostIdSeq]);
+  await prisma.$transaction([
+    resetCommentIdSeq,
+    resetPostIdSeq,
+    resetNotificationIdSeq,
+  ]);
 };
 
 const setup = async () => {
@@ -22,6 +27,7 @@ const setup = async () => {
     const deletePostToCategory = prisma.postToCategory.deleteMany();
     const deleteCategory = prisma.category.deleteMany();
     const deleteComments = prisma.comment.deleteMany();
+    const deleteNotifications = prisma.notification.deleteMany();
 
     await prisma.$transaction([
       deletePostToCategory,
@@ -29,6 +35,7 @@ const setup = async () => {
       deletePosts,
       deleteCategory,
       deleteComments,
+      deleteNotifications,
     ]);
 
     // Reset auto-increment id sequences

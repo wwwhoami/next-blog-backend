@@ -14,6 +14,7 @@ const teardown = async () => {
     const deletePostToCategory = prisma.postToCategory.deleteMany();
     const deleteCategory = prisma.category.deleteMany();
     const deleteComments = prisma.comment.deleteMany();
+    const deleteNotifications = prisma.notification.deleteMany();
 
     await prisma.$transaction([
       deletePostToCategory,
@@ -21,6 +22,7 @@ const teardown = async () => {
       deletePosts,
       deleteCategory,
       deleteComments,
+      deleteNotifications,
     ]);
   } catch (err) {
     console.log(err);
