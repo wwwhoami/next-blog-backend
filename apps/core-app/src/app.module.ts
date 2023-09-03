@@ -1,4 +1,3 @@
-import { PrismaService } from '@app/prisma';
 import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -45,7 +44,6 @@ import { UserModule } from './user/user.module';
     CommentModule,
     NotificationModule,
   ],
-  providers: [PrismaService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
