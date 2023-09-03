@@ -6,7 +6,9 @@ import { NotificationModule } from './notification.module';
 
 async function bootstrap() {
   const logger = new Logger('Notification');
+
   const app = await NestFactory.create(NotificationModule);
+
   const config = app.get<ConfigService>(ConfigService);
   const kafkaPort = config.get<number>('KAFKA_PORT');
   const redisHost = config.get<string>('REDIS_HOST');
@@ -56,4 +58,5 @@ async function bootstrap() {
   await app.startAllMicroservices();
   logger.log('Notification service is listening');
 }
+
 bootstrap();

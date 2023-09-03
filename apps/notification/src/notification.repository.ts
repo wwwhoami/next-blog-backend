@@ -1,6 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { GetNotificationDto } from '@app/shared/dto';
 import { NotificationMessage } from '@app/shared/entities';
+import { Notification } from '@app/shared/entities';
 import { Injectable } from '@nestjs/common';
 import { NotificationType } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
@@ -9,17 +10,19 @@ import { instanceToPlain } from 'class-transformer';
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getManyForUser<T>(
+  async getManyForUser(
     userId: string,
     { skip = 0, take = 20, isRead, type }: GetNotificationDto = {},
-  ): Promise<NotificationMessage<T>[]> {
-    const notifications = await this.prisma.notification.findMany({
+  ): Promise<Notification<unknown>[]> {
+    return this.prisma.notification.findMany({
       select: {
         id: true,
         isRead: true,
         actor: true,
+        target: true,
         type: true,
         data: true,
+        createdAt: true,
       },
       where: {
         target: userId,
@@ -32,14 +35,6 @@ export class NotificationRepository {
       skip,
       take,
     });
-
-    return notifications.map((n) => ({
-      id: n.id,
-      actor: n.actor,
-      target: userId,
-      isRead: n.isRead,
-      data: n.data as T,
-    }));
   }
 
   create(
@@ -67,7 +62,7 @@ export class NotificationRepository {
     });
   }
 
-  markAsRead(id: number) {
+  markAsRead(id: number): Promise<Notification<unknown>> {
     return this.prisma.notification.update({
       where: {
         id,
@@ -79,8 +74,10 @@ export class NotificationRepository {
         id: true,
         isRead: true,
         actor: true,
-        type: true,
+        target: true,
         data: true,
+        createdAt: true,
+        type: true,
       },
     });
   }

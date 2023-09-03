@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationController } from '../notification.controller';
-import { NotificationService } from '../notification.service';
-import { MockProxy, mock } from 'jest-mock-extended';
+import { GetNotificationDto } from '@app/shared/dto';
 import { NotificationMessage } from '@app/shared/entities';
 import { CommentEntity } from '@core/src/comment/entities/comment.entity';
 import { PostLike } from '@core/src/post/entities/post.entity';
-import { GetNotificationDto } from '@app/shared/dto';
+import { Test, TestingModule } from '@nestjs/testing';
+import { MockProxy, mock } from 'jest-mock-extended';
+import { NotificationController } from '../notification.controller';
+import { NotificationService } from '../notification.service';
 
 const commentMessage: NotificationMessage<CommentEntity> = {
   target: 'target',

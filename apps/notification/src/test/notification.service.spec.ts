@@ -3,11 +3,11 @@ import {
   NotificationMessage,
   PostPayload,
 } from '@app/shared/entities';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationType } from '@prisma/client';
 import { REDIS_SOCKET_EVENT_EMIT_ALL_NAME } from '@ws-notification/src/shared/redis-propagator/redis-propagator.constants';
-import { REDIS_PUBLISHER_CLIENT } from '@ws-notification/src/shared/redis/redis.constants';
+import { REDIS_PUBLISHER_CLIENT } from '@app/shared/redis/redis.constants';
 import { MockProxy, mock } from 'jest-mock-extended';
 import { NotificationRepository } from '../notification.repository';
 import { NotificationService } from '../notification.service';
@@ -111,7 +111,7 @@ describe('NotificationService', () => {
       notificationRepository.getTargetId.mockResolvedValue({ target });
 
       await expect(service.markAsRead(userId, id)).rejects.toThrowError(
-        'Not authorized to mark this notification as read',
+        RpcException,
       );
     });
   });

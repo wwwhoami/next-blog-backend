@@ -1,9 +1,10 @@
 import { GetNotificationDto } from '@app/shared/dto';
-import { NotificationMessage } from '@app/shared/entities';
 import {
-  CommentEntity,
-  CommentLike,
-} from '@core/src/comment/entities/comment.entity';
+  CommentPayload,
+  Notification,
+  NotificationMessage,
+} from '@app/shared/entities';
+import { CommentLike } from '@core/src/comment/entities/comment.entity';
 import { PostLike } from '@core/src/post/entities/post.entity';
 import { Controller, ParseUUIDPipe, UseFilters } from '@nestjs/common';
 import {
@@ -12,16 +13,16 @@ import {
   Payload,
   Transport,
 } from '@nestjs/microservices';
+import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
+import { RpcValidationFilter } from './filters/rpc-validation.filter';
 import { NotificationService } from './notification.service';
-import { PrismaExceptionFilter } from './prisma-exception.filter';
-import { RpcValidationFilter } from './rpc-validation.filter';
 
 @Controller()
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @EventPattern('comment_create', Transport.KAFKA)
-  commentCreate(@Payload() message: NotificationMessage<CommentEntity>) {
+  commentCreate(@Payload() message: NotificationMessage<CommentPayload>) {
     this.notificationService.commentNotification(message, 'COMMENT_CREATE');
   }
 
@@ -47,7 +48,9 @@ export class NotificationController {
 
   @UseFilters(new PrismaExceptionFilter())
   @MessagePattern('mark_as_read', Transport.KAFKA)
-  markAsRead(@Payload() message: { userId: string; id: number }) {
+  markAsRead(
+    @Payload() message: { userId: string; id: number },
+  ): Promise<Notification<unknown>> {
     return this.notificationService.markAsRead(message.userId, message.id);
   }
 
@@ -56,7 +59,7 @@ export class NotificationController {
   getNotifications(
     @Payload('userId', ParseUUIDPipe) userId: string,
     @Payload('options') options: GetNotificationDto,
-  ) {
+  ): Promise<Notification<unknown>[]> {
     return this.notificationService.getManyForUser(userId, options);
   }
 }
