@@ -13,9 +13,18 @@
     "**/core-app/test/notification/*.e2e-spec.ts*"
   ],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": [
+      "@swc/jest"
+    ]
   },
+  "roots": [
+    "<rootDir>"
+  ],
   "modulePaths": [
+    "<rootDir>"
+  ],
+  "moduleDirectories": [
+    "node_modules",
     "<rootDir>"
   ],
   "moduleNameMapper": {

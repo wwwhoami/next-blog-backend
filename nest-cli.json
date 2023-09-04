@@ -2,10 +2,12 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "apps/core-app/src",
   "compilerOptions": {
+    "builder": "swc",
+    "typeCheck": true,
     "plugins": [
       "@nestjs/swagger"
     ],
-    "webpack": false,
+    "webpack": true,
     "tsConfigPath": "apps/core-app/tsconfig.app.json"
   },
   "monorepo": true,

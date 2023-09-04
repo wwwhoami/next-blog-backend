@@ -1,5 +1,5 @@
 import { AppAuthService } from '@app/auth';
-import { AuthUser } from '@app/auth/types/auth-user.type';
+import { AuthUser } from '@app/auth/types';
 import { INestApplicationContext, WebSocketAdapter } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Server, ServerOptions, Socket } from 'socket.io';

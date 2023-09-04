@@ -16,9 +16,18 @@
     "<rootDir>/apps/core-app/test/notification/*"
   ],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": [
+      "@swc/jest"
+    ]
   },
+  "roots": [
+    "<rootDir>"
+  ],
   "modulePaths": [
+    "<rootDir>"
+  ],
+  "moduleDirectories": [
+    "node_modules",
     "<rootDir>"
   ],
   "moduleNameMapper": {

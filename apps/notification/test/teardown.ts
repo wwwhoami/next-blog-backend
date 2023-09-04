@@ -1,8 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-require('ts-node').register({
-  transpileOnly: true,
-});
-
+import 'tsconfig-paths/register';
 import { PrismaClient } from '@prisma/client';
 
 const teardown = async () => {
