@@ -3,9 +3,41 @@ import { Socket } from 'socket.io';
 
 @Injectable()
 export class SocketStateService {
+  // userId -> Socket[]
   private socketState = new Map<string, Socket[]>([]);
 
-  remove(userId: string, socket: Socket) {
+  /**
+   * @param userId
+   * @description Get all sockets of a user
+   */
+  get(userId: string): Socket[] {
+    return this.socketState.get(userId) ?? [];
+  }
+
+  /**
+   * @description Get all sockets
+   */
+  getAll(): Socket[] {
+    return Array.from(this.socketState.values()).flat();
+  }
+
+  /**
+   *
+   * @param userId
+   * @param socket Socket to be added to the pool of user's sockets
+   */
+  add(userId: string, socket: Socket): void {
+    const existingSockets = this.socketState.get(userId) ?? [];
+
+    this.socketState.set(userId, [...existingSockets, socket]);
+  }
+
+  /**
+   *
+   * @param userId
+   * @param socket Socket to be removed from the pool of user's sockets
+   */
+  remove(userId: string, socket: Socket): void {
     const existingSockets = this.socketState.get(userId);
 
     if (!existingSockets) {
@@ -19,19 +51,5 @@ export class SocketStateService {
     } else {
       this.socketState.set(userId, sockets);
     }
-  }
-
-  add(userId: string, socket: Socket) {
-    const existingSockets = this.socketState.get(userId) ?? [];
-
-    this.socketState.set(userId, [...existingSockets, socket]);
-  }
-
-  get(userId: string): Socket[] {
-    return this.socketState.get(userId) ?? [];
-  }
-
-  getAll(): Socket[] {
-    return Array.from(this.socketState.values()).flat();
   }
 }

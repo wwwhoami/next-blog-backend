@@ -35,11 +35,20 @@ export class RedisPropagatorService {
       .subscribe();
   }
 
+  /**
+   * @param server Socket server to be injected
+   * @description Inject socket server to be used to emit events
+   * @returns RedisPropagatorService
+   */
   injectSocketServer(server: Server): RedisPropagatorService {
     this.socketServer = server;
     return this;
   }
 
+  /**
+   * @param eventInfo Event to be emitted
+   * @description Emit event to all connected sockets of a user
+   */
   private consumeSendEvent = (eventInfo: RedisSocketEventSendDTO) => {
     const { userId, event, data, socketId } = eventInfo;
 
@@ -50,10 +59,20 @@ export class RedisPropagatorService {
       .forEach((socket) => socket.emit(event, data));
   };
 
+  /**
+   *
+   * @param eventInfo Event to be emitted
+   * @description Emit event to all connected sockets
+   */
   private consumeEmitToAllEvent = (eventInfo: RedisSocketEventEmitDTO) => {
     this.socketServer.emit(eventInfo.event, eventInfo.data);
   };
 
+  /**
+   * @param eventInfo Event to be emitted
+   * @description Emit event to all authenticated sockets
+   * @todo Add support to emit to a specific socket
+   */
   private consumeEmitToAuthenticatedEvent = (
     eventInfo: RedisSocketEventEmitDTO,
   ) => {
@@ -64,23 +83,37 @@ export class RedisPropagatorService {
     });
   };
 
-  propagateEvent(eventInfo: RedisSocketEventSendDTO): boolean {
+  /**
+   * @param eventInfo Event to be emitted
+   * @description Propagate to emit event to all connected sockets of a user
+   * @returns true if event was propagated
+   */
+  propagateSendEvent(eventInfo: RedisSocketEventSendDTO): boolean {
     if (!eventInfo.userId) {
       return false;
     }
 
     this.redisService.publish(REDIS_SOCKET_EVENT_SEND_NAME, eventInfo);
+
     return true;
   }
 
-  emitToAuthenticated(eventInfo: RedisSocketEventEmitDTO) {
+  /**
+   * @param eventInfo Event to be emitted
+   * @description Propagate to emit event to all connected sockets
+   */
+  propagateEmitToAll(eventInfo: RedisSocketEventEmitDTO) {
+    this.redisService.publish(REDIS_SOCKET_EVENT_EMIT_ALL_NAME, eventInfo);
+  }
+
+  /**
+   * @param eventInfo Event to be emitted
+   * @description Propagate to emit event to all authenticated sockets
+   */
+  propagateEmitToAuthenticated(eventInfo: RedisSocketEventEmitDTO) {
     this.redisService.publish(
       REDIS_SOCKET_EVENT_EMIT_AUTHENTICATED_NAME,
       eventInfo,
     );
-  }
-
-  emitToAll(eventInfo: RedisSocketEventEmitDTO) {
-    this.redisService.publish(REDIS_SOCKET_EVENT_EMIT_ALL_NAME, eventInfo);
   }
 }

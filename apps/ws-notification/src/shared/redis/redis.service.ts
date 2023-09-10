@@ -19,6 +19,11 @@ export class RedisService {
     @Inject(REDIS_PUBLISHER_CLIENT) private readonly publisher: Redis,
   ) {}
 
+  /**
+   * @param eventName Event to be subscribed to
+   * @description Subscribe to a Redis channel
+   * @returns Observable
+   */
   fromEvent<T extends RedisSocketEventSendDTO>(
     eventName: string,
   ): Observable<T> {
@@ -37,7 +42,12 @@ export class RedisService {
     );
   }
 
-  async publish(channel: string, value: unknown): Promise<number> {
-    return this.publisher.publish(channel, JSON.stringify(value));
+  /**
+   * @param channel Channel to publish to
+   * @param data Data to be published
+   * @description Publish a value to a Redis channel
+   */
+  async publish(channel: string, data: unknown): Promise<number> {
+    return this.publisher.publish(channel, JSON.stringify(data));
   }
 }
