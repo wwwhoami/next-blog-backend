@@ -1,14 +1,17 @@
 import { faker } from '@faker-js/faker';
 import { Prisma } from '@prisma/client';
+import { UniqueEnforcer } from 'enforce-unique';
 import slugify from 'slugify';
 import { getMockSlugs, getRandomPostMockContent } from './mdx';
 
 export function generateUuid(count: number) {
   if (count <= 0) throw new Error('Count should be positive integer');
 
+  const uniqueUUIDEnforcer = new UniqueEnforcer();
+
   const uuids: string[] = [];
   while (count > 0) {
-    uuids.push(faker.helpers.unique(faker.datatype.uuid));
+    uuids.push(uniqueUUIDEnforcer.enforce(() => faker.string.uuid()));
     count--;
   }
   return uuids;
@@ -19,11 +22,14 @@ export async function generateUsers(count: number, uuids: string[]) {
 
   const userData: Prisma.UserCreateWithoutPostsInput[] = [];
 
+  const uniqueNameEnforcer = new UniqueEnforcer();
+  const uniqueEmailEnforcer = new UniqueEnforcer();
+
   while (count > 0) {
     userData.push({
       id: uuids[count - 1],
-      name: faker.helpers.unique(faker.name.firstName),
-      email: faker.helpers.unique(faker.internet.email),
+      name: uniqueNameEnforcer.enforce(() => faker.person.firstName()),
+      email: uniqueEmailEnforcer.enforce(() => faker.internet.email()),
       password: '$2a$12$lCGhm3HSmjkFJFtViSPpSemPLvSGpak1ljgC5WyGoIh/l5Igfyl/K',
       image: faker.image.avatar(),
     });
@@ -38,13 +44,18 @@ export async function generateCategories(count: number) {
 
   const categoryData: Prisma.CategoryCreateInput[] = [];
 
+  const uniqueCategoryNameEnforcer = new UniqueEnforcer();
+  const uniqueHexColorEnforcer = new UniqueEnforcer();
+
   while (count > 0) {
     categoryData.push({
-      name: faker.helpers.unique(() =>
+      name: uniqueCategoryNameEnforcer.enforce(() =>
         faker.lorem.word({ length: { min: 3, max: 10 } }),
       ),
       description: faker.lorem.sentence(),
-      hexColor: faker.helpers.unique(() => faker.color.rgb({ format: 'hex' })),
+      hexColor: uniqueHexColorEnforcer.enforce(() =>
+        faker.color.rgb({ format: 'hex' }),
+      ),
     });
     count--;
   }
@@ -59,19 +70,23 @@ export async function generatePosts(count: number, uuids: string[]) {
   const slugs = await getMockSlugs();
   const contents = await getRandomPostMockContent(slugs, count);
 
+  const uniquePostTitleEnforcer = new UniqueEnforcer();
+
   for (let i = 0; i < count; i++) {
-    const randTitle = faker.helpers.unique(faker.lorem.sentence, [3]);
+    const randTitle = uniquePostTitleEnforcer.enforce(() =>
+      faker.lorem.sentence(3),
+    );
     postData.push({
-      createdAt: faker.datatype.datetime({
-        min: 1589315917000,
-        max: 1620851917000,
+      createdAt: faker.date.between({
+        from: 1589315917000,
+        to: 1620851917000,
       }),
       title: randTitle,
       slug: slugify(randTitle, { lower: true }),
       excerpt: faker.lorem.sentence(15),
       content: contents[i],
       published: true,
-      coverImage: faker.image.business(1200, 480),
+      coverImage: faker.image.urlLoremFlickr({ category: 'business' }),
       authorId: uuids[Math.floor(Math.random() * (uuids.length - 1) + 1)],
     });
   }
@@ -123,9 +138,9 @@ export async function generateComments(
 
   while (count > 0) {
     commentData.push({
-      createdAt: faker.datatype.datetime({
-        min: 1589315917000,
-        max: 1620851917000,
+      createdAt: faker.date.between({
+        from: 1589315917000,
+        to: 1620851917000,
       }),
       content: faker.lorem.paragraph(),
       postId: Math.floor(Math.random() * (generatedPostsCount - 1) + 1),
