@@ -30,10 +30,10 @@ export class SocketStateAdapter extends IoAdapter implements WebSocketAdapter {
    * If the socket is authenticated, the user is added to the socket state
    * If the socket is not authenticated, the socket is not added to the socket state
    */
-  private async authMiddleware(
+  private authMiddleware = async (
     socket: AuthenticatedSocket,
     next: (err?: ExtendedError | undefined) => void,
-  ) {
+  ) => {
     const token =
       socket.handshake.auth?.token ||
       socket.handshake.query?.token ||
@@ -50,7 +50,7 @@ export class SocketStateAdapter extends IoAdapter implements WebSocketAdapter {
     } catch (error) {
       return next(new Error('Invalid auth token'));
     }
-  }
+  };
 
   /**
    * @param port Port to be used
