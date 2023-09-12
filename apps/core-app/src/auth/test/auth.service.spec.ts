@@ -1,4 +1,4 @@
-import { JwtPayload } from '@app/auth';
+import { JwtPayload } from '@app/auth/types';
 import { UnauthorizedError } from '@core/src/common/errors/unauthorized.error';
 import { Role } from '@core/src/user/entities/role.enum';
 import { UserService } from '@core/src/user/user.service';

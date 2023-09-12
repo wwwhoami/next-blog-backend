@@ -1,4 +1,4 @@
-import { JwtPayload } from '@app/auth';
+import { JwtPayload } from '@app/auth/types';
 import { UserEntity } from '@core/src/user/entities/user.entity';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

@@ -1,4 +1,4 @@
-import { JwtPayload } from '@app/auth';
+import { JwtPayload } from '@app/auth/types';
 import { UnauthorizedError } from '@core/src/common/errors/unauthorized.error';
 import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
