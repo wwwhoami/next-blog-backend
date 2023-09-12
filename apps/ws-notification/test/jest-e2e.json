@@ -1,9 +1,30 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
+  "rootDir": "../../../.",
+  "globalSetup": "<rootDir>/apps/ws-notification/test/setup.ts",
+  "globalTeardown": "<rootDir>/apps/ws-notification/test/teardown.ts",
   "testEnvironment": "node",
-  "testRegex": ".e2e-spec.ts$",
+  "testMatch": [
+    "**/apps/ws-notification/**/*.e2e-spec.ts*"
+  ],
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.(t|j)s$": [
+      "@swc/jest"
+    ]
+  },
+  "modulePaths": [
+    "<rootDir>"
+  ],
+  "moduleNameMapper": {
+    "^@ws-notification/(.*)$": "<rootDir>/apps/ws-notification/$1",
+    "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
+    "^data/(.*)$": "<rootDir>/data/$1",
+    "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1",
+    "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
+    "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
   }
 }
