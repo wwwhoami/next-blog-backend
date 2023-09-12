@@ -12,6 +12,10 @@
   "testMatch": [
     "**/core-app/test/notification/*.e2e-spec.ts*"
   ],
+  "collectCoverageFrom": [
+    "<rootDir>/apps/core-app/**/notification/**/*.ts",
+    "!<rootDir>/apps/core-app/**/*.spec.ts"
+  ],
   "transform": {
     "^.+\\.(t|j)s$": [
       "@swc/jest"
