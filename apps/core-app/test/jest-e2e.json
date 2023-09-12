@@ -22,7 +22,10 @@
   ],
   "transform": {
     "^.+\\.(t|j)s$": [
-      "@swc/jest"
+      "@swc/jest",
+      {
+        "sourceMaps": "inline"
+      }
     ]
   },
   "roots": [
