@@ -35,17 +35,14 @@ export class RedisService {
       ),
     ).pipe(
       filter(({ channel }) => channel === eventName),
-      map(({ message }) => {
-        const jsonMessage = JSON.parse(message);
-        return jsonMessage.data;
-      }),
+      map(({ message }) => JSON.parse(message)),
     );
   }
 
   /**
    * @param channel Channel to publish to
    * @param data Data to be published
-   * @description Publish a value to a Redis channel
+   * @description Publish data to a Redis channel
    */
   async publish(channel: string, data: unknown): Promise<number> {
     return this.publisher.publish(channel, JSON.stringify(data));
