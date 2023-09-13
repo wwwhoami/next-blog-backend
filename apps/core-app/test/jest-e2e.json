@@ -16,9 +16,12 @@
     "<rootDir>/apps/core-app/test/notification/*"
   ],
   "collectCoverageFrom": [
-    "<rootDir>/apps/core-app/**/*.ts",
-    "!<rootDir>/apps/core-app/**/*.spec.ts",
-    "!<rootDir>/apps/core-app/**/main.ts"
+    "<rootDir>/apps/core-app/**/*.ts"
+  ],
+  "coveragePathIgnorePatterns": [
+    ".module.ts",
+    ".spec.ts",
+    "main.ts"
   ],
   "transform": {
     "^.+\\.(t|j)s$": [

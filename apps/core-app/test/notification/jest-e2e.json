@@ -13,8 +13,12 @@
     "**/core-app/test/notification/*.e2e-spec.ts*"
   ],
   "collectCoverageFrom": [
-    "<rootDir>/apps/core-app/**/notification/**/*.ts",
-    "!<rootDir>/apps/core-app/**/*.spec.ts"
+    "<rootDir>/apps/core-app/**/notification/**/*.ts"
+  ],
+  "coveragePathIgnorePatterns": [
+    ".module.ts",
+    ".spec.ts",
+    "main.ts"
   ],
   "transform": {
     "^.+\\.(t|j)s$": [
