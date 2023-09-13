@@ -236,7 +236,7 @@ describe('NotificationServiceController (e2e)', () => {
   });
 
   describe('REDIS_SOCKET_EVENT_SEND_NAME', () => {
-    it("should emit event to all user's sockets sockets", async () => {
+    it("should emit event to all user's sockets", async () => {
       const redisMessage: RedisSocketEventSendDTO = {
         event: 'testEvent',
         data: 'testData',
