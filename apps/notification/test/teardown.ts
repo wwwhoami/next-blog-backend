@@ -1,4 +1,6 @@
+/* eslint-disable */
 import 'tsconfig-paths/register';
+/* eslint-enable */
 import { PrismaClient } from '@prisma/client';
 
 const teardown = async () => {

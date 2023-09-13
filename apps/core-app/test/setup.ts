@@ -1,6 +1,8 @@
+/* eslint-disable */
 import 'tsconfig-paths/register';
+/* eslint-enable */
 import { PrismaClient } from '@prisma/client';
-import { seedWithMocks } from 'prisma/seed-with-mocks';
+import { seedWithMocks } from 'prisma/seeders/seed-with-mocks';
 
 const resetAutoIncrement = async (prisma: PrismaClient) => {
   const resetCommentIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Comment_id_seq" RESTART`;

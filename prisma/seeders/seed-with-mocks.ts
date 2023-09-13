@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { getPostMocks } from 'data/post';
 import { categoryData, commentData, userData } from 'data/seed-data';
-import { PrismaSeeder } from './seeders';
+import { PrismaSeeder } from './prisma-seeder';
 
 export async function seedWithMocks(prisma: PrismaClient) {
   const prismaSeeder = new PrismaSeeder(prisma);

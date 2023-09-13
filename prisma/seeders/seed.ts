@@ -9,7 +9,7 @@ import {
 } from 'data/data-gen';
 import { getPostMocks } from 'data/post';
 import { categoryData, commentData, userData } from 'data/seed-data';
-import { PrismaSeeder } from './seeders';
+import { PrismaSeeder } from './prisma-seeder';
 
 const prisma = new PrismaClient();
 
