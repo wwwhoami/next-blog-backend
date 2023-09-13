@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { ErrorInterceptor } from './common/interceptors/error.interceptor';
+import metadata from './metadata';
 
 async function bootstrap() {
   const logger = new Logger('Core Application');
@@ -33,6 +34,7 @@ async function bootstrap() {
     .addCookieAuth('refreshToken')
     .build();
 
+  await SwaggerModule.loadPluginMetadata(metadata);
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 

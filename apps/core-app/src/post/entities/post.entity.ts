@@ -24,7 +24,7 @@ class AuthorEntity {
   image: string | null;
 }
 
-class PostCategory {
+export class PostCategory {
   category: CategoryNoDescription;
 }
 

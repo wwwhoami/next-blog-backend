@@ -43,9 +43,8 @@ export class CommentService implements EntityWithAuthorService {
         authorId,
       );
 
-      const { authorId: ancestorCommentAuthor } = await this.getAuthorId(
-        responseToCommentId,
-      );
+      const { authorId: ancestorCommentAuthor } =
+        await this.getAuthorId(responseToCommentId);
 
       target = ancestorCommentAuthor;
     } else {
