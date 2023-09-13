@@ -18,7 +18,9 @@
   "coveragePathIgnorePatterns": [
     ".module.ts",
     ".spec.ts",
-    "main.ts"
+    "main.ts",
+    "generate-metadata.ts",
+    "metadata.ts"
   ],
   "transform": {
     "^.+\\.(t|j)s$": [
