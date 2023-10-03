@@ -322,7 +322,7 @@ describe('Auth (e2e)', () => {
           return agent
             .get(`/auth/logout`)
             .auth(accessToken, { type: 'bearer' })
-            .expect(HttpStatus.OK)
+            .expect(HttpStatus.NO_CONTENT)
             .expect('set-cookie', /refreshToken=; Path=\/; Expires=.*/);
         });
     });

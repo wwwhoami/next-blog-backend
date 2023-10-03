@@ -8,6 +8,7 @@ import {
   ConflictException,
   Controller,
   Get,
+  HttpCode,
   InternalServerErrorException,
   Patch,
   Post,
@@ -150,6 +151,7 @@ export class AuthController {
     return { id, email, name, image, role, accessToken };
   }
 
+  @HttpCode(204)
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Get('logout')
