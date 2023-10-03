@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
 export class NotificationMessage<PayloadType> {
@@ -7,6 +8,7 @@ export class NotificationMessage<PayloadType> {
   @IsUUID()
   target: string;
 
+  @ApiProperty({ type: () => Object })
   data: PayloadType;
 }
 

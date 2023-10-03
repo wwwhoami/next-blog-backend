@@ -13,16 +13,40 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiTags,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { NotificationService } from './notification.service';
 
 @Controller('notification')
 @ApiTags('notification')
+@ApiExtraModels(NotificationMessage, CommentPayload, PostPayload)
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(NotificationMessage) },
+        {
+          properties: {
+            data: {
+              oneOf: [
+                { $ref: getSchemaPath(CommentPayload) },
+                { $ref: getSchemaPath(PostPayload) },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  })
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Get()
@@ -33,6 +57,23 @@ export class NotificationController {
     return this.notificationService.getMany(userId, getNotificationsQuery);
   }
 
+  @ApiOkResponse({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(NotificationMessage) },
+        {
+          properties: {
+            data: {
+              oneOf: [
+                { $ref: getSchemaPath(CommentPayload) },
+                { $ref: getSchemaPath(PostPayload) },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  })
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Patch(':id')
