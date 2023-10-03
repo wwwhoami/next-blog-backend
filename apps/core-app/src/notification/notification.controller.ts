@@ -32,19 +32,22 @@ export class NotificationController {
 
   @ApiOkResponse({
     schema: {
-      allOf: [
-        { $ref: getSchemaPath(NotificationMessage) },
-        {
-          properties: {
-            data: {
-              oneOf: [
-                { $ref: getSchemaPath(CommentPayload) },
-                { $ref: getSchemaPath(PostPayload) },
-              ],
+      type: 'array',
+      items: {
+        allOf: [
+          { $ref: getSchemaPath(NotificationMessage) },
+          {
+            properties: {
+              data: {
+                oneOf: [
+                  { $ref: getSchemaPath(CommentPayload) },
+                  { $ref: getSchemaPath(PostPayload) },
+                ],
+              },
             },
           },
-        },
-      ],
+        ],
+      },
     },
   })
   @ApiBearerAuth('accessToken')
