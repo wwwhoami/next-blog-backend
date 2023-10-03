@@ -1,4 +1,4 @@
-import { OmitType, PickType } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PickType } from '@nestjs/swagger';
 import { Role, User } from '@prisma/client';
 
 export class UserEntity implements User {
@@ -7,6 +7,8 @@ export class UserEntity implements User {
   name: string;
   image: string | null;
   password: string;
+
+  @ApiProperty({ enum: Role })
   role: Role;
 }
 
