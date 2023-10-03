@@ -17,7 +17,7 @@ import {
 
 @Controller('category')
 @ApiTags('category')
-@ApiExtraModels(CategoryNoDescription, CategoryWithHotness) // Add this decorator
+@ApiExtraModels(CategoryNoDescription, CategoryWithHotness)
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
