@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 import metadata from './metadata';
@@ -14,6 +15,8 @@ async function bootstrap() {
   const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('APP_CORE_PORT');
   const clientUrl = configService.get<string>('CLIENT_URL');
+
+  app.use(helmet());
 
   if (clientUrl) {
     app.enableCors({
