@@ -13,6 +13,14 @@ async function bootstrap() {
 
   const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('APP_CORE_PORT');
+  const clientUrl = configService.get<string>('CLIENT_URL');
+
+  if (clientUrl) {
+    app.enableCors({
+      origin: clientUrl,
+      credentials: true,
+    });
+  }
 
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.useGlobalInterceptors(new ErrorInterceptor());
@@ -33,7 +41,6 @@ async function bootstrap() {
     )
     .addCookieAuth('refreshToken')
     .build();
-
   await SwaggerModule.loadPluginMetadata(metadata);
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

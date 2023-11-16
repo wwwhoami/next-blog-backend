@@ -19,4 +19,5 @@ export const configValidationSchema = Joi.object({
   KAFKA_BROKER_ID: Joi.number().default(1),
   KAFKA_PORT: Joi.number().default(9092),
   ZOOKEEPER_PORT: Joi.number().default(2181),
+  CLIENT_URL: Joi.string(),
 });
