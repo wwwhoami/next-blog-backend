@@ -7,7 +7,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "core:gen-metadata": "npx ts-node ./apps/core-app/src/generate-metadata.ts",
+    "core:gen-metadata": "yarn dlx ts-node ./apps/core-app/src/generate-metadata.ts",
     "prebuild": "rimraf dist",
     "build": "yarn build:core && yarn build:notification-app && yarn build:ws-notification",
     "build:core": "nest build core --webpack",
@@ -42,10 +42,10 @@
     "test:e2e:ws-notification": "yarn db:migrate && NODE_ENV=dev dotenv -e .env.dev jest -- --config ./apps/ws-notification/test/jest-e2e.json --forceExit",
     "test:e2e:ws-notification:watch": "yarn db:migrate && NODE_ENV=dev dotenv -e .env.dev jest -- --config ./apps/ws-notification/test/jest-e2e.json --watch",
     "test:e2e:ws-notification:cov": "yarn db:migrate && NODE_ENV=dev dotenv -e .env.dev jest -- --config ./apps/ws-notification/test/jest-e2e.json --coverage",
-    "db:push": "dotenv -e .env.dev --- npx prisma db push",
-    "db:migrate": "dotenv -e .env.dev --- npx prisma migrate dev",
-    "db:seed": "dotenv -e .env.dev --- npx prisma db seed",
-    "db:reset": "dotenv -e .env.dev --- npx prisma migrate reset"
+    "db:push": "dotenv -e .env.dev --- yarn prisma db push",
+    "db:migrate": "dotenv -e .env.dev --- yarn prisma migrate dev",
+    "db:seed": "dotenv -e .env.dev --- yarn prisma db seed",
+    "db:reset": "dotenv -e .env.dev --- yarn prisma migrate reset"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^2.1.1",
@@ -120,7 +120,7 @@
     "typescript": "^5.2.2"
   },
   "prisma": {
-    "seed": "ts-node prisma/seeders/seed.ts"
+    "seed": "yarn dlx ts-node prisma/seeders/seed.ts"
   },
   "jest": {
     "moduleFileExtensions": [
