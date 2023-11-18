@@ -284,7 +284,8 @@ describe('AuthService', () => {
     });
 
     it('should generate encrypted password if old and new passwords are provided', async () => {
-      const userToUpdate = { ...userData, newPassword: 'new password' };
+      const newPassword = 'new password';
+      const userToUpdate = { ...userData, newPassword };
       const refreshToken = 'refresh token';
       const refreshTokenExpiry = 60;
       const accessToken = 'access token';
@@ -299,7 +300,7 @@ describe('AuthService', () => {
       userService.get.mockResolvedValueOnce(userData);
 
       bcrypt.compare = jest.fn().mockResolvedValueOnce(true);
-      bcrypt.hash = jest.fn().mockResolvedValueOnce(userToUpdate.newPassword);
+      bcrypt.hash = jest.fn().mockResolvedValue(newPassword);
 
       userService.update.mockResolvedValueOnce(newUser);
 
@@ -320,9 +321,10 @@ describe('AuthService', () => {
         refreshToken,
         refreshTokenExpiry,
       });
-      expect(userService.update).toHaveBeenCalledWith(userToUpdate.id, {
-        ...userToUpdate,
-      });
+      expect(userService.update).toHaveBeenCalledWith(
+        userToUpdate.id,
+        userToUpdate,
+      );
     });
 
     it('should throw UnauthorizedError if user with provided id does not exist', () => {
