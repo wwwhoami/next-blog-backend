@@ -276,7 +276,7 @@ describe('PostRepository', () => {
 
       const post = repository.getOnePublishedBySlug('slug');
 
-      await expect(post).rejects.toThrowError(exception);
+      await expect(post).rejects.toThrow(exception);
     });
   });
 
@@ -518,7 +518,7 @@ describe('PostRepository', () => {
 
       const deletePostBySlug = repository.deleteById(id);
 
-      await expect(deletePostBySlug).rejects.toThrowError(exception);
+      await expect(deletePostBySlug).rejects.toThrow(exception);
     });
   });
 
@@ -545,7 +545,7 @@ describe('PostRepository', () => {
 
       const deletePostBySlug = repository.deleteBySlug(slug);
 
-      await expect(deletePostBySlug).rejects.toThrowError(exception);
+      await expect(deletePostBySlug).rejects.toThrow(exception);
     });
   });
 });

@@ -138,7 +138,7 @@ describe('AuthController', () => {
 
       authService.signUp.mockRejectedValue(exception);
 
-      await expect(controller.signUp(userToSignUp, res)).rejects.toThrowError(
+      await expect(controller.signUp(userToSignUp, res)).rejects.toThrow(
         expectedException,
       );
     });
@@ -163,7 +163,7 @@ describe('AuthController', () => {
 
       authService.signUp.mockRejectedValue(exception);
 
-      await expect(controller.signUp(userToSignUp, res)).rejects.toThrowError(
+      await expect(controller.signUp(userToSignUp, res)).rejects.toThrow(
         expectedException,
       );
     });
@@ -175,7 +175,7 @@ describe('AuthController', () => {
 
       authService.signUp.mockResolvedValue(undefined);
 
-      await expect(controller.signUp(userToSignUp, res)).rejects.toThrowError(
+      await expect(controller.signUp(userToSignUp, res)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
@@ -223,7 +223,7 @@ describe('AuthController', () => {
 
       authService.login.mockResolvedValue(undefined);
 
-      await expect(controller.login(user, res)).rejects.toThrowError(
+      await expect(controller.login(user, res)).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -234,7 +234,7 @@ describe('AuthController', () => {
 
       authService.login.mockResolvedValue(undefined);
 
-      await expect(controller.login(user, res)).rejects.toThrowError(
+      await expect(controller.login(user, res)).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -250,7 +250,7 @@ describe('AuthController', () => {
 
       authService.login.mockResolvedValue(undefined);
 
-      await expect(controller.login(user, res)).rejects.toThrowError(
+      await expect(controller.login(user, res)).rejects.toThrow(
         UnauthorizedException,
       );
     });
@@ -271,7 +271,7 @@ describe('AuthController', () => {
 
       authService.getProfile.mockResolvedValue(null);
 
-      await expect(controller.getProfile(id)).rejects.toThrowError(
+      await expect(controller.getProfile(id)).rejects.toThrow(
         NotFoundException,
       );
     });

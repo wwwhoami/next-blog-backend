@@ -110,7 +110,7 @@ describe('NotificationService', () => {
 
       notificationRepository.getTargetId.mockResolvedValue({ target });
 
-      await expect(service.markAsRead(userId, id)).rejects.toThrowError(
+      await expect(service.markAsRead(userId, id)).rejects.toThrow(
         RpcException,
       );
     });

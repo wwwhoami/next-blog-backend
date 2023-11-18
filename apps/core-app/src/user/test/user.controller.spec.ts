@@ -45,9 +45,7 @@ describe('UserController', () => {
 
       userService.get.mockResolvedValue(null);
 
-      await expect(controller.get(username)).rejects.toThrowError(
-        NotFoundException,
-      );
+      await expect(controller.get(username)).rejects.toThrow(NotFoundException);
     });
   });
 

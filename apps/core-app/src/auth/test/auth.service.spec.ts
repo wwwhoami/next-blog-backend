@@ -106,7 +106,7 @@ describe('AuthService', () => {
       cacheManager.get.mockResolvedValue(null);
       const result = service.refreshTokens(refreshToken);
 
-      expect(result).rejects.toThrowError(exception);
+      expect(result).rejects.toThrow(exception);
       expect(cacheManager.get).toBeCalledWith(key);
     });
 

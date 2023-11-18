@@ -71,7 +71,7 @@ describe('UserService', () => {
 
       repository.getByEmail.mockResolvedValue(null);
 
-      await expect(service.get({ email, name: username })).rejects.toThrowError(
+      await expect(service.get({ email, name: username })).rejects.toThrow(
         WrongParamsError,
       );
     });

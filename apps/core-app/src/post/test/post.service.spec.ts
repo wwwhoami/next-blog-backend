@@ -215,7 +215,7 @@ describe('PostService', () => {
 
       const getPublishedPostBySlug = service.getOnePublishedBySlug('slug');
 
-      await expect(getPublishedPostBySlug).rejects.toThrowError(exception);
+      await expect(getPublishedPostBySlug).rejects.toThrow(exception);
     });
   });
 
