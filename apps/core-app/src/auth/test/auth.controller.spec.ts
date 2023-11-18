@@ -1,13 +1,14 @@
+import { Role } from '@core/src/user/entities/role.enum';
 import {
   ConflictException,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
-import { mock, MockProxy } from 'jest-mock-extended';
-import { Role } from '@core/src/user/entities/role.enum';
+import { MockProxy, mock } from 'jest-mock-extended';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
 
@@ -25,8 +26,6 @@ const userData = {
   password: 'password',
   role: Role.User,
 };
-
-// const refreshTokenJwt: JwtPayload = {  };
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -253,6 +252,27 @@ describe('AuthController', () => {
 
       await expect(controller.login(user, res)).rejects.toThrowError(
         UnauthorizedException,
+      );
+    });
+  });
+
+  describe('getProfile', () => {
+    it("should get user's data by id from provided access token", () => {
+      const user = userData;
+      const id = userData.id;
+
+      authService.getProfile.mockResolvedValue(user);
+
+      expect(controller.getProfile(id)).resolves.toEqual(user);
+    });
+
+    it('should throw NotFoundException if no user found', async () => {
+      const id = 'nonexistent';
+
+      authService.getProfile.mockResolvedValue(null);
+
+      await expect(controller.getProfile(id)).rejects.toThrowError(
+        NotFoundException,
       );
     });
   });

@@ -239,6 +239,17 @@ describe('AuthService', () => {
     });
   });
 
+  describe('getProfile', () => {
+    it("should get user's data by id", () => {
+      const user = userData;
+      const id = userData.id;
+
+      userService.get.mockResolvedValue(user);
+
+      expect(service.getProfile(id)).resolves.toEqual(user);
+    });
+  });
+
   describe('updateProfile', () => {
     it('should update user profile and return { name, email, image, accessToken, refreshToken, refreshTokenExpiry }', async () => {
       const userToUpdate = { ...userData };

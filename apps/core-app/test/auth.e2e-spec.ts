@@ -206,6 +206,45 @@ describe('Auth (e2e)', () => {
     });
   });
 
+  describe('/auth/profile (GET)', () => {
+    let accessToken: string;
+    let agent: request.SuperAgentTest;
+
+    beforeAll(async () => {
+      const authCredentials: AuthCredentialsDto = {
+        name: user.name,
+        email: user.email,
+        password: 'password',
+      };
+      agent = request.agent(app.getHttpServer());
+
+      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
+        .body['accessToken'];
+    });
+
+    it("should get user's data by id from provided access token", () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password, ...expectedData } = user;
+
+      return request(app.getHttpServer())
+        .get(`/auth/profile`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toMatchObject(expectedData);
+        });
+    });
+
+    it('should get 401 if user is not logged in', () => {
+      return agent
+        .get(`/auth/profile`)
+        .expect(HttpStatus.UNAUTHORIZED)
+        .expect((response: request.Response) => {
+          expect(response.body[0]).toBeUndefined();
+        });
+    });
+  });
+
   describe('/auth/profile (PATCH)', () => {
     let accessToken: string;
     let agent: request.SuperAgentTest;

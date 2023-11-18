@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { compare, genSalt, hash } from 'bcrypt';
 import { Store } from 'cache-manager';
+import { UserNoPasswordEntity } from '../user/entities/user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
 import { SignedUpUser } from './types/signed-up-user.type';
 
@@ -113,6 +114,15 @@ export class AuthService {
       refreshToken,
       refreshTokenExpiry,
     };
+  }
+
+  /**
+   * @param {string} id - User's id
+   * @description
+   * Gets user's profile data.
+   */
+  async getProfile(id: string): Promise<UserNoPasswordEntity | null> {
+    return this.userService.get({ id }, { id: true });
   }
 
   /**

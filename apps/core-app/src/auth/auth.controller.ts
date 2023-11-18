@@ -3,6 +3,7 @@ import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
 import { RefreshTokenGuard } from '@core/src/common/guards/refresh-token.guard';
 import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
+import { UserNoPasswordEntity } from '@core/src/user/entities/user.entity';
 import {
   Body,
   ConflictException,
@@ -10,6 +11,7 @@ import {
   Get,
   HttpCode,
   InternalServerErrorException,
+  NotFoundException,
   Patch,
   Post,
   Res,
@@ -121,6 +123,17 @@ export class AuthController {
     });
 
     return { id, email, name, image, role, accessToken };
+  }
+
+  @ApiBearerAuth('accessToken')
+  @UseGuards(AccessTokenGuard)
+  @Get('profile')
+  async getProfile(@GetUser('id') id: string): Promise<UserNoPasswordEntity> {
+    const user = await this.authService.getProfile(id);
+
+    if (!user) throw new NotFoundException(`User with id ${id} not found`);
+
+    return user;
   }
 
   @ApiBearerAuth('accessToken')

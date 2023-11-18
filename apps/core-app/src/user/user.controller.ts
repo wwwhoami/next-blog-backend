@@ -1,3 +1,5 @@
+import { GetUser } from '@core/src/auth/decorators/get-user.decorator';
+import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
 import {
   Controller,
   Delete,
@@ -9,8 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { GetUser } from '@core/src/auth/decorators/get-user.decorator';
-import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
 import { UserFollower } from './entities/user-follower.entity';
 import { UserNoPasswordEntity } from './entities/user.entity';
 import { UserService } from './user.service';
