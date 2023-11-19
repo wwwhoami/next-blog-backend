@@ -1,0 +1,77 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+        
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        
+    - name: Install Dependencies
+      run: yarn install
+      
+    - name: Run Unit Tests
+      run: yarn test
+      
+    - name: Create and populate .env file
+      env:
+        ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
+        ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
+        REFRESH_JWT_SECRET: ${{ secrets.REFRESH_JWT_SECRET }}
+        REFRESH_JWT_EXPIRATION: ${{ secrets.REFRESH_JWT_EXPIRATION }}
+        POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+        POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+        POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+        POSTGRES_URL: ${{ format('postgres://${0}:${1}@${2}:${3}/${4}?schema=public', secrets.POSTGRES_USER, secrets.POSTGRES_PASSWORD, secrets.POSTGRES_HOST, secrets.POSTGRES_PORT, secrets.POSTGRES_DB)}}
+        REDIS_HOST: ${{ secrets.REDIS_HOST }}
+        REDIS_PORT: ${{ secrets.REDIS_PORT }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        KAFKA_BROKER_ID: ${{ secrets.KAFKA_BROKER_ID }}
+        KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
+        ZOOKEEPER_PORT: ${{ secrets.ZOOKEEPER_PORT }}
+      run: |
+        touch .env
+        echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env
+        echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env
+        echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env
+        echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env
+        echo POSTGRES_DB="$POSTGRES_DB" >> .env
+        echo POSTGRES_USER="$POSTGRES_USER" >> .env
+        echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env
+        echo POSTGRES_HOST="$POSTGRES_HOST" >> .env
+        echo POSTGRES_PORT=$POSTGRES_PORT >> .env
+        echo POSTGRES_URL=$POSTGRES_URL >> .env
+        echo REDIS_HOST="$REDIS_HOST" >> .env
+        echo REDIS_PORT=$REDIS_PORT >> .env
+        echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env
+        echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env
+        echo KAFKA_PORT=$KAFKA_PORT >> .env
+        echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env
+
+    - name: Build Docker Containers
+      run:  docker-compose --env-file .env -f "docker-compose.yml" up -d --build
+    - name: Run E2E Tests
+      run: yarn test:e2e
+    - name: Stop Containers
+      if: always()
+      run: docker-compose -f "docker-compose.yml" down
