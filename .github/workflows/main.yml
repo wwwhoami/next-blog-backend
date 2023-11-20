@@ -67,6 +67,7 @@ jobs:
         echo REDIS_PORT=$REDIS_PORT >> .env
         echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env
         echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env
+        echo KAFKA_HOST=$KAFKA_HOST >> .env
         echo KAFKA_PORT=$KAFKA_PORT >> .env
         echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env
         echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env
