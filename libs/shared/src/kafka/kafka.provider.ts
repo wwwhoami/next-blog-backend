@@ -29,6 +29,7 @@ export const kafkaProviderFactory = (
       },
       consumer: {
         groupId: 'notification-consumer',
+        allowAutoTopicCreation: true,
       },
     },
   };
