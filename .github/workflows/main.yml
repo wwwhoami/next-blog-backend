@@ -77,6 +77,12 @@ jobs:
         
     - name: Build Docker Containers
       run:  docker-compose --env-file .env -f "docker-compose-local.yml" up -d --build
+
+    - name: Wait / Sleep
+      uses: jakejarvis/wait-action@v0.1.1
+      with:
+        time: 10s
+          
       
     - name: Run E2E Tests
       run: yarn test:e2e
