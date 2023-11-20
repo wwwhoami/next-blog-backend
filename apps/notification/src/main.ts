@@ -1,3 +1,4 @@
+import { kafkaProviderFactory } from '@app/shared/kafka';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -10,7 +11,6 @@ async function bootstrap() {
   const app = await NestFactory.create(NotificationModule);
 
   const config = app.get<ConfigService>(ConfigService);
-  const kafkaPort = config.get<number>('KAFKA_PORT');
   const redisHost = config.get<string>('REDIS_HOST');
   const redisPort = config.get<number>('REDIS_PORT');
   const redisPassword = config.get<string>('REDIS_PASSWORD');
@@ -26,23 +26,9 @@ async function bootstrap() {
     }),
   );
 
-  app.connectMicroservice<MicroserviceOptions>(
-    {
-      transport: Transport.KAFKA,
-      options: {
-        client: {
-          clientId: 'notification',
-          brokers: [`localhost:${kafkaPort}`],
-        },
-        consumer: {
-          groupId: 'notification-consumer',
-        },
-      },
-    },
-    {
-      inheritAppConfig: true,
-    },
-  );
+  app.connectMicroservice<MicroserviceOptions>(kafkaProviderFactory(config), {
+    inheritAppConfig: true,
+  });
   app.connectMicroservice<MicroserviceOptions>(
     {
       transport: Transport.REDIS,

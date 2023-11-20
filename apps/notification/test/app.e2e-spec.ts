@@ -6,7 +6,10 @@ import {
 } from '@app/shared/entities';
 import { ForbiddenError } from '@app/shared/errors/forbidden.error';
 import { NOTIFICATION_SERVICE } from '@app/shared/kafka/kafka.constants';
-import { kafkaClientProvider } from '@app/shared/kafka/kafka.provider';
+import {
+  kafkaClientProvider,
+  kafkaProviderFactory,
+} from '@app/shared/kafka/kafka.provider';
 import { CommentLike } from '@core/src/comment/entities/comment.entity';
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,7 +17,6 @@ import {
   ClientKafka,
   ClientsModule,
   MicroserviceOptions,
-  Transport,
 } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { lastValueFrom } from 'rxjs';
@@ -59,22 +61,11 @@ describe('NotificationController (e2e)', () => {
 
     const configService = moduleFixture.get(ConfigService);
 
-    const kafkaPort = configService.get<number>('KAFKA_PORT');
-
     app = moduleFixture.createNestApplication();
 
-    app.connectMicroservice<MicroserviceOptions>({
-      transport: Transport.KAFKA,
-      options: {
-        client: {
-          clientId: 'notification',
-          brokers: [`localhost:${kafkaPort}`],
-        },
-        consumer: {
-          groupId: 'notification-consumer',
-        },
-      },
-    });
+    app.connectMicroservice<MicroserviceOptions>(
+      kafkaProviderFactory(configService),
+    );
 
     notificationService = moduleFixture.get(NotificationService);
     prismaService = moduleFixture.get(PrismaService);

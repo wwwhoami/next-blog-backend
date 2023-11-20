@@ -1,10 +1,11 @@
 import { NotificationMessage, PostPayload } from '@app/shared/entities';
+import { kafkaProviderFactory } from '@app/shared/kafka';
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { MicroserviceOptions } from '@nestjs/microservices';
 import { Test } from '@nestjs/testing';
 import { NotificationModule } from 'apps/notification/src/notification.module';
 import { NotificationService } from 'apps/notification/src/notification.service';
@@ -48,23 +49,10 @@ describe('Notification (e2e)', () => {
 
     const configService = moduleRef.get(ConfigService);
 
-    const kafkaPort = configService.get<number>('KAFKA_PORT');
-
     app = moduleRef.createNestApplication();
 
     app.connectMicroservice<MicroserviceOptions>(
-      {
-        transport: Transport.KAFKA,
-        options: {
-          client: {
-            clientId: 'notification',
-            brokers: [`localhost:${kafkaPort}`],
-          },
-          consumer: {
-            groupId: 'notification-consumer',
-          },
-        },
-      },
+      kafkaProviderFactory(configService),
       {
         inheritAppConfig: true,
       },
