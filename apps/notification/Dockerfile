@@ -7,8 +7,9 @@ WORKDIR /usr/src/app
 COPY --chown=node:node package.json ./
 RUN yarn set version berry
 COPY --chown=node:node yarn.lock .yarn .yarnrc.yml ./
-RUN yarn install
+RUN yarn install --immutable
 COPY --chown=node:node . .
+ENV NODE_ENV dev
 USER node
 
 ###################
@@ -21,7 +22,7 @@ COPY --chown=node:node package.json ./
 COPY --chown=node:node yarn.lock .yarn .yarnrc.yml ./
 COPY --chown=node:node --from=development /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node . .
-RUN yarn build:notification-app 
+RUN yarn build:notification-app
 ENV NODE_ENV prod
 RUN yarn install --immutable && yarn cache clean
 USER node

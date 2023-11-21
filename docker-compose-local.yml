@@ -1,6 +1,7 @@
 version: '3.9'
 services:
   postgres:
+    container_name: next-blog-postgres
     image: postgres:15.1
     restart: always
     environment:
@@ -11,9 +12,11 @@ services:
       - postgres:/var/lib/postgresql/data
     ports:
       - '${POSTGRES_PORT}:5432'
+    networks:
+      - default
 
   redis:
-    container_name: redis
+    container_name: next-blog-redis
     image: redis:7.0.6
     restart: always
     environment:
@@ -23,8 +26,11 @@ services:
     command: redis-server --save 20 1 --loglevel warning --requirepass $REDIS_PASSWORD
     volumes:
       - redis:/data
+    networks:
+      - default
 
   zookeeper:
+    container_name: next-blog-zookeeper
     image: 'bitnami/zookeeper:3.8.1'
     restart: always
     ports:
@@ -33,10 +39,12 @@ services:
       - ALLOW_ANONYMOUS_LOGIN=yes
     volumes:
       - zookeeper:/bitnami
+    networks:
+      - default
 
   kafka:
+    container_name: next-blog-kafka
     image: 'bitnami/kafka:3.4.0'
-    container_name: 'kafka'
     restart: always
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
@@ -52,6 +60,8 @@ services:
       - zookeeper
     volumes:
       - kafka:/bitnami/kafka
+    networks:
+      - default
 
 volumes:
   postgres:
@@ -61,3 +71,7 @@ volumes:
     driver: local
   zookeeper:
     driver: local
+
+networks:
+  default:
+    driver: bridge
