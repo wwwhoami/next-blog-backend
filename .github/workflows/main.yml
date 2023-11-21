@@ -129,7 +129,7 @@ jobs:
         echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env
         
     - name: Build Docker Containers
-      run:  docker-compose --env-file .env -f "docker-compose-ci.yml" up -d
+      run:  docker-compose --env-file .env -f "docker-compose-ci.yml" up -d --build
 
     - name: Run E2E Tests inside container
       run: docker exec -it next-blog-core-app yarn test:e2e
