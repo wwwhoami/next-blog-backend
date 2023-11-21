@@ -149,13 +149,13 @@ jobs:
       
     - name: Create Kafka topics
       run: |
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic get_notifications --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic mark_as_read --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic post_unlike --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic post_like --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic comment_unlike --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic comment_like --create --if-not-exists
-        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST_INTERNAL }}:${{ secrets.KAFKA_PORT_INTERNAL }} --topic comment_create --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic get_notifications --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic mark_as_read --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post_unlike --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post_like --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment_unlike --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment_like --create --if-not-exists
+        docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment_create --create --if-not-exists
         
     - name: Run E2E Tests
       run: yarn test:e2e
