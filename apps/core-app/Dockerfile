@@ -9,6 +9,7 @@ RUN yarn set version berry
 COPY --chown=node:node yarn.lock .yarn .yarnrc.yml ./
 RUN yarn install --immutable
 COPY --chown=node:node . .
+RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 ENV NODE_ENV dev
 USER node
 
@@ -25,6 +26,7 @@ COPY --chown=node:node . .
 RUN yarn build:core
 ENV NODE_ENV prod
 RUN yarn install --immutable && yarn cache clean
+RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 USER node
 
 ###################
@@ -35,6 +37,7 @@ FROM node:20-alpine AS production
 
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
+RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 
 EXPOSE 3000
 
