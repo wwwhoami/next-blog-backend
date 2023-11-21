@@ -81,6 +81,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Docker Compose Setup
+      uses: ndeloof/install-compose-action@v0.0.1        
+    
     - name: Create and populate .env file
       env:
         ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
