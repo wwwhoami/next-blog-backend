@@ -79,7 +79,7 @@ services:
       - postgres
       - redis
     env_file:
-      - .env.docker-compose
+      - .env
     networks:
       - default
 
