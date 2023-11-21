@@ -1,0 +1,24 @@
+version: '3.9'
+
+include:
+  - docker-compose-local.yml
+
+services:
+  core-app:
+    container_name: next-blog-core-app
+    build:
+      context: .
+      dockerfile: ./apps/core-app/Dockerfile
+      target: build
+    image: next-blog-core-app:build
+    tty: true
+    ports:
+      - 3000:3000
+    depends_on:
+      - kafka
+      - postgres
+      - redis
+    env_file:
+      - .env.docker-compose
+    networks:
+      - default
