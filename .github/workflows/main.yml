@@ -79,10 +79,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Docker Compose Setup
-      uses: ndeloof/install-compose-action@v0.0.1        
+    - uses: actions/checkout@v3   
     
     - name: Create and populate .env file
       env:
