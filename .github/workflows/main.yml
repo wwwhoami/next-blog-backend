@@ -141,7 +141,7 @@ jobs:
         echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env
         
     - name: Build Docker Containers
-      run:  docker-compose --env-file .env.docker-compose -f "docker-compose-local.yml" up -d --build
+      run:  docker-compose --env-file .env -f "docker-compose-local.yml" up -d --build
       
     - name: Sleep for 1 minute
       run: sleep 60s
@@ -152,4 +152,4 @@ jobs:
       
     - name: Stop Containers
       if: always()
-      run: docker-compose -f "docker-compose-ci.yml" down
+      run: docker-compose -f "docker-compose-local.yml" down
