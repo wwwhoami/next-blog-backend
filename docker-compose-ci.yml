@@ -69,8 +69,8 @@ services:
     build:
       context: .
       dockerfile: ./apps/core-app/Dockerfile
-      target: build
-    image: next-blog-core-app:build
+      target: development
+    image: next-blog-core-app:dev
     tty: true
     ports:
       - 3000:3000
