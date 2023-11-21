@@ -44,10 +44,10 @@ jobs:
         KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
         KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
         ZOOKEEPER_PORT: ${{ secrets.ZOOKEEPER_PORT }}
-        KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST_INTERNAL }}
-        KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT_INTERNAL }}
-        KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST }}
-        KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT }}
+        KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST }}
+        KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT }}
+        KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST_EXTERNAL }}
+        KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT_EXTERNAL }}
       run: |
         touch .env
         echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env
