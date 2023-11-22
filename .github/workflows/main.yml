@@ -111,11 +111,11 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install Dependencies
-        run: yarn install
-
       - name: Start Bitnami Kafka
         uses: bbcCorp/kafka-actions@v1
+        
+      - name: Install Dependencies
+        run: yarn install
 
       - name: List Docker containers
         run: docker ps
@@ -130,10 +130,10 @@ jobs:
           POSTGRES_DB: postgres
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_HOST: postgres
+          POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          REDIS_HOST: redis
+          REDIS_HOST: localhost
           REDIS_PORT: 6379
           KAFKA_HOST: localhost
           KAFKA_PORT: 9092
