@@ -142,7 +142,7 @@ jobs:
         echo POSTGRES_URL=$POSTGRES_URL >> .env
         
     - name: Build Docker Containers
-      run: docker-compose --env-file .env -f "docker-compose-local.yml" up -d --build
+      run: docker-compose --env-file .env.dev -f "docker-compose-local.yml" up -d --build
       
     - name: Sleep for 60 seconds
       run: sleep 60s
