@@ -128,11 +128,11 @@ jobs:
           echo KAFKA_HOST=$KAFKA_HOST >> .env
           echo KAFKA_PORT=$KAFKA_PORT >> .env
 
-      - name: Start Bitnami Kafka
-        uses: bbcCorp/kafka-actions@v1
-
       - name: Build Docker Containers
         run: docker-compose --env-file .env -f "docker-compose-ci.yml" up -d --build
+        
+      - name: Start Bitnami Kafka
+        uses: bbcCorp/kafka-actions@v1
 
       - name: List Docker containers
         run: docker ps
