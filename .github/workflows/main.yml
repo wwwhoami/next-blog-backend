@@ -78,8 +78,20 @@ jobs:
   test-e2e:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        node-version: [20.x]
+
     steps:
       - uses: actions/checkout@v3
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Dependencies
+        run: yarn install
 
       - name: Create and populate .env file
         env:
@@ -96,14 +108,8 @@ jobs:
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PORT: ${{ secrets.REDIS_PORT }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          KAFKA_BROKER_ID: ${{ secrets.KAFKA_BROKER_ID }}
-          KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
-          KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
-          ZOOKEEPER_PORT: ${{ secrets.ZOOKEEPER_PORT }}
-          KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST_INTERNAL }}
-          KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT_INTERNAL }}
-          KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST }}
-          KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT }}
+          KAFKA_HOST: localhost
+          KAFKA_PORT: 9092
         run: |
           touch .env.docker-compose
           echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
@@ -119,32 +125,20 @@ jobs:
           echo REDIS_HOST="$REDIS_HOST" >> .env.docker-compose
           echo REDIS_PORT=$REDIS_PORT >> .env.docker-compose
           echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env.docker-compose
-          echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env.docker-compose
           echo KAFKA_HOST=$KAFKA_HOST >> .env.docker-compose
           echo KAFKA_PORT=$KAFKA_PORT >> .env.docker-compose
-          echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env.docker-compose
-          echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env.docker-compose
-          echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env.docker-compose
-          echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env.docker-compose
-          echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.docker-compose
+
+      - name: Start Bitnami Kafka
+        uses: bbcCorp/kafka-actions@v1
 
       - name: Build Docker Containers
         run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
 
-      - name: Dump Docker logs
-        uses: jwalton/gh-docker-logs@v2
-        with:
-          images: "redis,kafka,postgres"
-          tail: "100"
-
       - name: List Docker containers
         run: sleep 10; docker ps
 
-      - name: Healthcheck Kafka container
-        run: docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL}
-
-      - name: Run E2E Tests inside container
-        run: docker exec -t next-blog-core-app yarn test:e2e
+      - name: Run E2E Tests
+        run: yarn test:e2e
 
       - name: Stop Containers
         if: always()
