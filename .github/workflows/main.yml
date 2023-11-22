@@ -131,6 +131,12 @@ jobs:
       - name: Build Docker Containers
         run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
 
+      - name: Dump Docker logs
+        uses: jwalton/gh-docker-logs@v2
+        with:
+          images: "redis,kafka,postgres"
+          tail: "100"
+
       - name: Sleep for 1 minute
         run: sleep 60s
         shell: bash
