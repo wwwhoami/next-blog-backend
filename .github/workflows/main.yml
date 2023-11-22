@@ -75,7 +75,7 @@ jobs:
     - name: Run Unit Tests
       run: yarn test
 
-  test-e2e:
+  test-e2e-notification-app:
     runs-on: ubuntu-latest
 
     strategy:
@@ -93,7 +93,7 @@ jobs:
     - name: Install Dependencies
       run: yarn install 
     
-    - name: Create and populate .env file
+- name: Create and populate .env file
       env:
         ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
         ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
@@ -112,37 +112,36 @@ jobs:
         KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
         KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
         ZOOKEEPER_PORT: ${{ secrets.ZOOKEEPER_PORT }}
-        KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST_INTERNAL }}
+        KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_PORT_INTERNAL }}
         KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT_INTERNAL }}
         KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST }}
         KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT }}
       run: |
-        touch .env.dev
-        echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.dev
-        echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env.dev
-        echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env.dev
-        echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env.dev
-        echo POSTGRES_DB="$POSTGRES_DB" >> .env.dev
-        echo POSTGRES_USER="$POSTGRES_USER" >> .env.dev
-        echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env.dev
-        echo POSTGRES_HOST="$POSTGRES_HOST" >> .env.dev
-        echo POSTGRES_PORT=$POSTGRES_PORT >> .env.dev
-        echo REDIS_HOST="$REDIS_HOST" >> .env.dev
-        echo REDIS_PORT=$REDIS_PORT >> .env.dev
-        echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env.dev
-        echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env.dev
-        echo KAFKA_HOST=$KAFKA_HOST >> .env.dev
-        echo KAFKA_PORT=$KAFKA_PORT >> .env.dev
-        echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env.dev
-        echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env.dev
-        echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env.dev
-        echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env.dev
-        echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.dev
         touch .env
+        echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env
+        echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env
+        echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env
+        echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env
+        echo POSTGRES_DB="$POSTGRES_DB" >> .env
+        echo POSTGRES_USER="$POSTGRES_USER" >> .env
+        echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env
+        echo POSTGRES_HOST="$POSTGRES_HOST" >> .env
+        echo POSTGRES_PORT=$POSTGRES_PORT >> .env
         echo POSTGRES_URL=$POSTGRES_URL >> .env
-        
+        echo REDIS_HOST="$REDIS_HOST" >> .env
+        echo REDIS_PORT=$REDIS_PORT >> .env
+        echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env
+        echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env
+        echo KAFKA_HOST=$KAFKA_HOST >> .env
+        echo KAFKA_PORT=$KAFKA_PORT >> .env
+        echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env
+        echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env
+        echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env
+        echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env
+        echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env
+      
     - name: Build Docker Containers
-      run: docker-compose --env-file .env.dev -f "docker-compose-local.yml" up -d --build
+      run: docker-compose --env-file .env -f "docker-compose-local.yml" up -d --build
       
     - name: Sleep for 60 seconds
       run: sleep 60s
@@ -162,8 +161,8 @@ jobs:
       run: sleep 60s
       shell: bash
         
-    - name: Run E2E Tests
-      run: yarn test:e2e
+    - name: Run E2E Tests on notification-app
+      run: yarn test:e2e:notification-app
       
     - name: Stop Containers
       if: always()
