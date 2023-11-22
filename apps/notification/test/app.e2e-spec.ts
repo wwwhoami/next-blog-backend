@@ -75,8 +75,8 @@ describe('NotificationController (e2e)', () => {
 
     client = app.get(NOTIFICATION_SERVICE);
 
-    client.subscribeToResponseOf('get_notifications');
-    client.subscribeToResponseOf('mark_as_read');
+    client.subscribeToResponseOf('notification.get-many');
+    client.subscribeToResponseOf('notification.mark-as-read');
 
     await client.connect();
   });
@@ -87,7 +87,7 @@ describe('NotificationController (e2e)', () => {
     await app.close();
   });
 
-  describe('@comment_create', () => {
+  describe('comment.create', () => {
     afterEach(async () => {
       await prismaService.notification.deleteMany();
     });
@@ -103,7 +103,7 @@ describe('NotificationController (e2e)', () => {
         },
       };
 
-      client.emit('comment_create', notification);
+      client.emit('comment.create', notification);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -123,7 +123,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@comment_like', () => {
+  describe('comment.like', () => {
     afterEach(async () => {
       await prismaService.notification.deleteMany();
     });
@@ -140,7 +140,7 @@ describe('NotificationController (e2e)', () => {
         },
       };
 
-      client.emit('comment_like', notification);
+      client.emit('comment.like', notification);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -160,7 +160,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@comment_unlike', () => {
+  describe('comment.unlike', () => {
     afterEach(async () => {
       await prismaService.notification.deleteMany();
     });
@@ -177,7 +177,7 @@ describe('NotificationController (e2e)', () => {
         },
       };
 
-      client.emit('comment_unlike', notification);
+      client.emit('comment.unlike', notification);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -197,7 +197,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@post_like', () => {
+  describe('post.like', () => {
     afterEach(async () => {
       await prismaService.notification.deleteMany();
     });
@@ -212,7 +212,7 @@ describe('NotificationController (e2e)', () => {
         },
       };
 
-      client.emit('post_like', notification);
+      client.emit('post.like', notification);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -232,7 +232,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@post_unlike', () => {
+  describe('post.unlike', () => {
     afterEach(async () => {
       await prismaService.notification.deleteMany();
     });
@@ -247,7 +247,7 @@ describe('NotificationController (e2e)', () => {
         },
       };
 
-      client.emit('post_unlike', notification);
+      client.emit('post.unlike', notification);
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -267,7 +267,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@get_notifications', () => {
+  describe('notification.get-many', () => {
     beforeEach(async () => {
       await notificationService.postNotification(notifications[0], 'POST_LIKE');
       await notificationService.postNotification(
@@ -283,7 +283,7 @@ describe('NotificationController (e2e)', () => {
 
     it('should get notifications for userId provided', async () => {
       const response = await lastValueFrom(
-        client.send('get_notifications', {
+        client.send('notification.get-many', {
           userId,
         }),
       );
@@ -306,7 +306,7 @@ describe('NotificationController (e2e)', () => {
 
     it('should get notifications considering query params', async () => {
       const response = await lastValueFrom(
-        client.send('get_notifications', {
+        client.send('notification.get-many', {
           userId,
           options: {
             take: 1,
@@ -334,7 +334,7 @@ describe('NotificationController (e2e)', () => {
     });
   });
 
-  describe('@mark_as_read', () => {
+  describe('notification.mark-as-read', () => {
     beforeEach(async () => {
       await prismaService.notification.deleteMany();
       await resetNotificationAutoIncrement(prismaService);
@@ -348,7 +348,7 @@ describe('NotificationController (e2e)', () => {
 
     it("should mark user's notification as read", async () => {
       const response = await lastValueFrom(
-        client.send('mark_as_read', {
+        client.send('notification.mark-as-read', {
           id: 1,
           userId,
         }),
@@ -370,7 +370,7 @@ describe('NotificationController (e2e)', () => {
 
     it('should throw error if notification is not found', async () => {
       const response = lastValueFrom(
-        client.send('mark_as_read', {
+        client.send('notification.mark-as-read', {
           id: 3,
           userId,
         }),
@@ -386,7 +386,7 @@ describe('NotificationController (e2e)', () => {
       const error = new ForbiddenError();
 
       const response = lastValueFrom(
-        client.send('mark_as_read', {
+        client.send('notification.mark-as-read', {
           id: 1,
           userId: 'ab182222-5603-4b01-909b-a68fbb3a2156',
         }),

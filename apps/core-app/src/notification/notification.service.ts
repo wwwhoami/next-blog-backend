@@ -18,7 +18,10 @@ export class NotificationService implements OnModuleInit {
   logger = new Logger('Notification');
 
   async onModuleInit() {
-    const requestPatterns = ['get_notifications', 'mark_as_read'];
+    const requestPatterns = [
+      'notification.get-many',
+      'notification.mark-as-read',
+    ];
 
     for (const pattern of requestPatterns) {
       this.client.subscribeToResponseOf(pattern);
@@ -40,7 +43,7 @@ export class NotificationService implements OnModuleInit {
   ): Promise<NotificationMessage<CommentPayload | PostPayload>[]> {
     const d = this.client
       .send<NotificationMessage<CommentPayload | PostPayload>[]>(
-        'get_notifications',
+        'notification.get-many',
         { userId, options },
       )
       .pipe(
@@ -58,10 +61,13 @@ export class NotificationService implements OnModuleInit {
     userId: string,
   ): Promise<NotificationMessage<CommentPayload | PostPayload>> {
     const d = this.client
-      .send<NotificationMessage<CommentPayload | PostPayload>>('mark_as_read', {
-        id,
-        userId,
-      })
+      .send<NotificationMessage<CommentPayload | PostPayload>>(
+        'notification.mark-as-read',
+        {
+          id,
+          userId,
+        },
+      )
       .pipe(
         catchError((err) => {
           if (typeof err.error === 'object') return throwError(() => err.error);

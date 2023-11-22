@@ -14,9 +14,12 @@ services:
     ports:
       - 3000:3000
     depends_on:
-      - kafka
-      - postgres
-      - redis
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
       - .env.docker-compose
     networks:
@@ -30,9 +33,12 @@ services:
       target: production
     image: next-blog-notification:prod
     depends_on:
-      - kafka
-      - postgres
-      - redis
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
     env_file:
       - .env.docker-compose
     networks:
@@ -48,8 +54,10 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     env_file:
       - .env.docker-compose
     networks:

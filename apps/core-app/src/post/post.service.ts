@@ -65,7 +65,7 @@ export class PostService implements EntityWithAuthorService {
 
     const { authorId } = await this.postRepository.getAuthorById(id);
 
-    this.notificationService.emit('post_like', {
+    this.notificationService.emit('post.like', {
       actor: userId,
       target: authorId,
       data: liked,
@@ -79,7 +79,7 @@ export class PostService implements EntityWithAuthorService {
 
     const { authorId } = await this.postRepository.getAuthorById(id);
 
-    this.notificationService.emit('post_unlike', {
+    this.notificationService.emit('post.unlike', {
       actor: userId,
       target: authorId,
       data: unliked,

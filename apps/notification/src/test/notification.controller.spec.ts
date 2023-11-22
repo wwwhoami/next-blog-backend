@@ -50,7 +50,7 @@ describe('NotificationController', () => {
     );
   });
 
-  describe('comment_create', () => {
+  describe('comment.create', () => {
     it('should call commentNotification with message provided', () => {
       const message: NotificationMessage<CommentEntity> = commentMessage;
 
@@ -63,7 +63,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('comment_like', () => {
+  describe('comment.create', () => {
     it('should call commentNotification with message provided', () => {
       const message: NotificationMessage<CommentEntity> = commentMessage;
 
@@ -76,7 +76,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('comment_unlike', () => {
+  describe('comment.unlike', () => {
     it('should call commentNotification with message provided', () => {
       const message: NotificationMessage<CommentEntity> = commentMessage;
 
@@ -89,7 +89,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('post_like', () => {
+  describe('post.like', () => {
     it('should call postNotification with message provided', () => {
       const message: NotificationMessage<PostLike> = postLikeMessage;
 
@@ -102,7 +102,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('post_unlike', () => {
+  describe('post.unlike', () => {
     it('should call postNotification with message provided', () => {
       const message: NotificationMessage<PostLike> = postLikeMessage;
 
@@ -115,7 +115,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('mark_as_read', () => {
+  describe('notification.mark-as-read', () => {
     it('should call markAsRead with message provided', () => {
       const message = { userId: 'userId', id: 1 };
 
@@ -128,7 +128,7 @@ describe('NotificationController', () => {
     });
   });
 
-  describe('get_notifications', () => {
+  describe('notification.get-many', () => {
     it('should call getNotifications with message provided', () => {
       const userId = 'userId';
       const options: GetNotificationDto = {};
