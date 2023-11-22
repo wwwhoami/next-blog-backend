@@ -135,7 +135,7 @@ jobs:
         run: docker-compose --env-file .env -f "docker-compose-ci.yml" up -d --build
 
       - name: List Docker containers
-        run: sleep 10; docker ps
+        run: docker ps
 
       - name: Run E2E Tests
         run: yarn test:e2e
