@@ -105,31 +105,31 @@ jobs:
           KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST }}
           KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT }}
         run: |
-          touch .env
-          echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env
-          echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env
-          echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env
-          echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env
-          echo POSTGRES_DB="$POSTGRES_DB" >> .env
-          echo POSTGRES_USER="$POSTGRES_USER" >> .env
-          echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env
-          echo POSTGRES_HOST="$POSTGRES_HOST" >> .env
-          echo POSTGRES_PORT=$POSTGRES_PORT >> .env
-          echo POSTGRES_URL=$POSTGRES_URL >> .env
-          echo REDIS_HOST="$REDIS_HOST" >> .env
-          echo REDIS_PORT=$REDIS_PORT >> .env
-          echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env
-          echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env
-          echo KAFKA_HOST=$KAFKA_HOST >> .env
-          echo KAFKA_PORT=$KAFKA_PORT >> .env
-          echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env
-          echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env
-          echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env
-          echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env
-          echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env
+          touch .env.docker-compose
+          echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
+          echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env.docker-compose
+          echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env.docker-compose
+          echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env.docker-compose
+          echo POSTGRES_DB="$POSTGRES_DB" >> .env.docker-compose
+          echo POSTGRES_USER="$POSTGRES_USER" >> .env.docker-compose
+          echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env.docker-compose
+          echo POSTGRES_HOST="$POSTGRES_HOST" >> .env.docker-compose
+          echo POSTGRES_PORT=$POSTGRES_PORT >> .env.docker-compose
+          echo POSTGRES_URL=$POSTGRES_URL >> .env.docker-compose
+          echo REDIS_HOST="$REDIS_HOST" >> .env.docker-compose
+          echo REDIS_PORT=$REDIS_PORT >> .env.docker-compose
+          echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env.docker-compose
+          echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env.docker-compose
+          echo KAFKA_HOST=$KAFKA_HOST >> .env.docker-compose
+          echo KAFKA_PORT=$KAFKA_PORT >> .env.docker-compose
+          echo ZOOKEEPER_PORT=$ZOOKEEPER_PORT >> .env.docker-compose
+          echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env.docker-compose
+          echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env.docker-compose
+          echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env.docker-compose
+          echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.docker-compose
 
       - name: Build Docker Containers
-        run: docker-compose --env-file .env -f "docker-compose-ci.yml" up -d --build
+        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
 
       - name: Run E2E Tests inside container
         run: docker exec -t next-blog-core-app yarn test:e2e
