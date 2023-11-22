@@ -36,10 +36,10 @@ services:
     restart: always
     healthcheck:
       test: /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL} || exit 1
-      interval: 5s
-      timeout: 60s
-      retries: 6000
-      start_period: 30s
+      start_period: 120s
+      interval: 10s
+      timeout: 5s
+      retries: 10
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
     environment:
