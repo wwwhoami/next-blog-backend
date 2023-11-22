@@ -111,28 +111,28 @@ jobs:
           KAFKA_HOST: localhost
           KAFKA_PORT: 9092
         run: |
-          touch .env.docker-compose
-          echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
-          echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env.docker-compose
-          echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env.docker-compose
-          echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env.docker-compose
-          echo POSTGRES_DB="$POSTGRES_DB" >> .env.docker-compose
-          echo POSTGRES_USER="$POSTGRES_USER" >> .env.docker-compose
-          echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env.docker-compose
-          echo POSTGRES_HOST="$POSTGRES_HOST" >> .env.docker-compose
-          echo POSTGRES_PORT=$POSTGRES_PORT >> .env.docker-compose
-          echo POSTGRES_URL=$POSTGRES_URL >> .env.docker-compose
-          echo REDIS_HOST="$REDIS_HOST" >> .env.docker-compose
-          echo REDIS_PORT=$REDIS_PORT >> .env.docker-compose
-          echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env.docker-compose
-          echo KAFKA_HOST=$KAFKA_HOST >> .env.docker-compose
-          echo KAFKA_PORT=$KAFKA_PORT >> .env.docker-compose
+          touch .env
+          echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env
+          echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env
+          echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env
+          echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env
+          echo POSTGRES_DB="$POSTGRES_DB" >> .env
+          echo POSTGRES_USER="$POSTGRES_USER" >> .env
+          echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env
+          echo POSTGRES_HOST="$POSTGRES_HOST" >> .env
+          echo POSTGRES_PORT=$POSTGRES_PORT >> .env
+          echo POSTGRES_URL=$POSTGRES_URL >> .env
+          echo REDIS_HOST="$REDIS_HOST" >> .env
+          echo REDIS_PORT=$REDIS_PORT >> .env
+          echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env
+          echo KAFKA_HOST=$KAFKA_HOST >> .env
+          echo KAFKA_PORT=$KAFKA_PORT >> .env
 
       - name: Start Bitnami Kafka
         uses: bbcCorp/kafka-actions@v1
 
       - name: Build Docker Containers
-        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
+        run: docker-compose --env-file .env -f "docker-compose-ci.yml" up -d --build
 
       - name: List Docker containers
         run: sleep 10; docker ps
@@ -142,4 +142,4 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" down
+        run: docker-compose --env-file .env -f "docker-compose-ci.yml" down
