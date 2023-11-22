@@ -21,33 +21,33 @@ import { NotificationService } from './notification.service';
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
-  @EventPattern('comment_create', Transport.KAFKA)
+  @EventPattern('comment.create', Transport.KAFKA)
   commentCreate(@Payload() message: NotificationMessage<CommentPayload>) {
     this.notificationService.commentNotification(message, 'COMMENT_CREATE');
   }
 
-  @EventPattern('comment_like', Transport.KAFKA)
+  @EventPattern('comment.like', Transport.KAFKA)
   commentLike(@Payload() message: NotificationMessage<CommentLike>) {
     this.notificationService.commentNotification(message, 'COMMENT_LIKE');
   }
 
-  @EventPattern('comment_unlike', Transport.KAFKA)
+  @EventPattern('comment.unlike', Transport.KAFKA)
   commentUnlike(@Payload() message: NotificationMessage<CommentLike>) {
     this.notificationService.commentNotification(message, 'COMMENT_UNLIKE');
   }
 
-  @EventPattern('post_like', Transport.KAFKA)
+  @EventPattern('post.like', Transport.KAFKA)
   postLike(@Payload() message: NotificationMessage<PostLike>) {
     this.notificationService.postNotification(message, 'POST_LIKE');
   }
 
-  @EventPattern('post_unlike', Transport.KAFKA)
+  @EventPattern('post.unlike', Transport.KAFKA)
   postUnlike(@Payload() message: NotificationMessage<PostLike>) {
     this.notificationService.postNotification(message, 'POST_UNLIKE');
   }
 
   @UseFilters(new PrismaExceptionFilter())
-  @MessagePattern('mark_as_read', Transport.KAFKA)
+  @MessagePattern('notification.mark-as-read', Transport.KAFKA)
   markAsRead(
     @Payload() message: { userId: string; id: number },
   ): Promise<Notification<unknown>> {
@@ -55,7 +55,7 @@ export class NotificationController {
   }
 
   @UseFilters(new RpcValidationFilter())
-  @MessagePattern('get_notifications', Transport.KAFKA)
+  @MessagePattern('notification.get-many', Transport.KAFKA)
   getNotifications(
     @Payload('userId', ParseUUIDPipe) userId: string,
     @Payload('options') options: GetNotificationDto,

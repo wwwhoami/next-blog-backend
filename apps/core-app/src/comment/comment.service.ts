@@ -61,7 +61,7 @@ export class CommentService implements EntityWithAuthorService {
     }
 
     if (target !== null) {
-      this.notificationService.emit('comment_create', {
+      this.notificationService.emit('comment.create', {
         actor: authorId,
         target,
         data: commentCreated,
@@ -165,7 +165,7 @@ export class CommentService implements EntityWithAuthorService {
     const { authorId } = await this.commentRepository.getAuthorId(id);
 
     if (authorId !== null) {
-      this.notificationService.emit('comment_like', {
+      this.notificationService.emit('comment.create', {
         actor: userId,
         target: authorId,
         data: liked,
@@ -187,7 +187,7 @@ export class CommentService implements EntityWithAuthorService {
     const { authorId } = await this.commentRepository.getAuthorId(id);
 
     if (authorId !== null) {
-      this.notificationService.emit('comment_unlike', {
+      this.notificationService.emit('comment.unlike', {
         actor: userId,
         target: authorId,
         data: unliked,
