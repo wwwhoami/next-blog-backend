@@ -13,7 +13,7 @@ export const configValidationSchema = Joi.object({
   POSTGRES_DB: Joi.string().required(),
   REDIS_HOST: Joi.string().required(),
   REDIS_PORT: Joi.number().default(6379),
-  REDIS_PASSWORD: Joi.string().required(),
+  REDIS_PASSWORD: Joi.string(),
   APP_CORE_PORT: Joi.number().default(3000),
   APP_WS_NOTIFICATION_PORT: Joi.number().default(3001),
   KAFKA_BROKER_ID: Joi.number().default(1),
