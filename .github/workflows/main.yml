@@ -143,8 +143,8 @@ jobs:
     - name: Build Docker Containers
       run: docker-compose --env-file .env -f "docker-compose-local.yml" up -d --build
       
-    - name: Sleep for 20 seconds
-      run: sleep 20s
+    - name: Sleep for 60 seconds
+      run: sleep 60s
       shell: bash
       
     - name: Create Kafka topics
@@ -157,8 +157,8 @@ jobs:
         docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment_like --create --if-not-exists
         docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment_create --create --if-not-exists
 
-    - name: Sleep for 20 seconds
-      run: sleep 20s
+    - name: Sleep for 60 seconds
+      run: sleep 60s
       shell: bash
         
     - name: Run E2E Tests
