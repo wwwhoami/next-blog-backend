@@ -93,7 +93,7 @@ jobs:
     - name: Install Dependencies
       run: yarn install 
     
-- name: Create and populate .env file
+    - name: Create and populate .env file
       env:
         ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
         ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
