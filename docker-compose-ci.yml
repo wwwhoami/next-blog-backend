@@ -39,7 +39,7 @@ services:
       start_period: 120s
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 10000
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
     environment:

@@ -136,4 +136,4 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker-compose -f "docker-compose-ci.yml" down
+        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" down
