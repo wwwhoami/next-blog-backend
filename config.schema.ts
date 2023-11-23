@@ -16,7 +16,7 @@ export const configValidationSchema = Joi.object({
   REDIS_PASSWORD: Joi.string(),
   APP_CORE_PORT: Joi.number().default(3000),
   APP_WS_NOTIFICATION_PORT: Joi.number().default(3001),
-  KAFKA_BROKER_ID: Joi.number().default(1),
+  KAFKA_NODE_ID: Joi.number().default(1),
   KAFKA_HOST: Joi.string().required(),
   KAFKA_PORT: Joi.number().default(9092),
   ZOOKEEPER_PORT: Joi.number().default(2181),
