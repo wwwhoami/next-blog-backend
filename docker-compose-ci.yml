@@ -42,22 +42,23 @@ services:
 
   kafka:
     container_name: next-blog-kafka
-    image: 'bitnami/kafka:3.4.0'
+    image: bitnami/kafka:3.4
     restart: always
     healthcheck:
       test: /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL} || exit 1
+      start_period: 10s
       interval: 5s
       timeout: 10s
       retries: 15
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
     environment:
-      - KAFKA_BROKER_ID=${KAFKA_BROKER_ID}
+      - KAFKA_NODE_ID=${KAFKA_NODE_ID}
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:${KAFKA_PORT_INTERNAL},CONTROLLER://:9093,EXTERNAL://:${KAFKA_PORT_EXTERNAL}
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL},EXTERNAL://${KAFKA_HOST_EXTERNAL}:${KAFKA_PORT_EXTERNAL}
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=${KAFKA_BROKER_ID}@kafka:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=${KAFKA_NODE_ID}@kafka:9093
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
@@ -90,9 +91,9 @@ services:
 
 volumes:
   postgres:
-  redis:
-    driver: local
   kafka:
+    driver: local
+  redis:
     driver: local
 
 networks:
