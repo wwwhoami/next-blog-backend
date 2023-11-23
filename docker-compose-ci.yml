@@ -87,9 +87,11 @@ services:
       - .env.docker-compose
     networks:
       - default
-      
+
 volumes:
   postgres:
+  kafka:
+    driver: local
   redis:
     driver: local
 
