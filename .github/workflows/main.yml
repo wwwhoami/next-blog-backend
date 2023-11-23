@@ -97,8 +97,17 @@ jobs:
           docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists
           docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists
 
-      - name: Run E2E Tests inside container
-        run: docker exec -t next-blog-core-app yarn test:e2e
+      - name: Run E2E Tests for Core App Gateway API
+        run: docker exec -t next-blog-core-app yarn test:e2e:core
+
+      - name: Run E2E Tests for Notification Gateway API
+        run: docker exec -t next-blog-core-app yarn test:e2e:notification-gateway
+
+      - name: Run E2E Tests for Notification App
+        run: docker exec -t next-blog-core-app yarn test:e2e:notification-app
+
+      - name: Run E2E Tests for WS-Notification App
+        run: docker exec -t next-blog-core-app yarn test:e2e:ws-notification
 
       - name: Stop Containers
         if: always()
