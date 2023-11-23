@@ -2,9 +2,9 @@ name: Node.js CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
   pull_request:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   test-unit:
@@ -31,62 +31,75 @@ jobs:
   test-e2e:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20.x]
-
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v3
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Start Bitnami Kafka
-        uses: bbcCorp/kafka-actions@v1
-        
-      - name: Install Dependencies
-        run: yarn install
-
-      - name: List Docker containers
-        run: docker ps
-
-      - name: Run E2E Tests
-        run: yarn test:e2e
+      - name: Create and populate .env file
         env:
           ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
           ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
           REFRESH_JWT_SECRET: ${{ secrets.REFRESH_JWT_SECRET }}
           REFRESH_JWT_EXPIRATION: ${{ secrets.REFRESH_JWT_EXPIRATION }}
-          POSTGRES_DB: postgres
-          POSTGRES_USER: postgres
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          KAFKA_HOST: localhost
-          KAFKA_PORT: 9092
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          KAFKA_BROKER_ID: ${{ secrets.KAFKA_BROKER_ID }}
+          KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
+          KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
+          KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST }}
+          KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT }}
+          KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST_EXTERNAL }}
+          KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT_EXTERNAL }}
+        run: |
+          touch .env.docker-compose
+          echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
+          echo ACCESS_JWT_EXPIRATION=$ACCESS_JWT_EXPIRATION >> .env.docker-compose
+          echo REFRESH_JWT_SECRET="$REFRESH_JWT_SECRET" >> .env.docker-compose
+          echo REFRESH_JWT_EXPIRATION=$REFRESH_JWT_EXPIRATION >> .env.docker-compose
+          echo POSTGRES_DB="$POSTGRES_DB" >> .env.docker-compose
+          echo POSTGRES_USER="$POSTGRES_USER" >> .env.docker-compose
+          echo POSTGRES_PASSWORD="$POSTGRES_PASSWORD" >> .env.docker-compose
+          echo POSTGRES_HOST="$POSTGRES_HOST" >> .env.docker-compose
+          echo POSTGRES_PORT=$POSTGRES_PORT >> .env.docker-compose
+          echo POSTGRES_URL=$POSTGRES_URL >> .env.docker-compose
+          echo REDIS_HOST="$REDIS_HOST" >> .env.docker-compose
+          echo REDIS_PORT=$REDIS_PORT >> .env.docker-compose
+          echo REDIS_PASSWORD="$REDIS_PASSWORD" >> .env.docker-compose
+          echo KAFKA_BROKER_ID=$KAFKA_BROKER_ID >> .env.docker-compose
+          echo KAFKA_HOST=$KAFKA_HOST >> .env.docker-compose
+          echo KAFKA_PORT=$KAFKA_PORT >> .env.docker-compose
+          echo KAFKA_HOST_INTERNAL=$KAFKA_HOST_INTERNAL >> .env.docker-compose
+          echo KAFKA_PORT_INTERNAL=$KAFKA_PORT_INTERNAL >> .env.docker-compose
+          echo KAFKA_HOST_EXTERNAL=$KAFKA_HOST_EXTERNAL >> .env.docker-compose
+          echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.docker-compose
+
+      - name: Build Docker Containers
+        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
+
+      - name: List Docker Containers
+        run: docker ps -a
+
+      - name: Create Kafka topics
+        run: |
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read.reply --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many.reply --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.create --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.like --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.unlike --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists
+
+      - name: Run E2E Tests inside container
+        run: docker exec -t next-blog-core-app yarn test:e2e
+
+      - name: Stop Containers
+        if: always()
+        run: docker-compose -env-file .env.docker-compose -f "docker-compose-ci.yml" down
