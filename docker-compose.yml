@@ -17,9 +17,9 @@ services:
       kafka:
         condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env.docker-compose
     networks:
@@ -36,9 +36,9 @@ services:
       kafka:
         condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env.docker-compose
     networks:
@@ -57,7 +57,7 @@ services:
       kafka:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - .env.docker-compose
     networks:
