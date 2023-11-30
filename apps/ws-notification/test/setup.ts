@@ -27,7 +27,7 @@ const setup = async () => {
     // Seed database with user mocks only
     await seedWithMockUsers(prisma);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     await prisma.$disconnect();
   }
 };

@@ -111,10 +111,10 @@ describe('NotificationServiceController (e2e)', () => {
     secondAliceWS.connect();
     johnWs.connect();
 
-    unauthedWS.on('connect_error', (error) => console.log(error));
-    aliceWS.on('connect_error', (error) => console.log(error));
-    secondAliceWS.on('connect_error', (error) => console.log(error));
-    johnWs.on('connect_error', (error) => console.log(error));
+    unauthedWS.on('connect_error', (error) => console.error(error));
+    aliceWS.on('connect_error', (error) => console.error(error));
+    secondAliceWS.on('connect_error', (error) => console.error(error));
+    johnWs.on('connect_error', (error) => console.error(error));
 
     await Promise.all([
       new Promise<void>((resolve) => unauthedWS.on('connect', resolve)),

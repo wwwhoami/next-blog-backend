@@ -246,10 +246,7 @@ export class PostRepository {
         ${orderBySearchTerm}
         ${ordering}
       LIMIT ${take}
-      OFFSET ${skip}`.catch((err) => {
-      console.log(err);
-      return [];
-    });
+      OFFSET ${skip}`;
   }
 
   /**

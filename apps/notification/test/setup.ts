@@ -20,7 +20,7 @@ const setup = async () => {
     // Reset auto-increment id sequences
     await resetNotificationAutoIncrement(prisma);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     await prisma.$disconnect();
   }
 };

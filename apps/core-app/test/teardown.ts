@@ -23,7 +23,7 @@ const teardown = async () => {
       deleteNotifications,
     ]);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     await prisma.$disconnect();
   }
 };

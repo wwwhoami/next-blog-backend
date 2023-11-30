@@ -42,7 +42,7 @@ const setup = async () => {
     // Seed database with mocks only
     await seedWithMocks(prisma);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     await prisma.$disconnect();
   }
 };

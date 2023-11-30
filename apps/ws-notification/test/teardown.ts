@@ -11,7 +11,7 @@ const teardown = async () => {
 
     await prisma.$transaction([deleteUsers]);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     await prisma.$disconnect();
   }
 };

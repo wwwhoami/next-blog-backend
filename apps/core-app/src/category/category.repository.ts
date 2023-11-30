@@ -21,9 +21,6 @@ export class CategoryRepository {
    * @description Create map of category combinations
    */
   private createCategoryCombinationsMap(categoryComb: string[][]) {
-    const timeTakenCategories = 'Time taken to get categories';
-    console.time(timeTakenCategories);
-
     const map = new Map<string, Set<string>>();
 
     for (const categoryList of categoryComb) {
@@ -38,9 +35,6 @@ export class CategoryRepository {
         }
       }
     }
-
-    console.log(map);
-    console.timeEnd(timeTakenCategories);
 
     return map;
   }
