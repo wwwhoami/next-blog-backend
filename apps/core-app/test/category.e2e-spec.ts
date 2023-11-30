@@ -3,7 +3,7 @@ import { CategoryNoDescription } from '@core/src/category/entities/category.enti
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { isString } from 'class-validator';
+import { isArray, isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
@@ -125,7 +125,7 @@ describe('Category (e2e)', () => {
   });
 
   describe('/category/combo (GET)', () => {
-    it('should get array of category combinations as two dimensional array of strings', () => {
+    it('should get array of category combinations as array of Record<string, Array[string]>', () => {
       return request(app.getHttpServer())
         .get(`/category/combo`)
         .expect(HttpStatus.OK)
@@ -133,10 +133,12 @@ describe('Category (e2e)', () => {
           expect(response.body).toBeInstanceOf(Array);
           expect(response.body[0]).toBeInstanceOf(Array);
           expect(isString(response.body[0][0])).toBe(true);
+          expect(isArray(response.body[0][1])).toBe(true);
+          expect(isString(response.body[0][1][0])).toBe(true);
         });
     });
 
-    it('should get two dimensional array of category combinations if any exists for provided searchTerm', () => {
+    it('should get array of category combinations as array of Record<string, Array[string]> of category combinations if any exists for provided searchTerm', () => {
       const searchTerm = 'tailwind';
 
       return request(app.getHttpServer())
@@ -147,6 +149,8 @@ describe('Category (e2e)', () => {
           expect(response.body).toBeInstanceOf(Array);
           expect(response.body[0]).toBeInstanceOf(Array);
           expect(isString(response.body[0][0])).toBe(true);
+          expect(isArray(response.body[0][1])).toBe(true);
+          expect(isString(response.body[0][1][0])).toBe(true);
         });
     });
 

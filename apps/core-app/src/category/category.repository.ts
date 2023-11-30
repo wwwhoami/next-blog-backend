@@ -17,6 +17,35 @@ export class CategoryRepository {
   ) {}
 
   /**
+   * @param {string[][]} categoryComb - Array of category combinations
+   * @description Create map of category combinations
+   */
+  private createCategoryCombinationsMap(categoryComb: string[][]) {
+    const timeTakenCategories = 'Time taken to get categories';
+    console.time(timeTakenCategories);
+
+    const map = new Map<string, Set<string>>();
+
+    for (const categoryList of categoryComb) {
+      for (const category of categoryList) {
+        if (!map.has(category)) {
+          map.set(category, new Set([category]));
+        }
+        const mapSet = map.get(category);
+
+        for (const otherCategory of categoryList) {
+          mapSet?.add(otherCategory);
+        }
+      }
+    }
+
+    console.log(map);
+    console.timeEnd(timeTakenCategories);
+
+    return map;
+  }
+
+  /**
    * @param {GetCategoryDto} getCategoryOptions - Options for getting categories
    * @description Get categories with no description
    */
@@ -80,14 +109,14 @@ export class CategoryRepository {
   /**
    * @description Get all category combinations
    */
-  async getCombinations(): Promise<string[][]> {
-    const categoryComb = await this.prisma.$queryRaw<
-      Record<'category_list', string>[]
+  async getCombinations(): Promise<Map<string, Set<string>>> {
+    const categoryLists = await this.prisma.$queryRaw<
+      Record<'category_list', string[]>[]
     >`
       WITH T AS (
         SELECT
             "public"."PostToCategory"."post_id",
-            STRING_AGG (category_name, ',') category_list
+            ARRAY_AGG (category_name) category_list
         FROM
             "public"."PostToCategory"
         GROUP BY
@@ -97,35 +126,39 @@ export class CategoryRepository {
           DISTINCT T.category_list
       FROM T`;
 
-    // Split category list into array of categories for each category
-    const categoryLists = categoryComb.map((category) =>
-      category.category_list.split(','),
+    // Map category lists into array of categories for each category
+    const categoryComb = categoryLists.map(
+      (category) => category.category_list,
     );
 
-    return categoryLists;
+    const map = this.createCategoryCombinationsMap(categoryComb);
+
+    return map;
   }
 
   /**
    * @param {string} searchTerm - Search term to filter categories by
    * @description Get category combinations for posts that match search term
    */
-  async getCombinationsForSearchTerm(searchTerm: string): Promise<string[][]> {
+  async getCombinationsForSearchTerm(
+    searchTerm: string,
+  ): Promise<Map<string, Set<string>>> {
     // Get post ids that match search term
     const postIds = (await this.postRepository.findIds({ searchTerm })).map(
       (post) => post.id,
     );
 
     // Return empty array if no posts match search term
-    if (postIds.length === 0) return [];
+    if (postIds.length === 0) return new Map([]);
 
     // Get category combinations for posts that match search term
-    const categoryComb = await this.prisma.$queryRaw<
-      Record<'category_list', string>[]
+    const categoryLists = await this.prisma.$queryRaw<
+      Record<'category_list', string[]>[]
     >`
         WITH T AS (
           SELECT
               "public"."PostToCategory"."post_id",
-              STRING_AGG (category_name, ',') category_list
+              ARRAY_AGG (category_name) category_list
           FROM
               "public"."PostToCategory"
           WHERE "public"."PostToCategory"."post_id" IN (${Prisma.join(postIds)})
@@ -136,12 +169,14 @@ export class CategoryRepository {
             DISTINCT T.category_list
         FROM T`;
 
-    // Split category list into array of categories for each category
-    const categoryLists = categoryComb.map((category) =>
-      category.category_list.split(','),
+    // Map category lists into array of categories for each category
+    const categoryComb = categoryLists.map(
+      (category) => category.category_list,
     );
 
-    return categoryLists;
+    const map = this.createCategoryCombinationsMap(categoryComb);
+
+    return map;
   }
 
   /**

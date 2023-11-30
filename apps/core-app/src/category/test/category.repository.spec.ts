@@ -87,28 +87,37 @@ describe('CategoryRepository', () => {
 
   describe('getCombinations', () => {
     it('should get category combinations', () => {
-      const payload = [
+      const categoryComboPayload: Record<'category_list', string[]>[] = [
         {
-          category_list: 'CSS,non',
+          category_list: ['CSS', 'non'],
         },
         {
-          category_list: 'dolores,eveniet',
+          category_list: ['dolores', 'eveniet'],
         },
         {
-          category_list: 'impedit,magnam',
+          category_list: ['impedit', 'magnam'],
         },
         {
-          category_list: 'cumque,maxime',
+          category_list: ['cumque', 'maxime'],
         },
-      ] as unknown as Prisma.Prisma__CategoryClient<Array<Category>>;
-      const expected = [
-        ['CSS', 'non'],
-        ['dolores', 'eveniet'],
-        ['impedit', 'magnam'],
-        ['cumque', 'maxime'],
       ];
+      const expected = new Map<string, Set<string>>();
 
-      prisma.$queryRaw.mockResolvedValue(payload);
+      for (const categoryListObj of categoryComboPayload) {
+        const categoryList = categoryListObj.category_list;
+        for (const category of categoryList) {
+          if (!expected.has(category)) {
+            expected.set(category, new Set([category]));
+          }
+          const mapSet = expected.get(category);
+
+          for (const otherCategory of categoryList) {
+            mapSet?.add(otherCategory);
+          }
+        }
+      }
+
+      prisma.$queryRaw.mockResolvedValue(categoryComboPayload);
 
       expect(repository.getCombinations()).resolves.toEqual(expected);
     });
@@ -116,35 +125,41 @@ describe('CategoryRepository', () => {
 
   describe('getCombinationsForSearchTerm', () => {
     it('should get category combinations if postIds found for searchTerm', () => {
-      const PostRepositoryPayload = [
-        { id: 1 },
-        { id: 2 },
-        { id: 12 },
-      ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
-      const prismaPayload = [
+      const postRepositoryPayload = [{ id: 1 }, { id: 2 }, { id: 12 }];
+      const categoryComboPayload: Record<'category_list', string[]>[] = [
         {
-          category_list: 'CSS,non',
+          category_list: ['CSS', 'non'],
         },
         {
-          category_list: 'dolores,eveniet',
+          category_list: ['dolores', 'eveniet'],
         },
         {
-          category_list: 'impedit,magnam',
+          category_list: ['impedit', 'magnam'],
         },
         {
-          category_list: 'cumque,maxime',
+          category_list: ['cumque', 'maxime'],
         },
-      ] as unknown as Prisma.Prisma__CategoryClient<Array<Category>>;
-      const searchTerm = 'test';
-      const expected = [
-        ['CSS', 'non'],
-        ['dolores', 'eveniet'],
-        ['impedit', 'magnam'],
-        ['cumque', 'maxime'],
       ];
+      const searchTerm = 'test';
 
-      postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
-      prisma.$queryRaw.mockResolvedValue(prismaPayload);
+      const expected = new Map<string, Set<string>>();
+
+      for (const categoryListObj of categoryComboPayload) {
+        const categoryList = categoryListObj.category_list;
+        for (const category of categoryList) {
+          if (!expected.has(category)) {
+            expected.set(category, new Set([category]));
+          }
+          const mapSet = expected.get(category);
+
+          for (const otherCategory of categoryList) {
+            mapSet?.add(otherCategory);
+          }
+        }
+      }
+
+      postRepository.findIds.mockResolvedValue(postRepositoryPayload);
+      prisma.$queryRaw.mockResolvedValue(categoryComboPayload);
 
       expect(
         repository.getCombinationsForSearchTerm(searchTerm),
@@ -159,7 +174,7 @@ describe('CategoryRepository', () => {
         Array<Category>
       >;
       const searchTerm = 'test';
-      const expected: any[] = [];
+      const expected = new Map([]);
 
       postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);

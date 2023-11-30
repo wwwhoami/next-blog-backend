@@ -10,5 +10,5 @@ export type UserType<B extends boolean, T extends boolean> = [B] extends [true]
     ? UserEntity | null
     : UserNoIdEntity | null
   : [T] extends [true]
-  ? UserNoPasswordEntity | null
-  : UserNoIdPasswordEntity | null;
+    ? UserNoPasswordEntity | null
+    : UserNoIdPasswordEntity | null;

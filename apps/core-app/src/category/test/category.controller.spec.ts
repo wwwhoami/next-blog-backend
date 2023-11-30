@@ -41,15 +41,28 @@ describe('CategoryService', () => {
 
   describe('getCombinations', () => {
     it('should get category combinations', () => {
-      const payload = [
-        ['CSS', 'non'],
-        ['dolores', 'eveniet'],
-        ['impedit', 'magnam'],
-        ['cumque', 'maxime'],
-      ];
+      const payload = new Map([
+        ['CSS', ['CSS', 'non']],
+        ['non', ['non', 'CSS']],
+        ['dolores', ['dolores', 'eveniet']],
+        ['eveniet', ['eveniet', 'dolores']],
+        ['impedit', ['impedit', 'magnam']],
+        ['magnam', ['magnam', 'impedit']],
+        ['cumque', ['cumque', 'maxime']],
+        ['maxime', ['maxime', 'cumque']],
+      ]) as unknown as Map<string, Set<string>>;
+      const expected = Array.from(payload.entries()).map(([key, value]) => [
+        key,
+        Array.from(value),
+      ]);
+
+      for (const [key, value] of payload) {
+        payload.set(key, new Set(value));
+      }
+
       categoryService.getCombinations.mockResolvedValue(payload);
 
-      expect(controller.getCombinations({})).resolves.toEqual(payload);
+      expect(controller.getCombinations({})).resolves.toEqual(expected);
     });
   });
 });

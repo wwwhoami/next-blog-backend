@@ -28,7 +28,7 @@ export class CategoryService {
 
   getCombinations({
     searchTerm,
-  }: GetCategoryCombinationsDto): Promise<string[][]> {
+  }: GetCategoryCombinationsDto): Promise<Map<string, Set<string>>> {
     if (searchTerm)
       return this.categoryRepository.getCombinationsForSearchTerm(searchTerm);
 

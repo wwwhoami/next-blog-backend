@@ -39,10 +39,35 @@ export class CategoryController {
     return this.categoryService.getMany(getCategoriesQuery);
   }
 
+  @ApiOkResponse({
+    schema: {
+      type: 'array',
+      items: {
+        type: 'array',
+        items: {
+          type: 'array',
+        },
+      },
+      example: [
+        ['aggredior', ['aggredior', 'acer', 'tero']],
+        ['acer', ['acer', 'aggredior']],
+        ['tero', ['tero', 'aggredior']],
+      ],
+    },
+  })
   @Get('combo')
-  getCombinations(
+  async getCombinations(
     @Query() getCategoriesQuery: GetCategoryCombinationsDto,
-  ): Promise<string[][]> {
-    return this.categoryService.getCombinations(getCategoriesQuery);
+  ): Promise<Array<[string, Array<string>]>> {
+    const combinationsMap =
+      await this.categoryService.getCombinations(getCategoriesQuery);
+
+    // Convert Map<string, Set<string>> to array
+    // to make convertable to JSON
+    const array: [string, string[]][] = Array.from(
+      combinationsMap.entries(),
+    ).map(([key, value]) => [key, Array.from(value)]);
+
+    return array;
   }
 }
