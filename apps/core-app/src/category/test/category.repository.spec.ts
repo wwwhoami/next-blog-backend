@@ -5,7 +5,10 @@ import { Category, Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, MockProxy, mock, mockDeep } from 'jest-mock-extended';
 import { CategoryRepository } from '../category.repository';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
-import { CategoryWithHotness } from '../entities/category.entity';
+import {
+  CategoryNoDescription,
+  CategoryWithHotness,
+} from '../entities/category.entity';
 
 describe('CategoryRepository', () => {
   let repository: CategoryRepository;
@@ -86,83 +89,74 @@ describe('CategoryRepository', () => {
   });
 
   describe('getCombinations', () => {
-    it('should get category combinations', () => {
-      const categoryComboPayload: Record<'category_list', string[]>[] = [
+    it('should get category combinations for provided categories', () => {
+      const categoryComboPayload: Array<Record<'category_name', string>> = [
         {
-          category_list: ['CSS', 'non'],
+          category_name: 'CSS',
         },
         {
-          category_list: ['dolores', 'eveniet'],
+          category_name: 'dolores',
         },
         {
-          category_list: ['impedit', 'magnam'],
+          category_name: 'impedit',
         },
         {
-          category_list: ['cumque', 'maxime'],
+          category_name: 'cumque',
         },
       ];
-      const expected = new Map<string, Set<string>>();
 
-      for (const categoryListObj of categoryComboPayload) {
-        const categoryList = categoryListObj.category_list;
-        for (const category of categoryList) {
-          if (!expected.has(category)) {
-            expected.set(category, new Set([category]));
-          }
-          const mapSet = expected.get(category);
-
-          for (const otherCategory of categoryList) {
-            mapSet?.add(otherCategory);
-          }
-        }
-      }
+      const expected = ['CSS', 'dolores', 'impedit', 'cumque'];
 
       prisma.$queryRaw.mockResolvedValue(categoryComboPayload);
 
-      expect(repository.getCombinations()).resolves.toEqual(expected);
+      expect(repository.getCombinations('CSS')).resolves.toEqual(expected);
+    });
+
+    it('should get all categories by calling getMany if no categories provided', () => {
+      const categoryComboPayload: Array<CategoryNoDescription> = [
+        { name: 'CSS', hexColor: '#color' },
+        { name: 'dolores', hexColor: '#color' },
+        { name: 'impedit', hexColor: '#color' },
+        { name: 'cumque', hexColor: '#color' },
+        { name: '...etc', hexColor: '#color' },
+      ];
+
+      const expected = ['CSS', 'dolores', 'impedit', 'cumque', '...etc'];
+
+      repository.getMany = jest
+        .fn()
+        .mockResolvedValueOnce(categoryComboPayload);
+
+      expect(repository.getCombinations('')).resolves.toEqual(expected);
     });
   });
 
   describe('getCombinationsForSearchTerm', () => {
     it('should get category combinations if postIds found for searchTerm', () => {
       const postRepositoryPayload = [{ id: 1 }, { id: 2 }, { id: 12 }];
-      const categoryComboPayload: Record<'category_list', string[]>[] = [
+      const categoryComboPayload: Array<Record<'category_name', string>> = [
         {
-          category_list: ['CSS', 'non'],
+          category_name: 'CSS',
         },
         {
-          category_list: ['dolores', 'eveniet'],
+          category_name: 'dolores',
         },
         {
-          category_list: ['impedit', 'magnam'],
+          category_name: 'impedit',
         },
         {
-          category_list: ['cumque', 'maxime'],
+          category_name: 'cumque',
         },
       ];
       const searchTerm = 'test';
 
-      const expected = new Map<string, Set<string>>();
-
-      for (const categoryListObj of categoryComboPayload) {
-        const categoryList = categoryListObj.category_list;
-        for (const category of categoryList) {
-          if (!expected.has(category)) {
-            expected.set(category, new Set([category]));
-          }
-          const mapSet = expected.get(category);
-
-          for (const otherCategory of categoryList) {
-            mapSet?.add(otherCategory);
-          }
-        }
-      }
+      const expected = ['CSS', 'dolores', 'impedit', 'cumque'];
 
       postRepository.findIds.mockResolvedValue(postRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(categoryComboPayload);
 
       expect(
-        repository.getCombinationsForSearchTerm(searchTerm),
+        repository.getCombinationsForSearchTerm({ searchTerm }),
       ).resolves.toEqual(expected);
     });
 
@@ -174,13 +168,13 @@ describe('CategoryRepository', () => {
         Array<Category>
       >;
       const searchTerm = 'test';
-      const expected = new Map([]);
+      const expected: Array<string> = [];
 
       postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
       prisma.$queryRaw.mockResolvedValue(prismaPayload);
 
       expect(
-        repository.getCombinationsForSearchTerm(searchTerm),
+        repository.getCombinationsForSearchTerm({ searchTerm }),
       ).resolves.toEqual(expected);
     });
   });

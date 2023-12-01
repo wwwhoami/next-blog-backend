@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsInt, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString } from 'class-validator';
 
 export class GetCategoryDto {
   @ApiProperty({ type: Number, required: false })
@@ -35,4 +35,10 @@ export class GetCategoryCombinationsDto {
   @IsString()
   @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
   searchTerm?: string;
+
+  @ApiProperty({ type: String, required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value.replace(/(\s{2,}|,{1,})/g, ' ').trim())
+  categories?: string;
 }

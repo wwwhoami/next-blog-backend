@@ -17,29 +17,6 @@ export class CategoryRepository {
   ) {}
 
   /**
-   * @param {string[][]} categoryComb - Array of category combinations
-   * @description Create map of category combinations
-   */
-  private createCategoryCombinationsMap(categoryComb: string[][]) {
-    const map = new Map<string, Set<string>>();
-
-    for (const categoryList of categoryComb) {
-      for (const category of categoryList) {
-        if (!map.has(category)) {
-          map.set(category, new Set([category]));
-        }
-        const mapSet = map.get(category);
-
-        for (const otherCategory of categoryList) {
-          mapSet?.add(otherCategory);
-        }
-      }
-    }
-
-    return map;
-  }
-
-  /**
    * @param {GetCategoryDto} getCategoryOptions - Options for getting categories
    * @description Get categories with no description
    */
@@ -101,13 +78,19 @@ export class CategoryRepository {
   }
 
   /**
-   * @description Get all category combinations
+   * @param {string} categories - Categories to find available combinations for
+   * @description
+   * Get all categories, able to combine with provided categories.
+   * (When any post tagged with these categories exists)
    */
-  async getCombinations(): Promise<Map<string, Set<string>>> {
-    const categoryLists = await this.prisma.$queryRaw<
-      Record<'category_list', string[]>[]
-    >`
-      WITH T AS (
+  async getCombinations(categories?: string): Promise<string[]> {
+    // Return all categories if no categories provided
+    if (!categories?.length)
+      return (await this.getMany()).map((category) => category.name);
+
+    const categoryCombinationsList = await this.prisma.$queryRaw<
+      Array<Record<'category_name', string>>
+    >`WITH T AS (
         SELECT
             "public"."PostToCategory"."post_id",
             ARRAY_AGG (category_name) category_list
@@ -115,62 +98,87 @@ export class CategoryRepository {
             "public"."PostToCategory"
         GROUP BY
             "public"."PostToCategory"."post_id"
+      ), A AS (
+        SELECT
+            DISTINCT T.category_list
+        FROM 
+            T
+        WHERE 
+            T.category_list @> string_to_array(${categories}, ' ')
       )
       SELECT
-          DISTINCT T.category_list
-      FROM T`;
+          DISTINCT unnest(A.category_list) as category_name
+      FROM A`;
 
-    // Map category lists into array of categories for each category
-    const categoryComb = categoryLists.map(
-      (category) => category.category_list,
+    // Format category combinations
+    const categoryCombinations = categoryCombinationsList.map(
+      (category) => category.category_name,
     );
 
-    const map = this.createCategoryCombinationsMap(categoryComb);
-
-    return map;
+    return categoryCombinations;
   }
 
   /**
    * @param {string} searchTerm - Search term to filter categories by
-   * @description Get category combinations for posts that match search term
+   * @description
+   *  Get all categories, able to combine with provided categories.
+   * (When any post tagged with these categories and matching searchTerm exists)
    */
-  async getCombinationsForSearchTerm(
-    searchTerm: string,
-  ): Promise<Map<string, Set<string>>> {
+  async getCombinationsForSearchTerm({
+    categories,
+    searchTerm,
+  }: {
+    categories?: string;
+    searchTerm: string;
+  }): Promise<string[]> {
+    const prismaSql = categories?.length
+      ? // If categories provided, get categories that match searchTerm
+        // and are able to make combinations with provided categories
+        Prisma.sql`, A AS (
+        SELECT
+          DISTINCT T.category_list
+        FROM T
+        WHERE 
+          T.category_list @> string_to_array(${categories}, ' ')
+      )
+      SELECT
+        DISTINCT unnest(A.category_list) as category_name
+      FROM A`
+      : // If no categories provided, get all categories for the searchTerm provided
+        Prisma.sql`
+      SELECT
+          DISTINCT unnest(T.category_list) as category_name
+      FROM T`;
+
     // Get post ids that match search term
     const postIds = (await this.postRepository.findIds({ searchTerm })).map(
       (post) => post.id,
     );
 
     // Return empty array if no posts match search term
-    if (postIds.length === 0) return new Map([]);
+    if (postIds.length === 0) return [];
 
     // Get category combinations for posts that match search term
-    const categoryLists = await this.prisma.$queryRaw<
-      Record<'category_list', string[]>[]
+    const categoryCombinationsList = await this.prisma.$queryRaw<
+      Array<Record<'category_name', string>>
     >`
-        WITH T AS (
-          SELECT
-              "public"."PostToCategory"."post_id",
-              ARRAY_AGG (category_name) category_list
-          FROM
-              "public"."PostToCategory"
-          WHERE "public"."PostToCategory"."post_id" IN (${Prisma.join(postIds)})
-          GROUP BY
-              "public"."PostToCategory"."post_id"
-        )
+      WITH T AS (
         SELECT
-            DISTINCT T.category_list
-        FROM T`;
+            "public"."PostToCategory"."post_id",
+            ARRAY_AGG (category_name) category_list
+        FROM
+            "public"."PostToCategory"
+        WHERE "public"."PostToCategory"."post_id" IN (${Prisma.join(postIds)})
+        GROUP BY
+            "public"."PostToCategory"."post_id"
+      )${prismaSql}`;
 
-    // Map category lists into array of categories for each category
-    const categoryComb = categoryLists.map(
-      (category) => category.category_list,
+    // Format category combinations
+    const categoryCombinations = categoryCombinationsList.map(
+      (category) => category.category_name,
     );
 
-    const map = this.createCategoryCombinationsMap(categoryComb);
-
-    return map;
+    return categoryCombinations;
   }
 
   /**

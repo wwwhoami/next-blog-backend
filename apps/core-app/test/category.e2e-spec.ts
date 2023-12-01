@@ -3,7 +3,7 @@ import { CategoryNoDescription } from '@core/src/category/entities/category.enti
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { isArray, isString } from 'class-validator';
+import { isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
@@ -60,7 +60,8 @@ describe('Category (e2e)', () => {
       const searchTerm = 'css';
 
       return request(app.getHttpServer())
-        .get(`/category?searchTerm=${searchTerm}`)
+        .get(`/category`)
+        .query({ searchTerm })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
@@ -125,32 +126,44 @@ describe('Category (e2e)', () => {
   });
 
   describe('/category/combo (GET)', () => {
-    it('should get array of category combinations as array of Record<string, Array[string]>', () => {
+    it('should get category combinations for provided categories as Array<string>', () => {
       return request(app.getHttpServer())
         .get(`/category/combo`)
+        .query({
+          categories: categories[0].name,
+        })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toBeInstanceOf(Array);
-          expect(isString(response.body[0][0])).toBe(true);
-          expect(isArray(response.body[0][1])).toBe(true);
-          expect(isString(response.body[0][1][0])).toBe(true);
+          expect(response.body.length).not.toEqual(0);
+          expect(isString(response.body[0])).toBe(true);
         });
     });
 
-    it('should get array of category combinations as array of Record<string, Array[string]> of category combinations if any exists for provided searchTerm', () => {
+    it('should get array of category combinations for provided categories as Array<string> of category combinations if any exists for provided searchTerm', () => {
       const searchTerm = 'tailwind';
 
       return request(app.getHttpServer())
         .get(`/category/combo`)
-        .query({ searchTerm })
+        .query({ searchTerm, categories: categories[0].name })
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toBeInstanceOf(Array);
-          expect(isString(response.body[0][0])).toBe(true);
-          expect(isArray(response.body[0][1])).toBe(true);
-          expect(isString(response.body[0][1][0])).toBe(true);
+          expect(isString(response.body[0])).toBe(true);
+        });
+    });
+
+    it('should get all categories as Array<string> if no categories included in query param', () => {
+      const categories: string[] = [];
+
+      return request(app.getHttpServer())
+        .get(`/category/combo`)
+        .query({ categories: categories.join(',') })
+        .expect(HttpStatus.OK)
+        .expect((response: request.Response) => {
+          expect(response.body).toBeInstanceOf(Array);
+          expect(response.body.length).not.toEqual(0);
+          expect(isString(response.body[0])).toBe(true);
         });
     });
 
@@ -163,6 +176,7 @@ describe('Category (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
+          expect(response.body.length).toEqual(0);
           expect(response.body[0]).toBeUndefined();
         });
     });

@@ -26,13 +26,17 @@ export class CategoryService {
     return this.categoryRepository.getMany(params);
   }
 
-  getCombinations({
+  async getCombinations({
     searchTerm,
-  }: GetCategoryCombinationsDto): Promise<Map<string, Set<string>>> {
+    categories,
+  }: GetCategoryCombinationsDto): Promise<string[]> {
     if (searchTerm)
-      return this.categoryRepository.getCombinationsForSearchTerm(searchTerm);
+      return this.categoryRepository.getCombinationsForSearchTerm({
+        categories,
+        searchTerm,
+      });
 
-    return this.categoryRepository.getCombinations();
+    return this.categoryRepository.getCombinations(categories);
   }
 
   create(categoriesToCreate: CreateCategoriesDto) {
