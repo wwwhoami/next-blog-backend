@@ -121,7 +121,7 @@
     "webpack": "^5.89.0"
   },
   "prisma": {
-    "seed": "yarn dlx ts-node prisma/seeders/seed.ts"
+    "seed": "yarn ts-node prisma/seeders/seed.ts"
   },
   "jest": {
     "moduleFileExtensions": [
