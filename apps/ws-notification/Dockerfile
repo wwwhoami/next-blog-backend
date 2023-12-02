@@ -3,14 +3,17 @@
 ###################
 
 FROM node:20-alpine AS development
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /usr/src/app
-COPY --chown=node:node package.json ./
-RUN yarn set version berry
-COPY --chown=node:node yarn.lock .yarn .yarnrc.yml ./
-RUN yarn install --immutable
-COPY --chown=node:node . .
-RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 ENV NODE_ENV dev
+
+COPY --chown=node:node . .
+RUN yarn set version berry
+
+RUN yarn install --immutable
+RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
+
 USER node
 
 ###################
@@ -18,14 +21,17 @@ USER node
 ###################
 
 FROM node:20-alpine AS build
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /usr/src/app
-COPY --chown=node:node package.json ./
-COPY --chown=node:node yarn.lock .yarn .yarnrc.yml ./
+ENV NODE_ENV prod
+
 COPY --chown=node:node --from=development /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node . .
+
 RUN yarn build:ws-notification
-ENV NODE_ENV prod
 RUN yarn install --immutable && yarn cache clean
+
 RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 USER node
 
@@ -34,11 +40,15 @@ USER node
 ###################
 
 FROM node:20-alpine AS production
+RUN apk add --no-cache libc6-compat
 
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
+
 RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
 
-EXPOSE 3001
+USER node
+
+EXPOSE 3000
 
 CMD [ "node", "dist/apps/ws-notification/main.js" ]
