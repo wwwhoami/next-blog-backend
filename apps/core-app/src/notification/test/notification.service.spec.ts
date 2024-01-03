@@ -1,9 +1,9 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationService } from '../notification.service';
 import { NOTIFICATION_SERVICE } from '@app/shared/kafka/kafka.constants';
 import { ClientKafka } from '@nestjs/microservices';
+import { Test, TestingModule } from '@nestjs/testing';
 import { MockProxy, mock } from 'jest-mock-extended';
 import { lastValueFrom, of, throwError } from 'rxjs';
+import { NotificationService } from '../notification.service';
 
 describe('NotificationService', () => {
   let service: NotificationService;

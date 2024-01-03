@@ -1,9 +1,9 @@
 import { PrismaService } from '@app/prisma';
+import { NotificationMessage } from '@app/shared/entities';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Notification, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { NotificationRepository } from '../notification.repository';
-import { NotificationMessage } from '@app/shared/entities';
 
 const notifications: Notification[] = [
   {

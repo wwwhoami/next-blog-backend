@@ -1,3 +1,4 @@
+import { ForbiddenError } from '@app/shared/errors/forbidden.error';
 import {
   BadRequestException,
   CallHandler,
@@ -11,12 +12,11 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { catchError, Observable, throwError } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
 import { ConflictError } from '../errors/conflict.error';
-import { WrongParamsError } from '../errors/wrong-params.error';
-import { UnprocesasbleEntityError } from '../errors/unprocessable-entity.errror';
 import { UnauthorizedError } from '../errors/unauthorized.error';
-import { ForbiddenError } from '@app/shared/errors/forbidden.error';
+import { UnprocesasbleEntityError } from '../errors/unprocessable-entity.errror';
+import { WrongParamsError } from '../errors/wrong-params.error';
 
 @Injectable()
 export class ErrorInterceptor implements NestInterceptor {

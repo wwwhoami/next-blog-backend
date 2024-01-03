@@ -1,3 +1,4 @@
+import { CreateCategoryDto } from '@core/src/category/dto/create-category.dto';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -6,7 +7,6 @@ import {
   IsUrl,
   ValidateNested,
 } from 'class-validator';
-import { CreateCategoryDto } from '@core/src/category/dto/create-category.dto';
 export class CreatePostDto {
   @IsString()
   title: string;

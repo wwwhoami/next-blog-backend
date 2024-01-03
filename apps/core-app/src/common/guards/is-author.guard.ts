@@ -1,3 +1,5 @@
+import { WrongParamsError } from '@core/src/common/errors/wrong-params.error';
+import { UserNoPasswordEntity } from '@core/src/user/entities/user.entity';
 import {
   BadRequestException,
   CanActivate,
@@ -6,8 +8,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { WrongParamsError } from '@core/src/common/errors/wrong-params.error';
-import { UserNoPasswordEntity } from '@core/src/user/entities/user.entity';
 import { EntityWithAuthorService } from '../entity-with-author.service';
 
 @Injectable()

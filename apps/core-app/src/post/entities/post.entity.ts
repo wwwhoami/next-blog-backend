@@ -1,5 +1,5 @@
-import { PickType } from '@nestjs/swagger';
 import { CategoryNoDescription } from '@core/src/category/entities/category.entity';
+import { PickType } from '@nestjs/swagger';
 
 export enum PostEntityKeysEnum {
   id = 'id',

@@ -1,3 +1,7 @@
+import { GetUser } from '@core/src/auth/decorators/get-user.decorator';
+import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
+import { IsAdminOrAuthorGuard } from '@core/src/common/guards/is-admin-or-author.guard';
+import { UserNameImage } from '@core/src/user/entities/user.entity';
 import {
   Body,
   Controller,
@@ -11,10 +15,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { GetUser } from '@core/src/auth/decorators/get-user.decorator';
-import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
-import { IsAdminOrAuthorGuard } from '@core/src/common/guards/is-admin-or-author.guard';
-import { UserNameImage } from '@core/src/user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';

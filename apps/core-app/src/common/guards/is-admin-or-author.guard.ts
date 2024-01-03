@@ -1,6 +1,6 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Role } from '@core/src/user/entities/role.enum';
 import { UserNoPasswordEntity } from '@core/src/user/entities/user.entity';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { EntityWithAuthorService } from '../entity-with-author.service';
 import { IsAuthorGuard } from './is-author.guard';
 

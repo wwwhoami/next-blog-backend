@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SocketStateService } from './socket-state.service';
 import { Socket } from 'socket.io';
+import { SocketStateService } from './socket-state.service';
 
 describe('SocketStateService', () => {
   let service: SocketStateService;

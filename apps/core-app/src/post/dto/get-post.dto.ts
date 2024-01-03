@@ -1,3 +1,5 @@
+import { SortOrder } from '@core/src/common/sort-order.enum';
+import { UnionOfObjKeys } from '@core/src/common/types/union-of-obj-keys.types';
 import { ApiProperty, IntersectionType, OmitType } from '@nestjs/swagger';
 import { Post, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
@@ -9,8 +11,6 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
-import { SortOrder } from '@core/src/common/sort-order.enum';
-import { UnionOfObjKeys } from '@core/src/common/types/union-of-obj-keys.types';
 import { PostEntityKeysEnum } from '../entities/post.entity';
 
 export type PostOrderBy = UnionOfObjKeys<Post>;

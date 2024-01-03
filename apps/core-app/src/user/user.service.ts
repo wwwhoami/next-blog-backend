@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
 import { WrongParamsError } from '@core/src/common/errors/wrong-params.error';
+import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { GetUserDto } from './dto/get-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';

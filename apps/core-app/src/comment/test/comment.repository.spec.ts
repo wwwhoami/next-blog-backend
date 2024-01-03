@@ -1,6 +1,6 @@
 import { PrismaService } from '@app/prisma';
-import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
+import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';

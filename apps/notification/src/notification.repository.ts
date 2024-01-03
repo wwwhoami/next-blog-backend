@@ -1,7 +1,6 @@
 import { PrismaService } from '@app/prisma';
 import { GetNotificationDto } from '@app/shared/dto';
-import { NotificationMessage } from '@app/shared/entities';
-import { Notification } from '@app/shared/entities';
+import { Notification, NotificationMessage } from '@app/shared/entities';
 import { Injectable } from '@nestjs/common';
 import { NotificationType } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';

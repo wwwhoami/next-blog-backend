@@ -1,8 +1,8 @@
+import { AppAuthService } from '@app/auth/app-auth.service';
 import { INestApplication } from '@nestjs/common';
 import { RedisPropagatorService } from './shared/redis-propagator/redis-propagator.service';
 import { SocketStateAdapter } from './shared/socket-state/socket-state.adapter';
 import { SocketStateService } from './shared/socket-state/socket-state.service';
-import { AppAuthService } from '@app/auth/app-auth.service';
 
 export const initAdapters = (app: INestApplication): INestApplication => {
   const socketStateService = app.get(SocketStateService);

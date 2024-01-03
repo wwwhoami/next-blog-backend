@@ -1,6 +1,7 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { mock, MockProxy } from 'jest-mock-extended';
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
+import { MockProxy, mock } from 'jest-mock-extended';
 import { CommentController } from '../comment.controller';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
@@ -9,7 +10,6 @@ import {
   CommentEntity,
   CommentEntityWithDepth,
 } from '../entities/comment.entity';
-import { Prisma } from '@prisma/client';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 

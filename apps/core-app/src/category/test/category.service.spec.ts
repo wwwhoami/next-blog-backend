@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { mock, MockProxy } from 'jest-mock-extended';
+import { MockProxy, mock } from 'jest-mock-extended';
 import { CategoryRepository } from '../category.repository';
 import { CategoryService } from '../category.service';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
