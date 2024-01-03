@@ -1,16 +1,17 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { LoggerErrorInterceptor, Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 import metadata from './metadata';
 
 async function bootstrap() {
-  const logger = new Logger('Core Application');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(PinoLogger));
 
   const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('APP_CORE_PORT');
@@ -26,7 +27,11 @@ async function bootstrap() {
   }
 
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
-  app.useGlobalInterceptors(new ErrorInterceptor());
+  app.useGlobalInterceptors(
+    new ErrorInterceptor(),
+    new LoggerErrorInterceptor(),
+  );
+
   app.use(cookieParser());
 
   const config = new DocumentBuilder()
@@ -49,7 +54,8 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(port, () => {
-    logger.log(`listening on port ${port}`);
+    console.log(`listening on port ${port}`);
   });
 }
-bootstrap();
+
+bootstrap().catch(console.error);

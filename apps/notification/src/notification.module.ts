@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ClientsModule } from '@nestjs/microservices';
 import { configValidationSchema } from 'config.schema';
+import { LoggerModule } from 'nestjs-pino';
 import { NotificationController } from './notification.controller';
 import { NotificationRepository } from './notification.repository';
 import { NotificationService } from './notification.service';
@@ -22,6 +23,7 @@ import { NotificationService } from './notification.service';
       ],
       validationSchema: configValidationSchema,
     }),
+    LoggerModule.forRoot({}),
     ClientsModule.registerAsync([
       {
         name: REDIS_PUBLISHER_CLIENT,

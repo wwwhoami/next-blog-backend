@@ -3,7 +3,10 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService
-  extends PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error'>
+  extends PrismaClient<
+    Prisma.PrismaClientOptions,
+    'query' | 'error' | 'info' | 'warn'
+  >
   implements OnModuleInit
 {
   constructor() {
@@ -18,11 +21,11 @@ export class PrismaService
           level: 'error',
         },
         {
-          emit: 'stdout',
+          emit: 'event',
           level: 'info',
         },
         {
-          emit: 'stdout',
+          emit: 'event',
           level: 'warn',
         },
       ],
@@ -33,11 +36,20 @@ export class PrismaService
 
   async onModuleInit() {
     this.$on('query', (e) => {
-      this.logger.verbose(`${e.query} ${e.params} +${e.duration}ms`);
+      e.query = e.query.replace(/(\n|\t|\s)+/g, ' ');
+      this.logger.log(e, `PrismaClient:Query +${e.duration}ms`);
     });
 
-    this.$on('error', (event) => {
-      this.logger.verbose(event.target);
+    this.$on('error', (e) => {
+      this.logger.error(e.message, e.target, 'PrismaClient:Error');
+    });
+
+    this.$on('info', (e) => {
+      this.logger.verbose(e, 'PrismaClient:Info');
+    });
+
+    this.$on('warn', (e) => {
+      this.logger.warn(e, 'PrismaClient:Warn');
     });
 
     await this.$queryRaw`SET pg_trgm.similarity_threshold = 0.2`;

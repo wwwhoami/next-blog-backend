@@ -10,7 +10,9 @@ import { Test } from '@nestjs/testing';
 import { NotificationModule } from 'apps/notification/src/notification.module';
 import { NotificationService } from 'apps/notification/src/notification.service';
 import cookieParser from 'cookie-parser';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
+import TestAgent from 'supertest/lib/agent';
 
 const notifications: NotificationMessage<PostPayload>[] = [
   {
@@ -66,6 +68,9 @@ describe('Notification (e2e)', () => {
 
     await app.startAllMicroservices();
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
   });
 
   beforeAll(async () => {
@@ -79,7 +84,7 @@ describe('Notification (e2e)', () => {
   });
 
   describe('/notification (GET)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeAll(async () => {
@@ -148,7 +153,7 @@ describe('Notification (e2e)', () => {
   });
 
   describe('/notification/:id (PATCH)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeAll(async () => {

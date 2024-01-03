@@ -15,7 +15,7 @@ export class NotificationService implements OnModuleInit {
     @Inject(NOTIFICATION_SERVICE) private readonly client: ClientKafka,
   ) {}
 
-  logger = new Logger('Notification');
+  logger = new Logger(NotificationService.name);
 
   async onModuleInit() {
     const requestPatterns = [

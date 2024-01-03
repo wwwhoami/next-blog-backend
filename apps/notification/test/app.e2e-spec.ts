@@ -19,6 +19,7 @@ import {
   MicroserviceOptions,
 } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PinoLogger } from 'nestjs-pino';
 import { lastValueFrom } from 'rxjs';
 import { NotificationService } from '../src/notification.service';
 import { NotificationModule } from './../src/notification.module';
@@ -72,6 +73,9 @@ describe('NotificationController (e2e)', () => {
 
     await app.startAllMicroservices();
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
 
     client = app.get(NOTIFICATION_SERVICE);
 

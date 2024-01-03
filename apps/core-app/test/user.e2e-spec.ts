@@ -6,7 +6,9 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
+import TestAgent from 'supertest/lib/agent';
 
 const user = userData[0];
 
@@ -27,6 +29,9 @@ describe('User (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
   });
 
   afterAll(async () => {
@@ -64,7 +69,7 @@ describe('User (e2e)', () => {
 
   describe('/user/follow/:followingId (POST)', () => {
     let accessToken: string;
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
 
     beforeAll(async () => {
       const authCredentials: AuthCredentialsDto = {
@@ -135,7 +140,7 @@ describe('User (e2e)', () => {
 
   describe('/user/unfollow/:followingId (DELETE)', () => {
     let accessToken: string;
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
 
     beforeAll(async () => {
       const authCredentials: AuthCredentialsDto = {

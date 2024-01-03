@@ -1,15 +1,16 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { redisStore } from 'cache-manager-ioredis-yet';
 import { configValidationSchema } from 'config.schema';
+import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { CommentModule } from './comment/comment.module';
-import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { NotificationModule } from './notification/notification.module';
 import { PostModule } from './post/post.module';
 import { UserModule } from './user/user.module';
+import { pinoParams } from './common/pino/pino.provider';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UserModule } from './user/user.module';
       ],
       validationSchema: configValidationSchema,
     }),
+    LoggerModule.forRoot({ ...pinoParams }),
     CacheModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -45,8 +47,4 @@ import { UserModule } from './user/user.module';
     NotificationModule,
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('*');
-  }
-}
+export class AppModule {}

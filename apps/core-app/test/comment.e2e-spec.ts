@@ -7,7 +7,9 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
+import TestAgent from 'supertest/lib/agent';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -40,6 +42,9 @@ describe('Comment (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
   });
 
   afterAll(async () => {
@@ -173,7 +178,7 @@ describe('Comment (e2e)', () => {
   });
 
   describe('/comment (POST)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -329,7 +334,7 @@ describe('Comment (e2e)', () => {
   });
 
   describe('/comment/:id (PATCH)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -440,7 +445,7 @@ describe('Comment (e2e)', () => {
   });
 
   describe('/comment/:id (DELETE)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -562,7 +567,7 @@ describe('Comment (e2e)', () => {
     const user = userData[0];
     let commentId: number;
 
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -637,7 +642,7 @@ describe('Comment (e2e)', () => {
     const user = userData[0];
     const commentId = 1;
 
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {

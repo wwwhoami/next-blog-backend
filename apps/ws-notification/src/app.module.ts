@@ -2,6 +2,7 @@ import { AppAuthModule } from '@app/auth';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { configValidationSchema } from 'config.schema';
+import { LoggerModule } from 'nestjs-pino';
 import { NotificationModule } from './notification/notification.module';
 import { SharedModule } from './shared/shared.module';
 
@@ -18,6 +19,7 @@ import { SharedModule } from './shared/shared.module';
       ],
       validationSchema: configValidationSchema,
     }),
+    LoggerModule.forRoot({}),
     SharedModule,
     NotificationModule,
     AppAuthModule,

@@ -9,8 +9,10 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { PinoLogger } from 'nestjs-pino';
 import slugify from 'slugify';
 import request from 'supertest';
+import TestAgent from 'supertest/lib/agent';
 
 const postCategories = [
   {
@@ -56,6 +58,9 @@ describe('Post (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
   });
 
   afterAll(async () => {
@@ -344,7 +349,7 @@ describe('Post (e2e)', () => {
   });
 
   describe('/post (POST)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -471,10 +476,10 @@ describe('Post (e2e)', () => {
       coverImage: 'http://loremflickr.com/1200/480/business',
     };
 
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
-    let adminAgent: request.SuperAgentTest;
+    let adminAgent: TestAgent;
     let adminAccessToken: string;
 
     beforeEach(async () => {
@@ -624,10 +629,10 @@ describe('Post (e2e)', () => {
   });
 
   describe('/post (DELETE)', () => {
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
-    let adminAgent: request.SuperAgentTest;
+    let adminAgent: TestAgent;
     let adminAccessToken: string;
 
     beforeEach(async () => {
@@ -807,7 +812,7 @@ describe('Post (e2e)', () => {
     const user = userData[0];
     const postId = 2;
 
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {
@@ -874,7 +879,7 @@ describe('Post (e2e)', () => {
     const user = userData[0];
     const postId = 2;
 
-    let agent: request.SuperAgentTest;
+    let agent: TestAgent;
     let accessToken: string;
 
     beforeEach(async () => {

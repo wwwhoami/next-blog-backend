@@ -5,6 +5,7 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { isString } from 'class-validator';
 import cookieParser from 'cookie-parser';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 
 const categories: CategoryNoDescription[] = [
@@ -37,6 +38,9 @@ describe('Category (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+
+    // disable logging
+    PinoLogger.root.level = 'silent';
   });
 
   afterAll(async () => {
