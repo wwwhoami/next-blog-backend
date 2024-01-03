@@ -11,7 +11,7 @@ services:
       dockerfile: ./apps/core-app/Dockerfile
       target: build
     image: next-blog-core-app:build
-    command: yarn test:e2e
+    command: pnpm test:e2e
     ports:
       - 3000:3000
     depends_on:

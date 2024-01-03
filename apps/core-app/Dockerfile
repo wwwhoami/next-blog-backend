@@ -1,53 +1,45 @@
+FROM node:20-alpine AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+WORKDIR /usr/src/app
+COPY . .
+
 ###################
 # BUILD FOR LOCAL DEVELOPMENT
 ###################
 
-FROM node:20-alpine AS development
-RUN apk add --no-cache libc6-compat
-
-WORKDIR /usr/src/app
+FROM base AS development
 ENV NODE_ENV dev
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-COPY --chown=node:node . .
-RUN yarn set version berry
+###################
+# PROD DEPENDENCIES
+###################
 
-RUN yarn install --immutable
-RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
-
-USER node
+FROM base AS prod-deps
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN cd /usr/src/app && pnpm dlx prisma generate
 
 ###################
 # BUILD FOR PRODUCTION
 ###################
 
-FROM node:20-alpine AS build
-RUN apk add --no-cache libc6-compat
-
-WORKDIR /usr/src/app
+FROM base AS build
 ENV NODE_ENV prod
-
-COPY --chown=node:node --from=development /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node . .
-
-RUN yarn build:core
-RUN yarn install --immutable && yarn cache clean
-
-RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
-USER node
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN cd /usr/src/app && pnpm prisma generate
+RUN pnpm build:core
 
 ###################
 # PRODUCTION
 ###################
 
 FROM node:20-alpine AS production
-RUN apk add --no-cache libc6-compat
+COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/dist ./dist
 
-COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node --from=build /usr/src/app/dist ./dist
-
-RUN chown -R node:node node_modules/prisma && chown -R node:node node_modules/.prisma
-
-USER node
+ENV NODE_ENV prod
 
 EXPOSE 3000
 
