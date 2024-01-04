@@ -23,7 +23,36 @@ import { NotificationService } from './notification.service';
       ],
       validationSchema: configValidationSchema,
     }),
-    LoggerModule.forRoot({}),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport:
+          process.env.NODE_ENV !== 'prod'
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  singleLine: true,
+                },
+              }
+            : {
+                targets: [
+                  {
+                    target: 'pino/file',
+                    options: {
+                      destination: `${__dirname}/notification-app.log`,
+                    },
+                  },
+                  {
+                    target: 'pino-pretty',
+                    options: {
+                      singleLine: true,
+                    },
+                  },
+                ],
+              },
+
+        level: process.env.NODE_ENV === 'prod' ? 'info' : 'debug',
+      },
+    }),
     ClientsModule.registerAsync([
       {
         name: REDIS_PUBLISHER_CLIENT,

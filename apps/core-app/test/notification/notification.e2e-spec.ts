@@ -68,7 +68,6 @@ describe('Notification (e2e)', () => {
 
     await app.startAllMicroservices();
     await app.init();
-
     // disable logging
     PinoLogger.root.level = 'silent';
   });
