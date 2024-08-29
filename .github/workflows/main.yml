@@ -87,7 +87,7 @@ jobs:
           echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.docker-compose
 
       - name: Build Docker Containers
-        run: docker-compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
+        run: docker compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build
 
       - name: List Docker Containers
         run: docker ps -a
@@ -118,4 +118,4 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker-compose -env-file .env.docker-compose -f "docker-compose-ci.yml" down
+        run: docker compose -env-file .env.docker-compose -f "docker-compose-ci.yml" down
