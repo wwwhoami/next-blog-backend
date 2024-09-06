@@ -9,7 +9,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: always
+    restart: unless-stopped
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -29,7 +29,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: always
+    restart: unless-stopped
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     ports:
@@ -43,7 +43,7 @@ services:
   kafka:
     container_name: next-blog-kafka
     image: bitnami/kafka:3.4
-    restart: always
+    restart: unless-stopped
     healthcheck:
       test: /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL} || exit 1
       interval: 5s
