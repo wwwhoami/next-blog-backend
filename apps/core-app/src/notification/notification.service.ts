@@ -42,10 +42,9 @@ export class NotificationService implements OnModuleInit {
     options: GetNotificationDto = {},
   ): Promise<NotificationMessage<CommentPayload | PostPayload>[]> {
     const d = this.client
-      .send<NotificationMessage<CommentPayload | PostPayload>[]>(
-        'notification.get-many',
-        { userId, options },
-      )
+      .send<
+        NotificationMessage<CommentPayload | PostPayload>[]
+      >('notification.get-many', { userId, options })
       .pipe(
         catchError((err) => {
           if (typeof err.error === 'object') return throwError(() => err.error);

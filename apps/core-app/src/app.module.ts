@@ -30,11 +30,11 @@ import { UserModule } from './user/user.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         isGlobal: true,
-        store: await redisStore({
+        store: (await redisStore({
           host: configService.get<string>('REDIS_HOST'),
           port: configService.get<number>('REDIS_PORT'),
           password: configService.get<string>('REDIS_PASSWORD'),
-        }),
+        })) as any,
       }),
       inject: [ConfigService],
       isGlobal: true,

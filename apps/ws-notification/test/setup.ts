@@ -1,6 +1,5 @@
-/* eslint-disable */
 import 'tsconfig-paths/register';
-/* eslint-enable */
+
 import { PrismaClient } from '@prisma/client';
 import { seedWithMockUsers } from 'prisma/seeders/seed-with-mock-users';
 

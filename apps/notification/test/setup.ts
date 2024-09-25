@@ -1,6 +1,5 @@
-/* eslint-disable */
 import 'tsconfig-paths/register';
-/* eslint-enable */
+
 import { PrismaClient } from '@prisma/client';
 
 export const resetNotificationAutoIncrement = async (prisma: PrismaClient) => {
