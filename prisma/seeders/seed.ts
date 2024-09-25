@@ -23,6 +23,13 @@ async function main() {
   const categoryDataCount = parseInt(process.env.CATEGORY_COUNT || '') || 20;
   const commentDataCount = parseInt(process.env.COMMENT_COUNT || '') || 2000;
 
+  // Print data counts
+  console.log('Generating data with the following counts:');
+  console.log(`Users: ${userDataCount}`);
+  console.log(`Posts: ${postDataCount}`);
+  console.log(`Categories: ${categoryDataCount}`);
+  console.log(`Comments: ${commentDataCount}`);
+
   const timeTakenToGenerate = 'Data generated in';
   const timeTakenToGetMocks = 'Data mocks read in';
   const timeTakenDb = 'Seeded db in';
