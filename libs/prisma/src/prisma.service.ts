@@ -52,7 +52,7 @@ export class PrismaService
       this.logger.warn(e, 'PrismaClient:Warn');
     });
 
-    await this.$queryRaw`SET pg_trgm.similarity_threshold = 0.2`;
+    await this.$queryRaw`SET pg_trgm.similarity_threshold = 0.3`;
     await this.$connect();
   }
 }
