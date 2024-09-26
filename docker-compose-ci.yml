@@ -3,7 +3,7 @@ version: '3.9'
 services:
   postgres:
     container_name: next-blog-postgres
-    image: postgres:15.1
+    image: postgres:16.4
     healthcheck:
       test: ['CMD', 'pg_isready']
       interval: 5s
@@ -23,7 +23,7 @@ services:
 
   redis:
     container_name: next-blog-redis
-    image: redis:7.0.6
+    image: redis:7.4
     healthcheck:
       test: ['CMD', 'redis-cli', '--raw', 'incr', 'ping']
       interval: 5s
