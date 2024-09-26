@@ -23,4 +23,5 @@ export const selectPostWithAuthorCategories = {
       },
     },
   },
+  language: true,
 };

@@ -6,7 +6,7 @@ import slugify from 'slugify';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity, PostLike } from './entities/post.entity';
+import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
 @Injectable()
@@ -73,6 +73,8 @@ export class PostRepository {
    * @param {boolean} getPostOptions.published - Whether the post is published or not
    * @param {string} getPostOptions.searchTerm - Search term
    * @param {string} getPostOptions.category - Category name(s)
+   * @param {string} getPostOptions.authorId - Author id
+   * @param {string} getPostOptions.language - Language
    * @description
    * This private method is used to construct the where clause of the posts select query
    */
@@ -81,9 +83,10 @@ export class PostRepository {
     searchTerm,
     category,
     authorId,
+    language = 'english',
   }: Pick<
     GetPostDto,
-    'category' | 'published' | 'searchTerm' | 'authorId'
+    'category' | 'published' | 'searchTerm' | 'authorId' | 'language'
   >): Prisma.Sql {
     const where: Prisma.Sql[] = [];
 
@@ -111,8 +114,8 @@ export class PostRepository {
           AND p1.category_names @> string_to_array(${category}, ' '))`);
     if (searchTerm?.length)
       where.push(Prisma.sql`
-      (title % ${searchTerm} OR
-      excerpt % ${searchTerm})`);
+        (title % ${searchTerm}
+        OR to_tsvector(${language}::regconfig, excerpt) @@ websearch_to_tsquery(${language}::regconfig, ${searchTerm}))`);
 
     return where.length
       ? Prisma.sql`
@@ -157,7 +160,7 @@ export class PostRepository {
 
   /**
    * @param {SearchPostDto} searchPostOptions - Options for searching posts
-   * @description Find posts' ids by search term
+   * @description Find posts' ids by search term, language is used for search index utilization
    */
   findIds({
     take = 10,
@@ -166,25 +169,24 @@ export class PostRepository {
     order = 'desc',
     published,
     searchTerm,
+    language = 'english',
   }: SearchPostDto): Promise<{ id: number }[]> {
+    const selectRank = Prisma.sql`
+        (0.7 * similarity(title, ${searchTerm})) + 
+        (0.3 * ts_rank_cd(to_tsvector(${language}::regconfig, p.excerpt),
+        websearch_to_tsquery(${language}::regconfig, ${searchTerm}))) AS rank`;
     const ordering = this.pickOrdering(orderBy, order);
-    const wherePublished =
-      typeof published === 'boolean'
-        ? Prisma.sql`AND published = ${published}`
-        : Prisma.empty;
+    const whereClause = this.pickWhere({ published, searchTerm });
 
     return this.prisma.$queryRaw`
       SELECT
-        id
+        id,
+        ${selectRank}
       FROM
-        "Post"
-      WHERE
-        title % ${searchTerm} OR 
-        excerpt % ${searchTerm}
-        ${wherePublished}
+        "Post" AS p
+      ${whereClause}
       ORDER BY
-        title <-> ${searchTerm},
-        excerpt <-> ${searchTerm},
+        rank DESC,
         ${ordering}
       LIMIT ${take}
       OFFSET ${skip}`;
@@ -204,14 +206,20 @@ export class PostRepository {
     category,
     searchTerm,
     authorId,
-  }: GetPostDto = {}): Promise<PostEntity[]> {
+    language = 'english',
+  }: GetPostDto = {}): Promise<PostEntityRanked[]> {
     const selectContent = content ? Prisma.sql`content,` : Prisma.empty;
-    const ordering = this.pickOrdering(orderBy, order);
-    const orderBySearchTerm = searchTerm?.length
+    const selectRank = searchTerm?.length
       ? Prisma.sql`
-        title <-> ${searchTerm},
-        excerpt <-> ${searchTerm},`
+        (0.7 * similarity(title, ${searchTerm})) + 
+        (0.3 *
+        ts_rank_cd(to_tsvector(${language}::regconfig, p.excerpt),
+        websearch_to_tsquery(${language}::regconfig, ${searchTerm}))) AS rank,`
       : Prisma.empty;
+    const orderBySearchTerm = searchTerm?.length
+      ? Prisma.sql`rank DESC,`
+      : Prisma.empty;
+    const ordering = this.pickOrdering(orderBy, order);
     const whereClause = this.pickWhere({
       published,
       category,
@@ -219,7 +227,7 @@ export class PostRepository {
       authorId,
     });
 
-    return this.prisma.$queryRaw<PostEntity[]>`
+    return this.prisma.$queryRaw<PostEntityRanked[]>`
       SELECT
         p.id,
         p.created_at AS "createdAt",
@@ -229,7 +237,9 @@ export class PostRepository {
         p.excerpt,
         p.cover_image AS "coverImage",
         p.likes_count AS "likesCount",
+        p.language,
         ${selectContent}
+        ${selectRank}
         json_build_object('name', u. "name", 'image', u.image) AS author,
         array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
       FROM

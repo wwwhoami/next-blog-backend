@@ -38,6 +38,7 @@ const postWithNoContent: PostEntity = {
   },
   categories: postCategories,
   likesCount: 0,
+  language: 'english',
 };
 
 describe('Post (e2e)', () => {
@@ -82,6 +83,7 @@ describe('Post (e2e)', () => {
             slug: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
             author: {
               name: expect.any(String),
               image: expect.any(String),
@@ -154,6 +156,7 @@ describe('Post (e2e)', () => {
             excerpt: expect.any(String),
             coverImage: expect.any(String),
             content: expect.any(String),
+            language: expect.any(String),
             author: {
               name: expect.any(String),
               image: expect.any(String),
@@ -184,6 +187,7 @@ describe('Post (e2e)', () => {
             slug: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
             author: {
               name: expect.any(String),
               image: expect.any(String),
@@ -214,6 +218,8 @@ describe('Post (e2e)', () => {
             slug: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
+            rank: expect.any(Number),
             author: {
               name: expect.any(String),
               image: expect.any(String),
@@ -244,6 +250,7 @@ describe('Post (e2e)', () => {
             slug: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
             author: {
               name: expect.any(String),
               image: expect.any(String),
@@ -274,6 +281,7 @@ describe('Post (e2e)', () => {
             slug: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
             author: {
               name: author.name,
               image: author.image,
@@ -312,6 +320,7 @@ describe('Post (e2e)', () => {
             content: expect.any(String),
             excerpt: expect.any(String),
             coverImage: expect.any(String),
+            language: expect.any(String),
             author: {
               name: expect.any(String),
               image: expect.any(String),

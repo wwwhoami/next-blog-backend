@@ -5,7 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity, PostLike } from './entities/post.entity';
+import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
 import { PostRepository } from './post.repository';
 
 @Injectable()
@@ -32,7 +32,7 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.getIds(params);
   }
 
-  getMany(params: GetPostDto = {}): Promise<PostEntity[]> {
+  getMany(params: GetPostDto = {}): Promise<PostEntityRanked[]> {
     return this.postRepository.getMany(params);
   }
 

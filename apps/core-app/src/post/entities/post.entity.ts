@@ -13,6 +13,39 @@ export enum PostEntityKeysEnum {
   excerpt = 'excerpt',
   slug = 'slug',
   likesCount = 'likesCount',
+  language = 'language',
+}
+
+export enum PostEntityLanguageEnum {
+  simple = 'simple',
+  arabic = 'arabic',
+  armenian = 'armenian',
+  basque = 'basque',
+  catalan = 'catalan',
+  danish = 'danish',
+  dutch = 'dutch',
+  english = 'english',
+  finnish = 'finnish',
+  french = 'french',
+  german = 'german',
+  greek = 'greek',
+  hindi = 'hindi',
+  hungarian = 'hungarian',
+  indonesian = 'indonesian',
+  irish = 'irish',
+  italian = 'italian',
+  lithuanian = 'lithuanian',
+  nepali = 'nepali',
+  norwegian = 'norwegian',
+  portuguese = 'portuguese',
+  romanian = 'romanian',
+  russian = 'russian',
+  serbian = 'serbian',
+  spanish = 'spanish',
+  swedish = 'swedish',
+  tamil = 'tamil',
+  turkish = 'turkish',
+  yiddish = 'yiddish',
 }
 
 export class Slug {
@@ -40,6 +73,11 @@ export class PostEntity {
   author?: AuthorEntity;
   categories?: PostCategory[];
   likesCount: number;
+  language: string;
+}
+
+export class PostEntityRanked extends PostEntity {
+  rank?: number;
 }
 
 export class PostLike extends PickType(PostEntity, [

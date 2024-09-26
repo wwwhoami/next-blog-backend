@@ -20,6 +20,7 @@ const postArray = [
     published: true,
     content: 'content',
     likesCount: 0,
+    language: 'english',
   },
   {
     id: 335,
@@ -34,6 +35,7 @@ const postArray = [
     published: true,
     content: 'content',
     likesCount: 0,
+    language: 'english',
   },
   {
     id: 995,
@@ -48,6 +50,7 @@ const postArray = [
     published: true,
     content: 'content',
     likesCount: 0,
+    language: 'english',
   },
 ];
 
@@ -143,6 +146,7 @@ describe('PostRepository', () => {
       const authorId = '00000000-0000-0000-0000-000000000000';
       const category = 'testCategory';
       const searchTerm = 'testSearchTerm';
+      const language = 'english';
       const expected = Prisma.sql`
       published = ${published}
       AND author_id = ${authorId}
@@ -162,9 +166,9 @@ describe('PostRepository', () => {
             p2.id) AS p1
         WHERE
           p1.id IS NOT NULL
-          AND p1.category_names @> string_to_array(${category},
-      AND (title % ${searchTerm} OR
-      excerpt % ${searchTerm})`;
+          AND p1.category_names @> string_to_array(${category}, ' '))
+      AND title % ${searchTerm} 
+        OR to_tsvector(${language}::regconfig, excerpt) @@ websearch_to_tsquery(${language}::regconfig, ${searchTerm})`;
 
       const result: Prisma.Sql = (repository as any).pickWhere({
         searchTerm,
@@ -193,7 +197,7 @@ describe('PostRepository', () => {
         { id: 11 },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
 
-      prisma.post.findMany.mockResolvedValue(payload);
+      prisma.post.findMany.mockResolvedValue(await payload);
 
       const postsIds = await repository.getIds();
 
@@ -246,7 +250,7 @@ describe('PostRepository', () => {
         { slug: 'slug1' },
         { slug: 'slug2' },
       ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
-      prisma.post.findMany.mockResolvedValue(payload);
+      prisma.post.findMany.mockResolvedValue(await payload);
 
       const posts = await repository.getSlugsForPublished();
 
@@ -287,7 +291,7 @@ describe('PostRepository', () => {
       } as unknown as Prisma.Prisma__PostClient<Post>;
       const postId = 12;
 
-      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+      prisma.post.findUniqueOrThrow.mockResolvedValue(await expectedAuthor);
 
       const author = await repository.getAuthorById(postId);
 
@@ -302,7 +306,7 @@ describe('PostRepository', () => {
       } as unknown as Prisma.Prisma__PostClient<Post>;
       const postSlug = 'slug';
 
-      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+      prisma.post.findUniqueOrThrow.mockResolvedValue(await expectedAuthor);
 
       const author = await repository.getAuthorBySlug(postSlug);
 
@@ -317,7 +321,7 @@ describe('PostRepository', () => {
       } as unknown as Prisma.Prisma__PostClient<Post>;
       const postId = 12;
 
-      prisma.post.findUniqueOrThrow.mockResolvedValue(expectedAuthor);
+      prisma.post.findUniqueOrThrow.mockResolvedValue(await expectedAuthor);
 
       const author = await repository.getAuthorById(postId);
 
@@ -359,6 +363,7 @@ describe('PostRepository', () => {
         authorId,
         updatedAt: new Date(),
         likesCount: 0,
+        language: 'english',
       });
 
       const createdPost = await repository.create(postToCreate, authorId);
@@ -396,6 +401,7 @@ describe('PostRepository', () => {
         id: postId,
         authorId,
         updatedAt: new Date(),
+        language: 'english',
       });
 
       const updatedPost = await repository.update(postId, postToUpdate);
@@ -429,7 +435,7 @@ describe('PostRepository', () => {
       const postId = 1;
 
       prisma.postLikes.findMany.mockResolvedValue(
-        likes as unknown as Prisma.Prisma__PostClient<Array<PostLikes>>,
+        await (likes as unknown as Prisma.Prisma__PostClient<Array<PostLikes>>),
       );
 
       const postLikes = await repository.getLikes(postId);
@@ -468,7 +474,7 @@ describe('PostRepository', () => {
         postId,
         userId,
       });
-      prisma.post.update.mockResolvedValue(expected);
+      prisma.post.update.mockResolvedValue(await expected);
 
       const postLikes = await repository.like(postId, userId);
       expect(postLikes).toEqual(expected);
@@ -488,7 +494,7 @@ describe('PostRepository', () => {
         postId,
         userId,
       });
-      prisma.post.update.mockResolvedValue(expected);
+      prisma.post.update.mockResolvedValue(await expected);
 
       const postLikes = await repository.unlike(postId, userId);
       expect(postLikes).toEqual(expected);

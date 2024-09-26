@@ -11,9 +11,14 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
-import { PostEntityKeysEnum } from '../entities/post.entity';
+import {
+  PostEntityKeysEnum,
+  PostEntityLanguageEnum,
+} from '../entities/post.entity';
 
 export type PostOrderBy = UnionOfObjKeys<Post>;
+
+export type PostLanguage = `${PostEntityLanguageEnum}`;
 
 export class GetPostDto {
   @IsOptional()
@@ -72,6 +77,11 @@ export class GetPostDto {
   @IsOptional()
   @IsUUID()
   authorId?: string;
+
+  @IsOptional()
+  @IsEnum(PostEntityLanguageEnum)
+  @ApiProperty({ enum: PostEntityLanguageEnum })
+  language?: PostLanguage;
 }
 
 export class GetPostPublicDto extends OmitType(GetPostDto, ['published']) {}

@@ -18,7 +18,12 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { PostEntity, PostLike, Slug } from './entities/post.entity';
+import {
+  PostEntity,
+  PostEntityRanked,
+  PostLike,
+  Slug,
+} from './entities/post.entity';
 import { PostService } from './post.service';
 
 @Controller('post')
@@ -28,7 +33,7 @@ export class PostController {
 
   // Can get only published posts from this endpoint
   @Get()
-  posts(@Query() getPostsQuery: GetPostPublicDto): Promise<PostEntity[]> {
+  posts(@Query() getPostsQuery: GetPostPublicDto): Promise<PostEntityRanked[]> {
     return this.postService.getMany({ ...getPostsQuery, published: true });
   }
 
