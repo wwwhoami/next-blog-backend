@@ -50,7 +50,11 @@ import { NotificationService } from './notification.service';
                 ],
               },
 
-        level: process.env.NODE_ENV === 'prod' ? 'info' : 'debug',
+        level:
+          (process.env.NODE_ENV === 'prod' && 'info') ||
+          // suppress pino logs during testing
+          (process.env.NODE_ENV === 'testing' && 'silent') ||
+          'debug',
       },
     }),
     ClientsModule.registerAsync([

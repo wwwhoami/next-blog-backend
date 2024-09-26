@@ -1,6 +1,28 @@
 import { Params } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 
+const pinoTransportProd = {
+  targets: [
+    {
+      target: 'pino/file',
+      options: { destination: `${__dirname}/core-app.log` },
+    },
+    {
+      target: 'pino-pretty',
+      options: {
+        singleLine: true,
+      },
+    },
+  ],
+};
+
+const pinoTransportDev = {
+  target: 'pino-pretty',
+  options: {
+    singleLine: true,
+  },
+};
+
 export const pinoParams: Params = {
   pinoHttp: {
     redact: ['req.headers.authorization', 'req.headers.cookie'],
@@ -48,28 +70,12 @@ export const pinoParams: Params = {
     },
 
     transport:
-      process.env.NODE_ENV !== 'prod'
-        ? {
-            target: 'pino-pretty',
-            options: {
-              singleLine: true,
-            },
-          }
-        : {
-            targets: [
-              {
-                target: 'pino/file',
-                options: { destination: `${__dirname}/core-app.log` },
-              },
-              {
-                target: 'pino-pretty',
-                options: {
-                  singleLine: true,
-                },
-              },
-            ],
-          },
+      process.env.NODE_ENV !== 'prod' ? pinoTransportDev : pinoTransportProd,
 
-    level: process.env.NODE_ENV === 'prod' ? 'info' : 'debug',
+    level:
+      (process.env.NODE_ENV === 'prod' && 'info') ||
+      // suppress pino logs during testing
+      (process.env.NODE_ENV === 'testing' && 'silent') ||
+      'debug',
   },
 };
