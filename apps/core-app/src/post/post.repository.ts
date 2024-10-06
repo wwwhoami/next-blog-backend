@@ -172,7 +172,7 @@ export class PostRepository {
     language = 'english',
   }: SearchPostDto): Promise<{ id: number }[]> {
     const selectRank = Prisma.sql`
-        (0.7 * similarity(title, ${searchTerm})) + 
+        (0.7 * similarity(p.title, ${searchTerm})) + 
         (0.3 * ts_rank_cd(to_tsvector(${language}::regconfig, p.excerpt),
         websearch_to_tsquery(${language}::regconfig, ${searchTerm}))) AS rank`;
     const ordering = this.pickOrdering(orderBy, order);
@@ -211,7 +211,7 @@ export class PostRepository {
     const selectContent = content ? Prisma.sql`content,` : Prisma.empty;
     const selectRank = searchTerm?.length
       ? Prisma.sql`
-        (0.7 * similarity(title, ${searchTerm})) + 
+        (0.7 * similarity(p.title, ${searchTerm})) + 
         (0.3 *
         ts_rank_cd(to_tsvector(${language}::regconfig, p.excerpt),
         websearch_to_tsquery(${language}::regconfig, ${searchTerm}))) AS rank,`
