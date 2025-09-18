@@ -6,38 +6,20 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2017",
+    "target": "es2023",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@core/*": [
-        "apps/core-app/*"
-      ],
-      "@ws-notification/*": [
-        "apps/ws-notification/*"
-      ],
-      "data/*": [
-        "./data/*"
-      ],
-      "@app/auth": [
-        "libs/auth/src"
-      ],
-      "@app/auth/*": [
-        "libs/auth/src/*"
-      ],
-      "@app/prisma": [
-        "libs/prisma/src"
-      ],
-      "@app/prisma/*": [
-        "libs/prisma/src/*"
-      ],
-      "@app/shared": [
-        "libs/shared/src"
-      ],
-      "@app/shared/*": [
-        "libs/shared/src/*"
-      ],
+      "@core/*": ["apps/core-app/*"],
+      "@ws-notification/*": ["apps/ws-notification/*"],
+      "data/*": ["./data/*"],
+      "@app/auth": ["libs/auth/src"],
+      "@app/auth/*": ["libs/auth/src/*"],
+      "@app/prisma": ["libs/prisma/src"],
+      "@app/prisma/*": ["libs/prisma/src/*"],
+      "@app/shared": ["libs/shared/src"],
+      "@app/shared/*": ["libs/shared/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -53,8 +35,6 @@
     "compilerOptions": {
       "module": "commonjs"
     },
-    "require": [
-      "tsconfig-paths/register"
-    ]
+    "require": ["tsconfig-paths/register"]
   }
 }
