@@ -86,7 +86,7 @@ export async function generatePosts(count: number, uuids: string[]) {
       excerpt: faker.lorem.sentence(15),
       content: contents[i],
       published: true,
-      coverImage: faker.image.urlLoremFlickr({ category: 'business' }),
+      coverImage: faker.image.urlPicsumPhotos(),
       authorId: uuids[Math.floor(Math.random() * (uuids.length - 1) + 1)],
     });
   }
