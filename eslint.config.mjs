@@ -16,7 +16,7 @@ const compat = new FlatCompat({
 
 export default [
   {
-    ignores: ['**/.eslintrc.js'],
+    ignores: ['**/.eslintrc.js', 'prisma/client'],
   },
   ...compat.extends(
     'plugin:@typescript-eslint/recommended',
