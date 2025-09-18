@@ -19,9 +19,7 @@
       "@app/prisma": ["libs/prisma/src"],
       "@app/prisma/*": ["libs/prisma/src/*"],
       "@app/shared": ["libs/shared/src"],
-      "@app/shared/*": ["libs/shared/src/*"],
-      "@prisma": ["./prisma/"],
-      "@prisma/*": ["./prisma/*"]
+      "@app/shared/*": ["libs/shared/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,
@@ -32,7 +30,6 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true
   },
-
   "ts-node": {
     "swc": true,
     "compilerOptions": {

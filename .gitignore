@@ -38,9 +38,6 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Prisma client
-prisma/client
-
 # yarn 
 .pnp.*
 .yarn/*

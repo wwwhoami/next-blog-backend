@@ -19,6 +19,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+RUN cd /usr/src/app && pnpm dlx prisma generate
 
 ###################
 # BUILD FOR PRODUCTION
@@ -29,6 +30,7 @@ ENV NODE_ENV prod
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN cd /usr/src/app && pnpm prisma generate
 RUN pnpm build:ws-notification
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 
 ###################
@@ -38,7 +40,6 @@ RUN pnpm build:ws-notification
 FROM node:20-alpine AS production
 COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
-COPY --from=build /usr/src/app/prisma/client ./prisma/client
 
 ENV NODE_ENV prod
 

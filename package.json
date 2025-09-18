@@ -169,8 +169,7 @@
       "^data/(.*)$": "<rootDir>/data/$1",
       "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1",
       "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
-      "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1",
-      "^@prisma/(.*)$": "<rootDir>/prisma/$1"
+      "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
     },
     "roots": [
       "<rootDir>/apps/",
