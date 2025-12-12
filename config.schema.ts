@@ -21,4 +21,10 @@ export const configValidationSchema = Joi.object({
   KAFKA_PORT: Joi.number().default(9092),
   ZOOKEEPER_PORT: Joi.number().default(2181),
   CLIENT_URL: Joi.string(),
+  MINIO_ENDPOINT: Joi.string().required(),
+  MINIO_REGION: Joi.string().default('us-east-1'),
+  MINIO_ACCESS_KEY: Joi.string().required(),
+  MINIO_SECRET_KEY: Joi.string().required(),
+  MINIO_MEDIA_BUCKET: Joi.string().required(),
+  MINIO_PUBLIC_URL: Joi.string().required(),
 });
