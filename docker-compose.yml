@@ -11,6 +11,7 @@ services:
       dockerfile: ./apps/core-app/Dockerfile
       target: production
     image: next-blog-core-app:prod
+    restart: unless-stopped
     ports:
       - 3000:3000
     depends_on:
@@ -32,6 +33,7 @@ services:
       dockerfile: ./apps/notification/Dockerfile
       target: production
     image: next-blog-notification:prod
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
@@ -51,6 +53,7 @@ services:
       dockerfile: ./apps/ws-notification/Dockerfile
       target: production
     image: next-blog-ws-notification:prod
+    restart: unless-stopped
     ports:
       - 3001:3001
     depends_on:
