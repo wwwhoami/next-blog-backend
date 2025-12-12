@@ -54,6 +54,9 @@
     "db:reset": "dotenv -e .env.dev --- pnpm prisma migrate reset"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.896.0",
+    "@aws-sdk/s3-request-presigner": "^3.896.0",
+    "@nestjs/bullmq": "^11.0.3",
     "@nestjs/cache-manager": "^2.3.0",
     "@nestjs/common": "^10.4.20",
     "@nestjs/config": "^3.3.0",
@@ -68,6 +71,7 @@
     "@nestjs/websockets": "^10.4.20",
     "@prisma/client": "5.20.0",
     "bcrypt": "^5.1.1",
+    "bullmq": "^5.60.0",
     "cache-manager": "5.7.6",
     "cache-manager-ioredis-yet": "^2.1.2",
     "class-transformer": "^0.5.1",
@@ -87,6 +91,7 @@
     "reflect-metadata": "^0.2.2",
     "rimraf": "^6.0.1",
     "rxjs": "^7.8.2",
+    "sharp": "^0.34.4",
     "slugify": "^1.6.6",
     "socket.io": "^4.8.1"
   },
@@ -105,6 +110,7 @@
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^4.17.23",
     "@types/jest": "29.5.13",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.18.6",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
@@ -176,5 +182,5 @@
       "<rootDir>/libs/"
     ]
   },
-  "packageManager": "pnpm@9.11.0+sha512.0a203ffaed5a3f63242cd064c8fb5892366c103e328079318f78062f24ea8c9d50bc6a47aa3567cabefd824d170e78fa2745ed1f16b132e16436146b7688f19b"
+  "packageManager": "pnpm@10.18.0+sha512.e804f889f1cecc40d572db084eec3e4881739f8dec69c0ff10d2d1beff9a4e309383ba27b5b750059d7f4c149535b6cd0d2cb1ed3aeb739239a4284a68f40cfa"
 }

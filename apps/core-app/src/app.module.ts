@@ -1,3 +1,4 @@
+import { BullModule } from '@nestjs/bullmq';
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -8,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { CommentModule } from './comment/comment.module';
 import { pinoParams } from './common/pino/pino.provider';
+import { MediaModule } from './media/media.module';
 import { NotificationModule } from './notification/notification.module';
 import { PostModule } from './post/post.module';
 import { UserModule } from './user/user.module';
@@ -39,12 +41,24 @@ import { UserModule } from './user/user.module';
       inject: [ConfigService],
       isGlobal: true,
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+          password: configService.get<string>('REDIS_PASSWORD'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
     PostModule,
     CategoryModule,
     UserModule,
     AuthModule,
     CommentModule,
     NotificationModule,
+    MediaModule,
   ],
 })
 export class AppModule {}
