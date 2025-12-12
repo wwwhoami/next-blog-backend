@@ -27,6 +27,7 @@ model User {
   CommentLikes CommentLikes[]
   followers    Follows[]      @relation("follower")
   following    Follows[]      @relation("following")
+  Media        Media[]
 }
 
 model Follows {
@@ -55,6 +56,7 @@ model Post {
   categories PostToCategory[]
   comment    Comment[]
   PostLikes  PostLikes[]
+  Media      Media[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Post_title_trgm_idx")
   @@index([slug])
@@ -94,6 +96,7 @@ model Comment {
   ancestor     Comment?       @relation("ancestor_descendants", fields: [ancestorId], references: [id])
   descendants  Comment[]      @relation("ancestor_descendants")
   CommentLikes CommentLikes[]
+  Media        Media[]
 }
 
 model PostLikes {
@@ -135,3 +138,73 @@ model Notification {
   @@index([createdAt])
   @@index([target])
 }
+
+enum MediaType {
+  IMAGE
+}
+
+enum MediaTarget {
+  POST
+  COMMENT
+  USER_AVATAR
+}
+
+enum MediaVariant {
+  ORIGINAL
+  PREVIEW
+  MEDIUM
+  LARGE
+  THUMBNAIL
+}
+
+model Media {
+  id        String       @id @default(uuid()) @db.Uuid
+  key       String       @unique
+  ownerId   String       @map("owner_id") @db.Uuid
+  parentId  String?      @db.Uuid
+  postId    Int?
+  commentId Int?
+  type      MediaType    @map("media_type")
+  target    MediaTarget  @map("media_target")
+  variant   MediaVariant @default(ORIGINAL) @map("media_variant")
+  mimeType  String       @map("mime_type") @db.VarChar
+  sizeBytes BigInt       @map("size_bytes") @db.BigInt
+  bucket    String       @db.VarChar
+  publicUrl String       @db.VarChar //public url (cdn or s3 presigned)
+  hash      String?      @db.Char(64) //deduplication hash (sha256)
+  refCount  Int          @default(1) @map("ref_count")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  User     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Post     Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  Comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  Parent   Media?   @relation("MediaVariants", fields: [parentId], references: [id])
+  Variants Media[]  @relation("MediaVariants")
+
+  @@unique([hash, type])
+  @@index([key])
+  @@index([ownerId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+// model MediaToPost {
+//   mediaId String @map("media_id") @db.Uuid
+//   postId  Int    @map("post_id")
+//
+//   media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+//   post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+//
+//   @@id([mediaId, postId])
+// }
+//
+// model MediaToComment {
+//   mediaId   String @map("media_id") @db.Uuid
+//   commentId Int    @map("comment_id")
+//
+//   media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+//   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+//
+//   @@id([mediaId, commentId])
+// }
