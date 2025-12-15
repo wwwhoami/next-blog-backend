@@ -1,18 +1,28 @@
-export type MediaType = 'IMAGE';
-export type MediaTarget = 'POST' | 'COMMENT' | 'USER_AVATAR';
+import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 
-export class Media {
+export class MediaEntity {
   id: string;
-  userId: string;
-  mediaType: MediaType;
-  bucket: string;
   key: string;
+  ownerId: string;
+  parentId: string | null;
+  postId: number | null;
+  commentId: number | null;
+  type: MediaType;
+  target: MediaTarget;
+  variant: MediaVariant;
   mimeType: string;
-  sizeBytes: number;
-  width?: number;
-  height?: number;
-  hash: string;
-  references: number;
+  sizeBytes: string;
+  bucket: string;
+  publicUrl: string;
+  hash: string | null;
+  refCount: number;
   createdAt: Date;
-  deletedAt?: Date;
+  deletedAt: Date | null;
+
+  fromPrisma(media: any): MediaEntity {
+    return Object.assign(this, {
+      ...media,
+      sizeBytes: media.sizeBytes.toString(),
+    });
+  }
 }
