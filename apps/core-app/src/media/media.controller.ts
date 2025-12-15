@@ -2,8 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  FileTypeValidator,
   Get,
+  HttpStatus,
+  MaxFileSizeValidator,
   Param,
+  ParseFilePipe,
   Post,
   Sse,
   UploadedFile,
@@ -35,7 +39,21 @@ export class MediaController {
   @UseGuards(AccessTokenGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 10 * 1024 * 1024,
+          }),
+          new FileTypeValidator({
+            fileType: /image\/(jpeg|png|webp|gif)/,
+            skipMagicNumbersValidation: true,
+          }),
+        ],
+        errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+      }),
+    )
+    file: Express.Multer.File,
     @GetUser('id') userId: string,
     @Body() mediaMeta: UploadMediaDto,
   ) {

@@ -1,13 +1,14 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MediaVariant } from '@prisma/client';
+import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'crypto';
 import sharp from 'sharp';
+import { EntityWithAuthorService } from '../common/entity-with-author.service';
+import { UnprocesasbleEntityError } from '../common/errors/unprocessable-entity.errror';
 import { UploadMediaDto } from './dto/upload-media.dto';
-import { MediaTarget, MediaType } from './entities/media.entity';
 import { MediaEventsService } from './media-events.service';
 import { MediaRepository } from './media.repository';
 
@@ -16,7 +17,7 @@ export const MEDIA_POLICIES = {
     maxWidth: 2000,
     maxHeight: 2000,
     resizeTo: 1200,
-    formats: ['webp', 'jpeg'],
+    formats: ['webp', 'jpeg', 'png'],
     maxFileSize: 5 * 1024 * 1024,
     multipleAllowed: true,
   },
@@ -24,7 +25,7 @@ export const MEDIA_POLICIES = {
     maxWidth: 1000,
     maxHeight: 1000,
     resizeTo: 800,
-    formats: ['webp'],
+    formats: ['webp', 'jpeg', 'png'],
     maxFileSize: 2 * 1024 * 1024,
     multipleAllowed: true,
   },
@@ -32,14 +33,14 @@ export const MEDIA_POLICIES = {
     maxWidth: 500,
     maxHeight: 500,
     resizeTo: 256,
-    formats: ['webp'],
+    formats: ['webp', 'jpeg', 'png'],
     maxFileSize: 1 * 1024 * 1024,
     multipleAllowed: false,
   },
 } as const;
 
 @Injectable()
-export class MediaService {
+export class MediaService implements EntityWithAuthorService {
   private bucket: string;
 
   constructor(
@@ -77,21 +78,24 @@ export class MediaService {
 
     const allowedMimeTypes = policy.formats.map((format) => `image/${format}`);
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Unsupported file format');
+      throw new UnprocesasbleEntityError('Unsupported file format');
     }
 
+    if (file.size === 0) {
+      throw new UnprocesasbleEntityError('File is empty');
+    }
     if (file.size > policy.maxFileSize) {
-      throw new BadRequestException('File too large');
+      throw new UnprocesasbleEntityError('File too large');
     }
 
     const image = sharp(file.buffer);
     const metadata = await image.metadata();
 
     if (
-      metadata.width! > policy.maxWidth ||
-      metadata.height! > policy.maxHeight
+      metadata.width > policy.maxWidth ||
+      metadata.height > policy.maxHeight
     ) {
-      throw new BadRequestException('Image dimensions too large');
+      throw new UnprocesasbleEntityError('Image dimensions too large');
     }
 
     const processed = await image

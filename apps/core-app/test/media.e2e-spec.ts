@@ -131,7 +131,7 @@ describe('Media (e2e)', () => {
           filename: 'empty.png',
           contentType: 'image/png',
         })
-        .expect(HttpStatus.BAD_REQUEST);
+        .expect(HttpStatus.UNPROCESSABLE_ENTITY);
     });
 
     it('should fail when file exceeds size limit', async () => {
@@ -160,7 +160,7 @@ describe('Media (e2e)', () => {
           filename: 'test.png',
           contentType: 'image/png',
         })
-        .expect(HttpStatus.BAD_REQUEST);
+        .expect(HttpStatus.UNPROCESSABLE_ENTITY);
     });
   });
 
