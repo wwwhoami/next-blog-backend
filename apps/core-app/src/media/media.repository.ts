@@ -50,10 +50,11 @@ export class MediaRepository {
   }
 
   async getAuthorId(id: string) {
-    return this.prisma.media.findUnique({
+    const author = await this.prisma.media.findUniqueOrThrow({
       where: { id },
       select: { ownerId: true },
     });
+    return { authorId: author?.ownerId };
   }
 
   async getPresignedUrl(id: string, ttlSeconds = 600) {
