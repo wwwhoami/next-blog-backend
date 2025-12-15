@@ -9,6 +9,11 @@ import { AppModule } from './app.module';
 import { ErrorInterceptor } from './common/interceptors/error.interceptor';
 import metadata from './metadata';
 
+// Override JSON.stringify to handle BigInt
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(PinoLogger));
