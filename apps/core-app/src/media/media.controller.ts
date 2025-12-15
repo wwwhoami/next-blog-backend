@@ -13,6 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Observable, filter, fromEvent, map } from 'rxjs';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { UuidId } from '../common/decorators/id-type.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from '../common/guards/is-admin-or-author.guard';
 import { UploadMediaDto } from './dto/upload-media.dto';
@@ -58,6 +59,7 @@ export class MediaController {
   }
 
   @Delete(':id')
+  @UuidId()
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   async remove(
     @Param('id') id: string,
