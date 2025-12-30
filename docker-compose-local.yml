@@ -73,6 +73,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_DEFAULT_BUCKETS: ${MINIO_MEDIA_BUCKET}
     ports:
       - '9000:9000' # S3 API
       - '9001:9001' # Web console
