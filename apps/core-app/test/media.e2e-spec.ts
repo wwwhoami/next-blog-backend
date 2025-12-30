@@ -13,6 +13,31 @@ import request from 'supertest';
   return this.toString();
 };
 
+function parseSse(raw: string) {
+  return raw
+    .split('\n\n') // event boundary
+    .filter(Boolean)
+    .map((block) => {
+      const event: any = {};
+
+      for (const line of block.split('\n')) {
+        const [key, ...rest] = line.split(':');
+        if (!key || rest.length === 0) continue;
+
+        const value = rest.join(':').trim();
+
+        if (key === 'data') {
+          event.data ??= '';
+          event.data += value;
+        } else {
+          event[key] = value;
+        }
+      }
+
+      return event;
+    });
+}
+
 describe('Media (e2e)', () => {
   let app: INestApplication;
   let accessToken: string;
@@ -68,17 +93,23 @@ describe('Media (e2e)', () => {
       expect(response.body).toEqual(
         expect.objectContaining({
           id: expect.any(String),
-          key: expect.stringContaining('uploads/image/'),
+          key: expect.stringContaining('image/'),
           bucket: expect.any(String),
           ownerId: userId,
+          parentId: null,
           type: MediaType.IMAGE,
           target: MediaTarget.POST,
           variant: MediaVariant.ORIGINAL,
           mimeType: 'image/webp',
           publicUrl: expect.stringContaining('http'),
           hash: expect.any(String),
+          createdAt: expect.any(String),
+          deletedAt: null,
+          refCount: 1,
         }),
       );
+      // Check for a correct date
+      expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
     });
 
     it('should fail with invalid file type', async () => {
@@ -181,6 +212,9 @@ describe('Media (e2e)', () => {
         });
 
       mediaId = uploadResponse.body.id;
+
+      // Wait for the variants to be created by the worker process
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     });
 
     it('should get media with variants', async () => {
@@ -188,17 +222,24 @@ describe('Media (e2e)', () => {
         .get(`/media/${mediaId}`)
         .expect(HttpStatus.OK);
 
-      expect(response.body).toEqual(
-        expect.objectContaining({
-          id: mediaId,
-          key: expect.any(String),
-          type: MediaType.IMAGE,
-          target: MediaTarget.POST,
-          variant: MediaVariant.ORIGINAL,
-          publicUrl: expect.any(String),
-          children: expect.any(Array),
-        }),
-      );
+      expect(response.body).toMatchObject({
+        id: mediaId,
+        key: expect.any(String),
+        type: MediaType.IMAGE,
+        target: MediaTarget.POST,
+        variant: MediaVariant.ORIGINAL,
+        publicUrl: expect.any(String),
+        children: expect.arrayContaining([
+          expect.objectContaining({
+            id: expect.any(String),
+            key: expect.any(String),
+            variant: expect.any(String),
+            publicUrl: expect.any(String),
+            mimeType: expect.any(String),
+            sizeBytes: expect.any(String),
+          }),
+        ]),
+      });
     });
 
     it('should return 404 for non-existent media', async () => {
@@ -207,6 +248,14 @@ describe('Media (e2e)', () => {
       await request(app.getHttpServer())
         .get(`/media/${nonExistentId}`)
         .expect(HttpStatus.NOT_FOUND);
+    });
+
+    it('should return 400 for non-UUID media ID', async () => {
+      const invalidId = 'invalid-uuid';
+
+      await request(app.getHttpServer())
+        .get(`/media/${invalidId}`)
+        .expect(HttpStatus.BAD_REQUEST);
     });
   });
 
@@ -264,6 +313,15 @@ describe('Media (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(HttpStatus.NOT_FOUND);
     });
+
+    it('should return 400 for non-UUID media ID', async () => {
+      const invalidId = 'invalid-uuid';
+
+      await request(app.getHttpServer())
+        .delete(`/media/${invalidId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
   });
 
   describe('GET /media/:id/stream (SSE)', () => {
@@ -284,30 +342,43 @@ describe('Media (e2e)', () => {
       mediaId = uploadResponse.body.id;
     });
 
-    it('should establish SSE connection', (done) => {
-      console.log('Starting SSE connection test for media ID:', mediaId);
-      const req = request(app.getHttpServer())
+    it('should get the generated variants data via SSE stream', async () => {
+      let raw = '';
+      const res = await request(app.getHttpServer())
         .get(`/media/${mediaId}/stream`)
         .set('Accept', 'text/event-stream')
         .set('Cache-Control', 'no-cache')
         .buffer(false)
         .parse((res, callback) => {
-          // Just check that we can establish the connection
-          res.on('data', () => {
-            // SSE connection established successfully
-            console.log('SSE connection established');
-            console.log('Response: ', res.statusCode, res.body);
-            req.abort();
-            done();
+          res.on('data', (chunk) => {
+            raw += chunk;
           });
-          callback(null, res);
+          res.on('end', () => callback(null, raw));
         });
 
-      // If no data is received within a reasonable time, consider it successful
-      setTimeout(() => {
-        req.abort();
-        done();
-      }, 1000);
+      const events = parseSse(raw);
+
+      expect(res.status).toBe(HttpStatus.OK);
+      expect(res.headers['content-type']).toContain('text/event-stream');
+      expect(events.length).toBeGreaterThan(0);
+      expect(events[0]).toMatchObject({
+        event: 'upload-status',
+        id: expect.any(String),
+        data: expect.any(String),
+      });
+
+      const parsedData = JSON.parse(events[0].data);
+      expect(parsedData).toMatchObject({
+        status: 'completed',
+        ownerId: userId,
+        mediaId: mediaId,
+        variants: expect.arrayContaining([
+          expect.objectContaining({
+            key: expect.any(String),
+            publicUrl: expect.any(String),
+          }),
+        ]),
+      });
     });
   });
 });

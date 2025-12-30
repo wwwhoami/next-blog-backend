@@ -1,6 +1,6 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import { Queue } from 'bullmq';
@@ -9,7 +9,10 @@ import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocesasbleEntityError } from '../common/errors/unprocessable-entity.errror';
 import { UploadMediaDto } from './dto/upload-media.dto';
-import { MediaEventsService } from './media-events.service';
+import {
+  MediaEventsService,
+  MediaVariantsStatusMsg,
+} from './media-events.service';
 import { MediaRepository } from './media.repository';
 
 export const MEDIA_POLICIES = {
@@ -117,8 +120,20 @@ export class MediaService implements EntityWithAuthorService {
       return existing;
     }
 
-    const key = `uploads/${mediaMeta.type.toLowerCase()}/${userId}/${randomUUID()}.${policy.formats[0]}`;
+    const key = `${mediaMeta.type.toLowerCase()}/${userId}/${randomUUID()}.${policy.formats[0]}`;
     const publicUrl = this.buildPublicUrl(key);
+
+    try {
+      await this.repo.uploadBuffer(
+        processed.data,
+        key,
+        `image/${format}`,
+        true,
+      );
+    } catch (error) {
+      console.error('Error uploading media buffer:', error);
+      throw new InternalServerErrorException('Failed to upload media');
+    }
 
     // Create a DB record
     const media = await this.repo.create({
@@ -141,7 +156,10 @@ export class MediaService implements EntityWithAuthorService {
       {
         attempts: 5,
         backoff: { type: 'exponential', delay: 2000 },
-        removeOnComplete: true,
+        removeOnComplete: {
+          age: 3600,
+          count: 1000,
+        },
         removeOnFail: false,
       },
     );
@@ -190,5 +208,31 @@ export class MediaService implements EntityWithAuthorService {
 
   async removeReference(id: string) {
     return this.repo.decrementRefCountOrRemove(id);
+  }
+
+  async getProcessingResult(id: string): Promise<MediaVariantsStatusMsg> {
+    const media = await this.repo.findByIdWithVariants(id);
+
+    if (!media) {
+      throw new NotFoundError('Media not found');
+    }
+
+    // If variants exist, return them immediately
+    if (media.Variants && media.Variants.length > 0) {
+      return {
+        status: 'completed',
+        payload: {
+          mediaId: media.id,
+          ownerId: media.ownerId,
+          variants: media.Variants.map((v) => ({
+            key: v.key,
+            publicUrl: v.publicUrl,
+            variant: v.variant,
+          })),
+        },
+      };
+    }
+
+    return { status: 'pending', payload: { mediaId: media.id } };
   }
 }
