@@ -380,5 +380,55 @@ describe('Media (e2e)', () => {
         ]),
       });
     });
+
+    it('should return error for non-existent media', async () => {
+      const nonExistentId = 'f22c2a51-60ce-45e3-bc1b-f835756e1a78';
+      let raw = '';
+
+      await request(app.getHttpServer())
+        .get(`/media/${nonExistentId}/stream`)
+        .set('Accept', 'text/event-stream')
+        .set('Cache-Control', 'no-cache')
+        .buffer(false)
+        .parse((res, callback) => {
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () => callback(null, raw));
+        });
+
+      const events = parseSse(raw);
+
+      expect(events[0]).toMatchObject({
+        event: 'error',
+        id: expect.any(String),
+        data: expect.stringContaining('Not Found'),
+      });
+    });
+
+    it('should return error for non-UUID media ID', async () => {
+      const invalidId = 'invalid-uuid';
+      let raw = '';
+
+      await request(app.getHttpServer())
+        .get(`/media/${invalidId}/stream`)
+        .set('Accept', 'text/event-stream')
+        .set('Cache-Control', 'no-cache')
+        .buffer(false)
+        .parse((res, callback) => {
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () => callback(null, raw));
+        });
+
+      const events = parseSse(raw);
+
+      expect(events[0]).toMatchObject({
+        event: 'error',
+        id: expect.any(String),
+        data: expect.stringContaining('Validation failed'),
+      });
+    });
   });
 });
