@@ -6,6 +6,7 @@ import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import sharp from 'sharp';
+import { UnprocesasbleEntityError } from '../../common/errors/unprocessable-entity.errror';
 import { UploadMediaDto } from '../dto/upload-media.dto';
 import { MediaEventsService } from '../media-events.service';
 import { MediaRepository } from '../media.repository';
@@ -65,10 +66,11 @@ describe('MediaService', () => {
     refCount: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
     postId: null,
     commentId: null,
     parentId: null,
-    Variants: [],
+    Variants: null,
   };
 
   beforeEach(async () => {
@@ -129,7 +131,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload(invalidFile, 'user-1', mockMediaDto),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(UnprocesasbleEntityError);
     });
 
     it('should throw BadRequestException for file too large', async () => {
@@ -137,7 +139,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload(largeFile, 'user-1', mockMediaDto),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(UnprocesasbleEntityError);
     });
 
     it('should return existing media if hash already exists', async () => {
@@ -190,10 +192,16 @@ describe('MediaService', () => {
           {
             id: 'variant-1',
             key: 'uploads/image/user-1/test__thumb.webp',
+            ownerId: 'user-1',
+            parentId: mockMediaRecord.id,
+            postId: null,
+            commentId: null,
+            type: MediaType.IMAGE,
             variant: MediaVariant.THUMBNAIL,
             publicUrl: 'https://example.com/media/test__thumb.webp',
             mimeType: 'image/webp',
             sizeBytes: BigInt(512),
+            bucket: 'test-bucket',
           },
         ],
       };
@@ -233,7 +241,7 @@ describe('MediaService', () => {
 
   describe('getAuthorId', () => {
     it('should return author id', async () => {
-      const expectedResult = { ownerId: 'user-1' };
+      const expectedResult = { authorId: 'user-1' };
       mockRepository.getAuthorId.mockResolvedValue(expectedResult);
 
       const result = await service.getAuthorId('media-id-1');

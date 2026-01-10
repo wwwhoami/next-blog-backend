@@ -8,6 +8,7 @@ import { createHash, randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocesasbleEntityError } from '../common/errors/unprocessable-entity.errror';
+import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import {
   MediaEventsService,
@@ -15,7 +16,7 @@ import {
 } from './media-events.service';
 import { MediaRepository } from './media.repository';
 
-export const MEDIA_POLICIES = {
+const MEDIA_POLICIES = {
   POST_IMAGE: {
     maxWidth: 2000,
     maxHeight: 2000,
@@ -50,7 +51,7 @@ export class MediaService implements EntityWithAuthorService {
     private readonly configService: ConfigService,
     private readonly repo: MediaRepository,
     private readonly events: MediaEventsService,
-    @InjectQueue('media-processor') private readonly mediaQueue: Queue,
+    @InjectQueue(MEDIA_PROCESSOR_QUEUE) private readonly mediaQueue: Queue,
   ) {
     this.bucket = configService.get<string>('MINIO_MEDIA_BUCKET') || '';
   }
@@ -68,7 +69,7 @@ export class MediaService implements EntityWithAuthorService {
       this.configService.get<string>('MEDIA_BASE_URL') ??
       this.configService.get<string>('MINIO_ENDPOINT') ??
       '';
-    return `${base}/${this.repo['bucket']}/${key}`;
+    return `${base}/${this.repo.bucket}/${key}`;
   }
 
   async upload(
