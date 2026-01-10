@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -10,7 +9,7 @@ export class PrismaService
   >
   implements OnModuleInit
 {
-  constructor(private readonly configService: ConfigService) {
+  constructor() {
     super({
       log: [
         {
@@ -37,7 +36,7 @@ export class PrismaService
 
   async onModuleInit() {
     // Only log Prisma queries in non-testing environments
-    if (this.configService.get('NODE_ENV') !== 'testing') {
+    if (process.env.NODE_ENV !== 'testing') {
       this.$on('query', (e) => {
         e.query = e.query.replace(/(\n|\t|\s)+/g, ' ');
         this.logger.log(e, `PrismaClient:Query +${e.duration}ms`);
