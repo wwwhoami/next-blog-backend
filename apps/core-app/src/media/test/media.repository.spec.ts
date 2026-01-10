@@ -85,15 +85,15 @@ describe('MediaRepository', () => {
 
   describe('getAuthorId', () => {
     it('should return author id', async () => {
-      const expectedResult = { ownerId: 'user-1' };
-      mockPrismaClient.media.findUnique.mockResolvedValue(
-        expectedResult as any,
-      );
+      const expectedResult = { authorId: 'user-1' };
+      mockPrismaClient.media.findUniqueOrThrow.mockResolvedValue({
+        ownerId: expectedResult.authorId,
+      } as any);
 
       const result = await repository.getAuthorId('media-id-1');
 
       expect(result).toEqual(expectedResult);
-      expect(mockPrismaClient.media.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaClient.media.findUniqueOrThrow).toHaveBeenCalledWith({
         where: { id: 'media-id-1' },
         select: { ownerId: true },
       });

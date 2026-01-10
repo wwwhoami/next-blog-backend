@@ -8,29 +8,14 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
+import { MediaType } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
-
-type MediaCreate = {
-  key: string;
-  bucket: string;
-  type: MediaType;
-  target: MediaTarget;
-  variant: MediaVariant;
-  mimeType: string;
-  publicUrl: string;
-  sizeBytes: bigint | number;
-  ownerId: string;
-  postId?: number;
-  commentId?: number;
-  parentId?: string;
-  hash?: string | null;
-};
+import { MediaCreate } from './types/media-create.type';
 
 @Injectable()
 export class MediaRepository {
   private s3: S3Client;
-  private bucket: string;
+  public readonly bucket: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -54,6 +39,7 @@ export class MediaRepository {
       where: { id },
       select: { ownerId: true },
     });
+
     return { authorId: author?.ownerId };
   }
 
@@ -143,6 +129,10 @@ export class MediaRepository {
 
   async create(data: MediaCreate) {
     return this.prisma.media.create({ data });
+  }
+
+  async createMany(data: MediaCreate[]) {
+    return this.prisma.media.createMany({ data });
   }
 
   async uploadBuffer(
