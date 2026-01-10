@@ -1,26 +1,31 @@
 import { OnQueueEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MediaVariant } from '@prisma/client';
 import { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';
+import {
+  MAX_FILE_SIZE_BYTES,
+  MEDIA_PROCESSOR_QUEUE,
+  SUPPORTED_IMAGE_FORMATS,
+  VARIANT_CONFIGS,
+} from './constants/media-processor.constants';
 import { MediaEventsService } from './media-events.service';
 import { MediaRepository } from './media.repository';
+import { MediaCreate } from './types/media-create.type';
+import { MediaProcessorJobData } from './types/media-job.type';
 
 @Injectable()
-@Processor('media-processor')
+@Processor(MEDIA_PROCESSOR_QUEUE)
 export class MediaProcessor extends WorkerHost {
-  private readonly logger = new PinoLogger({
-    renameContext: MediaProcessor.name,
-  });
-
   constructor(
     private readonly repo: MediaRepository,
     private readonly events: MediaEventsService,
     private readonly configService: ConfigService,
+    private readonly logger: PinoLogger,
   ) {
     super();
+    this.logger.setContext(MediaProcessor.name);
   }
 
   private buildPublicUrl(key: string): string {
@@ -28,90 +33,107 @@ export class MediaProcessor extends WorkerHost {
       this.configService.get<string>('MEDIA_BASE_URL') ??
       this.configService.get<string>('MINIO_ENDPOINT') ??
       '';
-    return `${base}/${this.repo['bucket']}/${key}`;
+    return `${base}/${this.repo.bucket}/${key}`;
   }
 
-  // concurrency is configured by Bull / Nest's decorators optionally; job options control retries
-  async process(job: Job<{ mediaId: string }>) {
-    this.logger.info('Processing job id: ', job.id, ' with data: ', job.data);
+  private isImageSupported(mimeType: string): boolean {
+    return SUPPORTED_IMAGE_FORMATS.includes(mimeType.toLowerCase());
+  }
+
+  private async validateAndGetBuffer(
+    mediaId: string,
+    key: string,
+    mimeType: string,
+  ): Promise<Buffer> {
+    if (!this.isImageSupported(mimeType)) {
+      throw new Error(
+        `Unsupported image format: ${mimeType} for mediaId: ${mediaId}`,
+      );
+    }
+
+    const buffer = await this.repo.downloadToBuffer(key);
+
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      throw new Error(
+        `Image size exceeds limit (${MAX_FILE_SIZE_BYTES} bytes) for mediaId: ${mediaId}`,
+      );
+    }
+
+    return buffer;
+  }
+
+  async process(job: Job<MediaProcessorJobData>) {
+    this.logger.info(
+      `Processing job ${job.id} for mediaId: ${job.data.mediaId}`,
+    );
     const { mediaId } = job.data;
 
-    // Fetch original + sanity check
     const original = await this.repo.findById(mediaId);
     if (!original) {
-      this.logger.error('Original media not found: ', mediaId);
+      this.logger.error(`Original media not found for mediaId: ${mediaId}`);
       return;
     }
 
     try {
-      const buffer = await this.repo.downloadToBuffer(original.key);
+      const buffer = await this.validateAndGetBuffer(
+        mediaId,
+        original.key,
+        original.mimeType,
+      );
 
-      // variant configs could be policy-dependent; here's a reasonable default
-      const configs: Array<{
-        variant: MediaVariant;
-        width?: number;
-        quality?: number;
-        suffix: string;
-      }> = [
-        {
-          variant: MediaVariant.THUMBNAIL,
-          width: 300,
-          quality: 65,
-          suffix: 'thumb',
-        },
-        {
-          variant: MediaVariant.MEDIUM,
-          width: 800,
-          quality: 75,
-          suffix: 'medium',
-        },
-        {
-          variant: MediaVariant.LARGE,
-          width: 1600,
-          quality: 80,
-          suffix: 'large',
-        },
-      ];
+      const variantsToCreate: MediaCreate[] = [];
 
-      const createdVariants: Array<{ key: string; publicUrl: string }> = [];
+      for (const cfg of VARIANT_CONFIGS) {
+        try {
+          const outBuffer = await sharp(buffer)
+            .resize({ width: cfg.width, withoutEnlargement: true })
+            .webp({ quality: cfg.quality })
+            .toBuffer();
 
-      for (const cfg of configs) {
-        // create resized buffer
-        const outBuffer = await sharp(buffer)
-          .resize({ width: cfg.width, withoutEnlargement: true })
-          .webp({ quality: cfg.quality })
-          .toBuffer();
+          const variantKey = `${original.key}__${cfg.suffix}.webp`;
 
-        // variant key naming
-        const variantKey = `${original.key}__${cfg.suffix}.webp`;
+          await this.repo.uploadBuffer(
+            outBuffer,
+            variantKey,
+            'image/webp',
+            true,
+          );
 
-        // upload storage
-        await this.repo.uploadBuffer(outBuffer, variantKey, 'image/webp', true);
+          const publicUrl = this.buildPublicUrl(variantKey);
 
-        // build public url
-        const publicUrl = this.buildPublicUrl(variantKey);
-
-        // TODO: Use a createMany
-        // create DB record as a child
-        const created = await this.repo.create({
-          key: variantKey,
-          bucket: this.repo['bucket'],
-          ownerId: original.ownerId ?? null,
-          parentId: original.id,
-          type: original.type,
-          target: original.target,
-          variant: cfg.variant,
-          mimeType: 'image/webp',
-          sizeBytes: outBuffer.length,
-          publicUrl,
-          hash: null,
-        });
-
-        createdVariants.push({
-          key: created.key,
-          publicUrl: created.publicUrl,
-        });
+          variantsToCreate.push({
+            key: variantKey,
+            publicUrl,
+            bucket: this.repo.bucket,
+            ownerId: original.ownerId,
+            parentId: original.id,
+            type: original.type,
+            target: original.target,
+            variant: cfg.variant,
+            mimeType: 'image/webp',
+            sizeBytes: outBuffer.length,
+            hash: null,
+          });
+        } catch (variantErr) {
+          this.logger.warn(
+            `Failed to create ${cfg.variant} variant for mediaId: ${mediaId}`,
+            variantErr,
+          );
+          throw variantErr;
+        }
       }
+
+      const created = await this.repo.createMany(variantsToCreate);
+      if (created.count === 0) {
+        throw new Error(
+          `Failed to create any variants in DB for mediaId: ${mediaId}`,
+        );
+      }
+
+      const createdVariants = variantsToCreate.map((v) => ({
+        key: v.key,
+        publicUrl: v.publicUrl,
+      }));
 
       await this.events.publishUploadStatus({
         status: 'completed',
@@ -122,26 +144,34 @@ export class MediaProcessor extends WorkerHost {
         },
       });
 
-      this.logger.info('Published variants ready: ', {
-        mediaId: original.id,
-        variants: createdVariants,
-      });
+      this.logger.info(
+        `Successfully processed ${createdVariants.length} variants for mediaId: ${mediaId}`,
+      );
       return { mediaId: original.id, variants: createdVariants };
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+
       await this.events.publishUploadStatus({
         status: 'failed',
         payload: {
           mediaId: original.id,
-          error: `Error processing media variants: ${err.message}`,
+          error: `Error processing media variants for ${mediaId}: ${errorMsg}`,
         },
       });
 
-      this.logger.error('Error processing media variants: ', err);
+      this.logger.error(
+        `Error processing media variants for mediaId: ${mediaId}`,
+        err,
+      );
+      throw err;
     }
   }
 
   @OnQueueEvent('failed')
-  onFailed(job: Job, err: Error) {
-    this.logger.error(`Job ${job.id} failed: `, err.message);
+  onFailed(job: Job<MediaProcessorJobData>, err: Error) {
+    this.logger.error(
+      `Job ${job.id} failed for mediaId: ${job.data?.mediaId}`,
+      err,
+    );
   }
 }

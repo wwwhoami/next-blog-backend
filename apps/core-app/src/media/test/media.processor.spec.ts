@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MediaVariant } from '@prisma/client';
 import { Job } from 'bullmq';
@@ -15,6 +16,7 @@ describe('MediaProcessor', () => {
   let processor: MediaProcessor;
   let mockRepository: DeepMockProxy<MediaRepository>;
   let mockEventsService: DeepMockProxy<MediaEventsService>;
+  let mockConfigService: DeepMockProxy<ConfigService>;
   let mockLogger: DeepMockProxy<PinoLogger>;
   let mockSharp: jest.MockedFunction<typeof sharp>;
 
@@ -46,6 +48,7 @@ describe('MediaProcessor', () => {
   beforeEach(async () => {
     mockRepository = mockDeep<MediaRepository>();
     mockEventsService = mockDeep<MediaEventsService>();
+    mockConfigService = mockDeep<ConfigService>();
     mockLogger = mockDeep<PinoLogger>();
 
     // Mock sharp
@@ -64,6 +67,7 @@ describe('MediaProcessor', () => {
         MediaProcessor,
         { provide: MediaRepository, useValue: mockRepository },
         { provide: MediaEventsService, useValue: mockEventsService },
+        { provide: ConfigService, useValue: mockLogger },
         { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
@@ -89,6 +93,7 @@ describe('MediaProcessor', () => {
         Buffer.from('original-image-data'),
       );
       mockRepository.uploadBuffer.mockResolvedValue(undefined);
+      mockRepository.createMany.mockResolvedValue({ count: 3 } as any);
       mockRepository.create.mockImplementation(
         async (data) =>
           ({
@@ -108,7 +113,7 @@ describe('MediaProcessor', () => {
         },
       };
 
-      mockEventsService.publishVariantsReady.mockResolvedValue(undefined);
+      mockEventsService.publishUploadStatus.mockResolvedValue(undefined);
     });
 
     it('should process media variants successfully', async () => {
@@ -122,44 +127,54 @@ describe('MediaProcessor', () => {
       );
 
       // Should create 3 variants
-      expect(mockRepository.create).toHaveBeenCalledTimes(3);
+      expect(mockRepository.createMany).toHaveBeenCalledTimes(1);
       expect(mockRepository.uploadBuffer).toHaveBeenCalledTimes(3);
 
       // Check thumbnail variant
-      expect(mockRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: MediaVariant.THUMBNAIL,
-          key: expect.stringContaining('__thumb.webp'),
-          mimeType: 'image/webp',
-        }),
+      expect(mockRepository.createMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            variant: MediaVariant.THUMBNAIL,
+            key: expect.stringContaining('__thumb.webp'),
+            mimeType: 'image/webp',
+          }),
+        ]),
       );
 
       // Check medium variant
-      expect(mockRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: MediaVariant.MEDIUM,
-          key: expect.stringContaining('__medium.webp'),
-          mimeType: 'image/webp',
-        }),
+      expect(mockRepository.createMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            variant: MediaVariant.MEDIUM,
+            key: expect.stringContaining('__medium.webp'),
+            mimeType: 'image/webp',
+          }),
+        ]),
       );
 
       // Check large variant
-      expect(mockRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: MediaVariant.LARGE,
-          key: expect.stringContaining('__large.webp'),
-          mimeType: 'image/webp',
-        }),
-      );
-
-      expect(mockEventsService.publishVariantsReady).toHaveBeenCalledWith({
-        mediaId: 'media-id-1',
-        variants: expect.arrayContaining([
+      expect(mockRepository.createMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
           expect.objectContaining({
-            key: expect.any(String),
-            publicUrl: expect.any(String),
+            variant: MediaVariant.LARGE,
+            key: expect.stringContaining('__large.webp'),
+            mimeType: 'image/webp',
           }),
         ]),
+      );
+
+      expect(mockEventsService.publishUploadStatus).toHaveBeenCalledWith({
+        status: 'completed',
+        payload: {
+          ownerId: 'user-1',
+          mediaId: 'media-id-1',
+          variants: expect.arrayContaining([
+            expect.objectContaining({
+              key: expect.any(String),
+              publicUrl: expect.any(String),
+            }),
+          ]),
+        },
       });
 
       expect(result).toEqual({
@@ -168,12 +183,15 @@ describe('MediaProcessor', () => {
       });
     });
 
-    it('should throw error when original media not found', async () => {
+    it('should return early when original media not found', async () => {
       mockRepository.findById.mockResolvedValue(null);
 
-      await expect(
-        processor.process(mockJob as Job<{ mediaId: string }>),
-      ).rejects.toThrow('Original media not found: media-id-1');
+      const result = await processor.process(mockJob as Job<{ mediaId: string }>);
+
+      expect(result).toBeUndefined();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Original media not found for mediaId: media-id-1',
+      );
     });
 
     it('should use sharp with correct parameters for each variant', async () => {
@@ -196,27 +214,30 @@ describe('MediaProcessor', () => {
     it('should set parentId for created variants', async () => {
       await processor.process(mockJob as Job<{ mediaId: string }>);
 
-      // Should update each variant with parentId
-      expect((mockRepository as any).prisma.media.update).toHaveBeenCalledTimes(
-        3,
+      // Should create variants with parentId set
+      expect(mockRepository.createMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            parentId: 'media-id-1',
+          }),
+        ]),
       );
-      expect((mockRepository as any).prisma.media.update).toHaveBeenCalledWith({
-        where: { id: expect.any(String) },
-        data: { parentId: 'media-id-1' },
-      });
     });
   });
 
   describe('onFailed', () => {
     it('should log error when job fails', () => {
       const mockError = new Error('Processing failed');
-      const mockJob = { id: 'job-1' } as Job;
+      const mockFailedJob = { 
+        id: 'job-1',
+        data: { mediaId: 'media-id-1' }
+      } as Job<{ mediaId: string }>;
 
-      processor.onFailed(mockJob, mockError);
+      processor.onFailed(mockFailedJob, mockError);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        'Job job-1 failed: ',
-        'Processing failed',
+        'Job job-1 failed for mediaId: media-id-1',
+        mockError,
       );
     });
   });
