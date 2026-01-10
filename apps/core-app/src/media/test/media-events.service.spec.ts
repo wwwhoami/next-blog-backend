@@ -2,8 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import Redis from 'ioredis';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PinoLogger } from 'nestjs-pino';
 import {
-  MEDIA_VARIANTS_READY_EVENT,
+  MEDIA_UPLOAD_STATUS_CHANNEL,
   MediaEventsService,
   MediaVariantsReadyPayload,
 } from '../media-events.service';
@@ -16,11 +17,13 @@ describe('MediaEventsService', () => {
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockPubRedis: DeepMockProxy<Redis>;
   let mockSubRedis: DeepMockProxy<Redis>;
+  let mockLogger: DeepMockProxy<PinoLogger>;
 
   beforeEach(async () => {
     mockConfigService = mockDeep<ConfigService>();
     mockPubRedis = mockDeep<Redis>();
     mockSubRedis = mockDeep<Redis>();
+    mockLogger = mockDeep<PinoLogger>();
 
     // Mock Redis constructor
     (Redis as jest.MockedClass<typeof Redis>).mockImplementation(
@@ -41,6 +44,7 @@ describe('MediaEventsService', () => {
       providers: [
         MediaEventsService,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
 
@@ -63,7 +67,7 @@ describe('MediaEventsService', () => {
       await service.onModuleInit();
 
       expect(mockSubRedis.subscribe).toHaveBeenCalledWith(
-        'media:variants-ready',
+        MEDIA_UPLOAD_STATUS_CHANNEL,
       );
       expect(mockSubRedis.on).toHaveBeenCalledWith(
         'message',
@@ -77,6 +81,7 @@ describe('MediaEventsService', () => {
         variants: [
           { key: 'test.webp', publicUrl: 'https://example.com/test.webp' },
         ],
+        ownerId: 'owner-1',
       };
 
       mockSubRedis.subscribe.mockResolvedValue(1);
@@ -84,7 +89,8 @@ describe('MediaEventsService', () => {
         if (event === 'message') {
           // Simulate message received
           setTimeout(
-            () => callback('media:variants-ready', JSON.stringify(payload)),
+            () =>
+              callback(MEDIA_UPLOAD_STATUS_CHANNEL, JSON.stringify(payload)),
             0,
           );
         }
@@ -98,17 +104,26 @@ describe('MediaEventsService', () => {
       // Wait for async callback
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(emitSpy).toHaveBeenCalledWith(MEDIA_VARIANTS_READY_EVENT, payload);
+      expect(emitSpy).toHaveBeenCalledWith('upload.status.media-1', {
+        status: 'completed',
+        mediaId: 'media-1',
+        variants: [
+          { key: 'test.webp', publicUrl: 'https://example.com/test.webp' },
+        ],
+      });
     });
 
     it('should handle invalid JSON messages gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const loggerErrorSpy = jest.spyOn(mockLogger, 'error');
 
       mockSubRedis.subscribe.mockResolvedValue(1);
       mockSubRedis.on.mockImplementation((event, callback) => {
         if (event === 'message') {
           // Simulate invalid JSON message
-          setTimeout(() => callback('media:variants-ready', 'invalid-json'), 0);
+          setTimeout(
+            () => callback(MEDIA_UPLOAD_STATUS_CHANNEL, 'invalid-json'),
+            0,
+          );
         }
         return mockSubRedis;
       });
@@ -118,12 +133,10 @@ describe('MediaEventsService', () => {
       // Wait for async callback
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(loggerErrorSpy).toHaveBeenCalled();
+      expect(loggerErrorSpy.mock.calls[0][0]).toContain(
         'Failed to parse pubsub message',
-        expect.any(Error),
       );
-
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -139,25 +152,31 @@ describe('MediaEventsService', () => {
     });
   });
 
-  describe('publishVariantsReady', () => {
+  describe('publishUploadStatus', () => {
     it('should publish message to Redis and emit locally', async () => {
       const payload: MediaVariantsReadyPayload = {
         mediaId: 'media-1',
         variants: [
           { key: 'test.webp', publicUrl: 'https://example.com/test.webp' },
         ],
+        ownerId: 'owner-1',
       };
 
       mockPubRedis.publish.mockResolvedValue(1);
       const emitSpy = jest.spyOn(service, 'emit');
 
-      await service.publishVariantsReady(payload);
+      const message = {
+        status: 'completed' as const,
+        payload,
+      };
+
+      await service.publishUploadStatus(message);
 
       expect(mockPubRedis.publish).toHaveBeenCalledWith(
-        'media:variants-ready',
-        JSON.stringify(payload),
+        MEDIA_UPLOAD_STATUS_CHANNEL,
+        JSON.stringify(message),
       );
-      expect(emitSpy).toHaveBeenCalledWith(MEDIA_VARIANTS_READY_EVENT, payload);
+      expect(emitSpy).toHaveBeenCalledWith('upload.status.media-1', message);
     });
   });
 });

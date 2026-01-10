@@ -5,6 +5,7 @@ import Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 
 export const MEDIA_VARIANTS_READY_EVENT = 'variants-ready';
+export const MEDIA_UPLOAD_STATUS_CHANNEL = 'media:upload-status';
 
 export type MediaVariantsReadyPayload = {
   mediaId: string;
@@ -47,7 +48,7 @@ export class MediaEventsService
 {
   private pub: Redis;
   private sub: Redis;
-  private channel = 'media:upload-status';
+  private channel = MEDIA_UPLOAD_STATUS_CHANNEL;
 
   constructor(
     private readonly configService: ConfigService,
@@ -85,9 +86,6 @@ export class MediaEventsService
           mediaId: payload.mediaId,
           variants: payload.variants,
         });
-        console.log(
-          `Emitting the ${MEDIA_VARIANTS_READY_EVENT} event with payload: ${JSON.stringify(payload)}`,
-        );
       } catch (err) {
         this.logger.error(
           `Failed to parse pubsub message for channel ${this.channel}: ${err}`,
