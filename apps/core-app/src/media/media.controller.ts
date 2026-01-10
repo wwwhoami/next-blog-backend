@@ -21,6 +21,7 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { UuidId } from '../common/decorators/id-type.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from '../common/guards/is-admin-or-author.guard';
+import { MAX_FILE_SIZE_BYTES } from './constants/media-processor.constants';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import {
   MediaEventsService,
@@ -43,7 +44,7 @@ export class MediaController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({
-            maxSize: 10 * 1024 * 1024,
+            maxSize: MAX_FILE_SIZE_BYTES,
           }),
           new FileTypeValidator({
             fileType: /image\/(jpeg|png|webp|gif)/,

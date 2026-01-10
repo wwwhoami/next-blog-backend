@@ -93,6 +93,7 @@ describe('MediaModule Components', () => {
       providers: [
         MediaEventsService,
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
 

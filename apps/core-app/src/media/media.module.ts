@@ -2,6 +2,7 @@ import { PrismaModule } from '@app/prisma';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
+import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
 import { MediaEventsService } from './media-events.service';
 import { MediaController } from './media.controller';
 import { MediaProcessor } from './media.processor';
@@ -12,7 +13,7 @@ import { MediaService } from './media.service';
   imports: [
     PrismaModule,
     BullModule.registerQueue({
-      name: 'media-processor',
+      name: MEDIA_PROCESSOR_QUEUE,
     }),
   ],
   providers: [

@@ -121,6 +121,11 @@ describe('MediaController', () => {
 
   describe('stream', () => {
     it('should return observable for media variants ready events', () => {
+      mockMediaService.getProcessingResult.mockResolvedValue({
+        status: 'pending',
+        payload: { mediaId: 'media-id-1' },
+      });
+
       const result = controller.stream('media-id-1');
       expect(result).toBeInstanceOf(Observable);
     });
