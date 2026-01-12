@@ -1,4 +1,4 @@
-import { NotificationType } from '@prisma/client';
+import { NotificationType } from 'prisma/generated/client';
 
 export class Notification<PayloadType> {
   id: number;

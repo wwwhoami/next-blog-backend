@@ -1,8 +1,8 @@
 import { PrismaService } from '@app/prisma';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Category, Post, Prisma, PrismaClient } from '@prisma/client';
 import { DeepMockProxy, MockProxy, mock, mockDeep } from 'jest-mock-extended';
+import { Category, Post, Prisma, PrismaClient } from 'prisma/generated/client';
 import { CategoryRepository } from '../category.repository';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
 import {

@@ -1,4 +1,4 @@
-import { Category } from '@prisma/client';
+import { Category } from 'prisma/generated/client';
 
 export class CategoryNoDescription implements Omit<Category, 'description'> {
   name: string;

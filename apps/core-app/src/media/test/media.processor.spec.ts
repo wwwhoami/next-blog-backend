@@ -1,9 +1,9 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MediaVariant } from '@prisma/client';
 import { Job } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
+import { MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { MediaEventsService } from '../media-events.service';
 import { MediaProcessor } from '../media.processor';
@@ -186,7 +186,9 @@ describe('MediaProcessor', () => {
     it('should return early when original media not found', async () => {
       mockRepository.findById.mockResolvedValue(null);
 
-      const result = await processor.process(mockJob as Job<{ mediaId: string }>);
+      const result = await processor.process(
+        mockJob as Job<{ mediaId: string }>,
+      );
 
       expect(result).toBeUndefined();
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -228,9 +230,9 @@ describe('MediaProcessor', () => {
   describe('onFailed', () => {
     it('should log error when job fails', () => {
       const mockError = new Error('Processing failed');
-      const mockFailedJob = { 
+      const mockFailedJob = {
         id: 'job-1',
-        data: { mediaId: 'media-id-1' }
+        data: { mediaId: 'media-id-1' },
       } as Job<{ mediaId: string }>;
 
       processor.onFailed(mockFailedJob, mockError);

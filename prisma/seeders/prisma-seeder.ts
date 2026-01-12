@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from 'prisma/generated/client';
 
 export class PrismaSeeder {
   constructor(private prisma: PrismaClient) {}

@@ -4,14 +4,14 @@ import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import {
   Comment,
   CommentLikes,
   Post,
   Prisma,
   PrismaClient,
-} from '@prisma/client';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+} from 'prisma/generated/client';
 import { CommentRepository } from '../comment.repository';
 import {
   CreateCommentDto,

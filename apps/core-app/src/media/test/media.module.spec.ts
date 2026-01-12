@@ -1,10 +1,10 @@
 import { PrismaService } from '@app/prisma';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
+import { PrismaClient } from 'prisma/generated/client';
 import { MediaEventsService } from '../media-events.service';
 import { MediaProcessor } from '../media.processor';
 import { MediaRepository } from '../media.repository';

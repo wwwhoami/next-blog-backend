@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { NotificationType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsOptional } from 'class-validator';
+import { NotificationType } from 'prisma/generated/client';
 
 export class GetNotificationDto {
   @IsOptional()

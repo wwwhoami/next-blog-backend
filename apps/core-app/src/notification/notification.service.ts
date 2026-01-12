@@ -6,7 +6,7 @@ import {
 } from '@app/shared/entities';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'prisma/generated/client';
 import { catchError, lastValueFrom, throwError } from 'rxjs';
 import { NOTIFICATION_SERVICE } from '../../../../libs/shared/src/kafka/kafka.constants';
 

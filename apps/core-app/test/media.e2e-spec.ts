@@ -2,10 +2,10 @@ import { AppModule } from '@core/src/app.module';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
 import fs from 'node:fs';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import request from 'supertest';
 
 // Override JSON.stringify to handle BigInt

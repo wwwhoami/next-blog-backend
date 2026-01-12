@@ -1,7 +1,6 @@
 import { SortOrder } from '@core/src/common/sort-order.enum';
 import { UnionOfObjKeys } from '@core/src/common/types/union-of-obj-keys.types';
 import { ApiProperty, IntersectionType, OmitType } from '@nestjs/swagger';
-import { Post, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -11,6 +10,7 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+import { Post, Prisma } from 'prisma/generated/client';
 import {
   PostEntityKeysEnum,
   PostEntityLanguageEnum,
@@ -89,7 +89,7 @@ export class GetPostPublicDto extends OmitType(GetPostDto, ['published']) {}
 export class SearchPostDto extends GetPostDto {
   @IsString()
   @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
-  searchTerm: string;
+  declare searchTerm: string;
 }
 
 export class GetPostsByCategoriesDto extends GetPostDto {
@@ -100,7 +100,7 @@ export class GetPostsByCategoriesDto extends GetPostDto {
       .trim()
       .toLowerCase(),
   )
-  category: string;
+  declare category: string;
 }
 
 export class SearchPostsByCategoriesDto extends IntersectionType(

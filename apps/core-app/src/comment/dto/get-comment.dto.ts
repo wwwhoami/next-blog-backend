@@ -1,9 +1,9 @@
 import { SortOrder } from '@core/src/common/sort-order.enum';
 import { UnionOfObjKeys } from '@core/src/common/types/union-of-obj-keys.types';
 import { ApiProperty } from '@nestjs/swagger';
-import { Comment, Prisma } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional } from 'class-validator';
+import { Comment, Prisma } from 'prisma/generated/client';
 
 enum CommentOrderByKeyEnum {
   createdAt = 'createdAt',

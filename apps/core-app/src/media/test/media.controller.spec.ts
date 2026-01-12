@@ -1,5 +1,5 @@
-import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import { Observable } from 'rxjs';
 import { UploadMediaDto } from '../dto/upload-media.dto';
 import { MediaEventsService } from '../media-events.service';

@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'prisma/generated/client';
 import { CreateCategoriesDto } from './dto/create-category.dto';
 import { FindCategoryDto, GetCategoryDto } from './dto/get-category-dto';
 import {

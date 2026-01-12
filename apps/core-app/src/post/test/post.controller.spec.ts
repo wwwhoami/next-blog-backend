@@ -1,7 +1,7 @@
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Post, Prisma } from '@prisma/client';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { Post, Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import { PostController } from '../post.controller';
 import { PostService } from '../post.service';

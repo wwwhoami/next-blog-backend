@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from 'prisma/generated/client';
 import { userData } from 'data/seed-data';
 import { PrismaSeeder } from './prisma-seeder';
 

@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma } from '@prisma/client';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { Prisma } from 'prisma/generated/client';
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
 
@@ -127,7 +127,13 @@ describe('AuthController', () => {
           code: 'P2002',
           clientVersion: '4.7.1',
           meta: {
-            target: ['name'],
+            driverAdapterError: {
+              cause: {
+                constraint: {
+                  fields: ['name'],
+                },
+              },
+            },
           },
         },
       );
@@ -152,7 +158,13 @@ describe('AuthController', () => {
           code: 'P2002',
           clientVersion: '4.7.1',
           meta: {
-            target: ['email'],
+            driverAdapterError: {
+              cause: {
+                constraint: {
+                  fields: ['email'],
+                },
+              },
+            },
           },
         },
       );

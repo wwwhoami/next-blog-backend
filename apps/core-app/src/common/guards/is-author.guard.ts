@@ -8,8 +8,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Prisma } from '@prisma/client';
 import { isUUID } from 'class-validator';
+import { Prisma } from 'prisma/generated/client';
 import { ID_TYPE_KEY } from '../decorators/id-type.decorator';
 import { EntityWithAuthorService } from '../entity-with-author.service';
 

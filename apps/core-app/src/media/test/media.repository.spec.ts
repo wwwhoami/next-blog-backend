@@ -2,14 +2,14 @@ import { PrismaService } from '@app/prisma';
 import { S3Client } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PinoLogger } from 'nestjs-pino';
 import {
   MediaTarget,
   MediaType,
   MediaVariant,
   PrismaClient,
-} from '@prisma/client';
-import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PinoLogger } from 'nestjs-pino';
+} from 'prisma/generated/client';
 import { MediaRepository } from '../media.repository';
 
 // Mock AWS SDK

@@ -1,5 +1,5 @@
 import { ApiProperty, OmitType, PickType } from '@nestjs/swagger';
-import { Role, User } from '@prisma/client';
+import { Role, User } from 'prisma/generated/client';
 
 export class UserEntity implements User {
   id: string;

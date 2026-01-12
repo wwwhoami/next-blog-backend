@@ -1,8 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, User } from '@prisma/client';
 import { userData } from 'data/seed-data';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { Prisma, User } from 'prisma/generated/client';
 import { UserNoIdPasswordEntity } from '../entities/user.entity';
 import { UserController } from '../user.controller';
 import { UserService } from '../user.service';

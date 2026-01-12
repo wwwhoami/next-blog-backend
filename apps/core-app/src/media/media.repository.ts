@@ -8,8 +8,8 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MediaType } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { MediaType } from 'prisma/generated/client';
 import { MediaCreate } from './types/media-create.type';
 
 @Injectable()

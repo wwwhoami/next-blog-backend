@@ -1,7 +1,7 @@
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma } from '@prisma/client';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { Prisma } from 'prisma/generated/client';
 import { CommentController } from '../comment.controller';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';

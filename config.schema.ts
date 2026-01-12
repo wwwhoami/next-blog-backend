@@ -6,6 +6,7 @@ export const configValidationSchema = Joi.object({
   ACCESS_JWT_EXPIRATION: Joi.number().required(),
   REFRESH_JWT_SECRET: Joi.string().required(),
   REFRESH_JWT_EXPIRATION: Joi.number().required(),
+  POSTGRES_URL: Joi.string().required(),
   POSTGRES_HOST: Joi.string().required(),
   POSTGRES_PORT: Joi.number().default(5432),
   POSTGRES_USER: Joi.string().required(),

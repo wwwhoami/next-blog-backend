@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
-import { Prisma } from '@prisma/client';
 import { UniqueEnforcer } from 'enforce-unique';
+import { Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import { getMockSlugs, getRandomPostMockContent } from './mdx';
 

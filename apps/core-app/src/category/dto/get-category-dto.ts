@@ -26,7 +26,7 @@ export class FindCategoryDto extends GetCategoryDto {
   @ApiProperty({ type: String, required: false })
   @IsString()
   @Transform(({ value }) => value.replace(/\s{2,}/g, ' ').trim())
-  searchTerm: string;
+  declare searchTerm: string;
 }
 
 export class GetCategoryCombinationsDto {

@@ -1,4 +1,4 @@
-import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 
 export type MediaCreate = {
   key: string;

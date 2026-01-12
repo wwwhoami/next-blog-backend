@@ -11,7 +11,7 @@ import {
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'prisma/generated/client';
 import { Observable, catchError, throwError } from 'rxjs';
 import { ConflictError } from '../errors/conflict.error';
 import { UnauthorizedError } from '../errors/unauthorized.error';

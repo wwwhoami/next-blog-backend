@@ -1,5 +1,5 @@
 import { PickType } from '@nestjs/swagger';
-import { Comment } from '@prisma/client';
+import { Comment } from 'prisma/generated/client';
 
 export class CommentEntity implements Comment {
   id: number;

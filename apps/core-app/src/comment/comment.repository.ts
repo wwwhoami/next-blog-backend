@@ -5,7 +5,7 @@ import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-
 import { PostRepository } from '@core/src/post/post.repository';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'prisma/generated/client';
 import {
   CreateCommentDto,
   CreateResponseToCommentDto,

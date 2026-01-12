@@ -1,8 +1,8 @@
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, User } from '@prisma/client';
 import { userData } from 'data/seed-data';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { Prisma, User } from 'prisma/generated/client';
 import { UserRepository } from '../user.repository';
 
 describe('UserRepository', () => {

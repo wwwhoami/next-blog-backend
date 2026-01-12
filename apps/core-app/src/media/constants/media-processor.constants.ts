@@ -1,4 +1,4 @@
-import { MediaVariant } from '@prisma/client';
+import { MediaVariant } from 'prisma/generated/client';
 
 export const MEDIA_PROCESSOR_QUEUE = 'media-processor';
 

@@ -9,8 +9,8 @@ import { ForbiddenError } from '@app/shared/errors/forbidden.error';
 import { REDIS_PUBLISHER_CLIENT } from '@app/shared/redis/redis.constants';
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientRedis, RpcException } from '@nestjs/microservices';
-import { NotificationType } from '@prisma/client';
 import { REDIS_SOCKET_EVENT_EMIT_ALL_NAME } from '@ws-notification/src/shared/redis-propagator/redis-propagator.constants';
+import { NotificationType } from 'prisma/generated/client';
 import { NotificationRepository } from './notification.repository';
 
 @Injectable()

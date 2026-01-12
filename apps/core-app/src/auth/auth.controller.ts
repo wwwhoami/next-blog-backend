@@ -20,8 +20,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
-import { Prisma } from '@prisma/client';
 import { Response } from 'express';
+import { Prisma } from 'prisma/generated/client';
 import { AuthService } from './auth.service';
 import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
 import { GetUser } from './decorators/get-user.decorator';
@@ -51,17 +51,21 @@ export class AuthController {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
-      )
-        if (error.meta?.target instanceof Array) {
-          if (error.meta.target.includes('name'))
+      ) {
+        const causeFields = (error.meta?.driverAdapterError as any).cause
+          .constraint.fields;
+
+        if (causeFields instanceof Array) {
+          if (causeFields.includes('name'))
             throw new ConflictException(
               `User with provided name already exists`,
             );
-          if (error.meta.target.includes('email'))
+          if (causeFields.includes('email'))
             throw new ConflictException(
               `User with provided email already exists`,
             );
         }
+      }
       throw new InternalServerErrorException();
     }
 

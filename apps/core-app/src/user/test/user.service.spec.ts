@@ -1,8 +1,8 @@
 import { WrongParamsError } from '@core/src/common/errors/wrong-params.error';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Prisma, User } from '@prisma/client';
 import { userData } from 'data/seed-data';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { Prisma, User } from 'prisma/generated/client';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
 

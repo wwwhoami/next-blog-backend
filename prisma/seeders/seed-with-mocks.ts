@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from 'prisma/generated/client';
 import { getPostMocks } from 'data/post';
 import { categoryData, commentData, userData } from 'data/seed-data';
 import { PrismaSeeder } from './prisma-seeder';

@@ -1,10 +1,9 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
-import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { MediaTarget, MediaType, MediaVariant } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { UnprocesasbleEntityError } from '../../common/errors/unprocessable-entity.errror';
 import { UploadMediaDto } from '../dto/upload-media.dto';

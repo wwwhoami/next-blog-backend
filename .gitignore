@@ -47,5 +47,5 @@ lerna-debug.log*
 !.yarn/sdks
 !.yarn/versions
 
-# prisma client
-prisma/client
+# prisma generated client
+prisma/generated

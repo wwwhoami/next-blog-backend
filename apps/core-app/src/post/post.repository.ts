@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
@@ -92,7 +92,8 @@ export class PostRepository {
 
     if (typeof published === 'boolean')
       where.push(Prisma.sql`published = ${published}`);
-    if (authorId?.length) where.push(Prisma.sql`author_id = uuid(${authorId})`);
+    if (authorId?.length)
+      where.push(Prisma.sql`author_id = uuid(${authorId}::text)`);
     if (category?.length)
       where.push(Prisma.sql`
       p.id IN(
