@@ -380,10 +380,17 @@ describe('NotificationController (e2e)', () => {
         }),
       );
 
-      await expect(response).rejects.toEqual({
-        error: { message: 'No Notification found', name: 'NotFoundError' },
-        message: 'No Notification found',
-      });
+      await expect(response).rejects.toEqual(
+        expect.objectContaining({
+          error: {
+            message: expect.any(String),
+            clientVersion: expect.any(String),
+            code: 'P2025',
+            name: 'PrismaClientKnownRequestError',
+          },
+          message: expect.any(String),
+        }),
+      );
     });
 
     it('should throw error if notification target is not the user', async () => {

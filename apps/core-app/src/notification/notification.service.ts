@@ -6,6 +6,7 @@ import {
 } from '@app/shared/entities';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { Prisma } from '@prisma/client';
 import { catchError, lastValueFrom, throwError } from 'rxjs';
 import { NOTIFICATION_SERVICE } from '../../../../libs/shared/src/kafka/kafka.constants';
 
@@ -69,6 +70,17 @@ export class NotificationService implements OnModuleInit {
       )
       .pipe(
         catchError((err) => {
+          if (
+            err?.error?.name == 'PrismaClientKnownRequestError' &&
+            err?.error?.code === 'P2025'
+          )
+            return throwError(
+              () =>
+                new Prisma.PrismaClientKnownRequestError(err.error.message, {
+                  code: err.error.code,
+                  clientVersion: err.error.clientVersion,
+                }),
+            );
           if (typeof err.error === 'object') return throwError(() => err.error);
 
           return throwError(() => err);

@@ -1,9 +1,8 @@
-FROM node:20-slim AS base
+FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /usr/src/app
-RUN apt-get update && apt-get -y install openssl
 COPY . .
 
 ###################
@@ -20,7 +19,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
-RUN cd /usr/src/app && pnpm dlx prisma@5.20.0 generate
+RUN cd /usr/src/app && pnpm dlx prisma generate
 
 ###################
 # BUILD FOR PRODUCTION
@@ -36,10 +35,9 @@ RUN pnpm build:notification-app
 # PRODUCTION
 ###################
 
-FROM node:20-slim AS production
+FROM node:20-alpine AS production
 COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/dist ./dist
-RUN apt-get update && apt-get -y install openssl
 
 ENV NODE_ENV prod
 

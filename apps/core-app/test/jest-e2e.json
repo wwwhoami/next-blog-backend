@@ -1,23 +1,13 @@
 {
   "testTimeout": 20000,
-  "moduleFileExtensions": [
-    "js",
-    "json",
-    "ts"
-  ],
+  "moduleFileExtensions": ["js", "json", "ts"],
   "globalSetup": "<rootDir>/apps/core-app/test/setup.ts",
   "globalTeardown": "<rootDir>/apps/core-app/test/teardown.ts",
   "rootDir": "../../../.",
   "testEnvironment": "node",
-  "testMatch": [
-    "**/core-app/**/*.e2e-spec.ts*"
-  ],
-  "modulePathIgnorePatterns": [
-    "<rootDir>/apps/core-app/test/notification/*"
-  ],
-  "collectCoverageFrom": [
-    "<rootDir>/apps/core-app/**/*.ts"
-  ],
+  "testMatch": ["**/core-app/**/*.e2e-spec.ts*"],
+  "modulePathIgnorePatterns": ["<rootDir>/apps/core-app/test/notification/*"],
+  "collectCoverageFrom": ["<rootDir>/apps/core-app/**/*.ts"],
   "coveragePathIgnorePatterns": [
     ".module.ts",
     ".spec.ts",
@@ -33,22 +23,16 @@
       }
     ]
   },
-  "roots": [
-    "<rootDir>"
-  ],
-  "modulePaths": [
-    "<rootDir>"
-  ],
-  "moduleDirectories": [
-    "node_modules",
-    "<rootDir>"
-  ],
+  "roots": ["<rootDir>"],
+  "modulePaths": ["<rootDir>"],
+  "moduleDirectories": ["node_modules", "<rootDir>"],
   "moduleNameMapper": {
     "^@core/(.*)$": "<rootDir>/apps/core-app/$1",
     "^@ws-notification/(.*)$": "<rootDir>/apps/ws-notification/$1",
     "^data/(.*)$": "<rootDir>/data/$1",
     "^@app/auth(|/.*)$": "<rootDir>/libs/auth/src/$1",
     "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
-    "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
+    "^@app/shared(|/.*)$": "<rootDir>/libs/shared/src/$1",
+    "^@prisma/(.*)$": "<rootDir>/prisma/$1"
   }
 }

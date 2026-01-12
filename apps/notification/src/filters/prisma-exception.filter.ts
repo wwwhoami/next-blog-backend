@@ -8,7 +8,12 @@ export class PrismaExceptionFilter extends BaseRpcExceptionFilter {
   catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
     return throwError(
       () =>
-        new RpcException({ name: exception.name, message: exception.message }),
+        new RpcException({
+          name: exception.name,
+          code: exception.code,
+          clientVersion: exception.clientVersion,
+          message: exception.message,
+        }),
     );
   }
 }
