@@ -3,7 +3,8 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /usr/src/app
-RUN apt-get update && apt-get -y install openssl
+# openssl is required for Prisma to work properly
+RUN apt-get update -y && apt-get -y install openssl && rm -rf /var/lib/apt/lists/*
 COPY . .
 
 ###################
@@ -11,7 +12,7 @@ COPY . .
 ###################
 
 FROM base AS development
-ENV NODE_ENV dev
+ENV NODE_ENV=dev
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 ###################
@@ -20,30 +21,34 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
-RUN cd /usr/src/app && pnpm dlx prisma@7.2.0 generate
 
 ###################
 # BUILD FOR PRODUCTION
 ###################
 
 FROM base AS build
-ENV NODE_ENV prod
+ENV NODE_ENV=prod
+# Postgres URL is required to generate the Prisma client
+ENV POSTGRES_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public"
+
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-RUN cd /usr/src/app && pnpm prisma generate
-RUN pnpm build:notification-app
+RUN pnpm prisma generate && pnpm build:notification-app
 
 ###################
 # PRODUCTION
 ###################
 
 FROM node:24-slim AS production
-COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
-COPY --from=prod-deps /usr/src/app/prisma/generated ./prisma/generated
-COPY --from=build /usr/src/app/dist ./dist
-RUN apt-get update && apt-get -y install openssl
+ENV NODE_ENV=prod
+WORKDIR /usr/src/app
 
-ENV NODE_ENV prod
+COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/prisma/generated ./prisma/generated
+COPY --from=build /usr/src/app/dist ./dist
+
+RUN apt-get update -y && apt-get -y install openssl && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
 
 CMD [ "node", "dist/apps/notification/main.js" ]
+
