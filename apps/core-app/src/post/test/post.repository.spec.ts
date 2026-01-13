@@ -75,6 +75,10 @@ describe('PostRepository', () => {
     prisma = module.get(PrismaService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(repository).toBeDefined();
   });

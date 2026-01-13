@@ -87,6 +87,10 @@ describe('CommentController', () => {
     controller = module.get<CommentController>(CommentController);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
@@ -113,7 +117,7 @@ describe('CommentController', () => {
       expect(controller.create(authorId, commentData)).resolves.toEqual(
         resolvedComment,
       );
-      expect(commentService.create).toBeCalledWith(commentData, authorId);
+      expect(commentService.create).toHaveBeenCalledWith(commentData, authorId);
     });
   });
 
@@ -127,7 +131,7 @@ describe('CommentController', () => {
       commentService.getOne.mockResolvedValueOnce(resolvedComment);
 
       expect(controller.getOne(commentId)).resolves.toEqual(resolvedComment);
-      expect(commentService.getOne).toBeCalledWith(commentId);
+      expect(commentService.getOne).toHaveBeenCalledWith(commentId);
     });
   });
 
@@ -143,10 +147,9 @@ describe('CommentController', () => {
       expect(controller.getReplies(commentId, {})).resolves.toEqual(
         resolvedComments,
       );
-      expect(commentService.getDescendantsWithChildrenCount).toBeCalledWith(
-        commentId,
-        {},
-      );
+      expect(
+        commentService.getDescendantsWithChildrenCount,
+      ).toHaveBeenCalledWith(commentId, {});
     });
   });
 
@@ -162,10 +165,9 @@ describe('CommentController', () => {
       expect(controller.getForPost(postId, {})).resolves.toEqual(
         resolvedComments,
       );
-      expect(commentService.getManyForPostWithChildrenCount).toBeCalledWith(
-        postId,
-        {},
-      );
+      expect(
+        commentService.getManyForPostWithChildrenCount,
+      ).toHaveBeenCalledWith(postId, {});
     });
   });
 
@@ -270,7 +272,10 @@ describe('CommentController', () => {
       expect(controller.update(commentId, commentData)).resolves.toEqual(
         resolvedComment,
       );
-      expect(commentService.update).toBeCalledWith(commentId, commentData);
+      expect(commentService.update).toHaveBeenCalledWith(
+        commentId,
+        commentData,
+      );
     });
   });
 
@@ -285,7 +290,7 @@ describe('CommentController', () => {
       commentService.softRemove.mockResolvedValueOnce(resolvedComment);
 
       expect(controller.remove(commentId)).resolves.toEqual(resolvedComment);
-      expect(commentService.softRemove).toBeCalledWith(commentId);
+      expect(commentService.softRemove).toHaveBeenCalledWith(commentId);
     });
   });
 });

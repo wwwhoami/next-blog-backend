@@ -228,7 +228,6 @@ describe('Auth (e2e)', () => {
     });
 
     it("should get user's data by id from provided access token", () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...expectedData } = user;
 
       return request(app.getHttpServer())

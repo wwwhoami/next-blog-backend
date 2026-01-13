@@ -107,6 +107,10 @@ describe('PostController', () => {
     postService = module.get(PostService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });

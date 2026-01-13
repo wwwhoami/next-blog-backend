@@ -63,6 +63,10 @@ describe('NotificaitonRepository', () => {
     repository = module.get<NotificationRepository>(NotificationRepository);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(repository).toBeDefined();
   });

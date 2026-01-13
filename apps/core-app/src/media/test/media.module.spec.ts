@@ -38,6 +38,10 @@ describe('MediaModule Components', () => {
     });
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should create MediaService', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [

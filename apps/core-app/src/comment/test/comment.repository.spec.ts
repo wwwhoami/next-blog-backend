@@ -99,6 +99,10 @@ describe('CommentService', () => {
     repository = module.get<CommentRepository>(CommentRepository);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(repository).toBeDefined();
   });
@@ -329,7 +333,7 @@ describe('CommentService', () => {
       expect(
         repository.getManyForPostWithChildrenCount(postId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
-      expect(getCountOfDescendantsSpy).toBeCalledTimes(0);
+      expect(getCountOfDescendantsSpy).toHaveBeenCalledTimes(0);
     });
 
     it('gets comments for provided post id, counts children of elements that could have children', () => {
@@ -445,7 +449,7 @@ describe('CommentService', () => {
       expect(
         repository.getDescendantsWithChildrenCount(commentId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
-      expect(getCountOfDescendantsSpy).toBeCalledTimes(0);
+      expect(getCountOfDescendantsSpy).toHaveBeenCalledTimes(0);
     });
 
     it('throws NotFoundError if comment with provided id does not exist', () => {

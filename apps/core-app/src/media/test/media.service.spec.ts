@@ -117,6 +117,7 @@ describe('MediaService', () => {
   });
 
   afterEach(() => {
+    jest.clearAllMocks();
     delete process.env.MINIO_MEDIA_BUCKET;
   });
 

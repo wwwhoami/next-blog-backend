@@ -16,7 +16,6 @@ describe('MediaProcessor', () => {
   let processor: MediaProcessor;
   let mockRepository: DeepMockProxy<MediaRepository>;
   let mockEventsService: DeepMockProxy<MediaEventsService>;
-  let mockConfigService: DeepMockProxy<ConfigService>;
   let mockLogger: DeepMockProxy<PinoLogger>;
   let mockSharp: jest.MockedFunction<typeof sharp>;
 
@@ -48,7 +47,6 @@ describe('MediaProcessor', () => {
   beforeEach(async () => {
     mockRepository = mockDeep<MediaRepository>();
     mockEventsService = mockDeep<MediaEventsService>();
-    mockConfigService = mockDeep<ConfigService>();
     mockLogger = mockDeep<PinoLogger>();
 
     // Mock sharp
@@ -79,6 +77,7 @@ describe('MediaProcessor', () => {
   });
 
   afterEach(() => {
+    jest.clearAllMocks();
     delete process.env.MEDIA_BASE_URL;
   });
 

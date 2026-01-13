@@ -23,6 +23,10 @@ describe('CategoryService', () => {
     service = module.get<CategoryService>(CategoryService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });

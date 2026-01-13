@@ -22,6 +22,10 @@ describe('CategoryService', () => {
     controller = module.get<CategoryController>(CategoryController);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });

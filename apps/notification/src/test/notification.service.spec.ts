@@ -34,6 +34,10 @@ describe('NotificationService', () => {
     service = module.get<NotificationService>(NotificationService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });

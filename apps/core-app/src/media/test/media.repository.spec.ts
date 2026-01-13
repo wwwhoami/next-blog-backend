@@ -79,6 +79,10 @@ describe('MediaRepository', () => {
     repository = module.get<MediaRepository>(MediaRepository);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(repository).toBeDefined();
   });

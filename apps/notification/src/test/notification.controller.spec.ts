@@ -50,6 +50,10 @@ describe('NotificationController', () => {
     );
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe('comment.create', () => {
     it('should call commentNotification with message provided', () => {
       const message: NotificationMessage<CommentEntity> = commentMessage;

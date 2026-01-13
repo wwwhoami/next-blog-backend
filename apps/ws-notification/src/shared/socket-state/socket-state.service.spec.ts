@@ -13,6 +13,10 @@ describe('SocketStateService', () => {
     service = module.get<SocketStateService>(SocketStateService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });

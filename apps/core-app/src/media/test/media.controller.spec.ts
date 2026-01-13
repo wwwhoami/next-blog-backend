@@ -58,6 +58,10 @@ describe('MediaController', () => {
     controller = new MediaController(mockMediaService, mockEventsService);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });

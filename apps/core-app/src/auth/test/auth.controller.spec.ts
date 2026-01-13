@@ -47,6 +47,10 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
@@ -74,7 +78,7 @@ describe('AuthController', () => {
       await expect(controller.refreshTokens(req, res)).resolves.toEqual({
         accessToken,
       });
-      expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
+      expect(res.cookie).toHaveBeenCalledWith('refreshToken', refreshToken, {
         httpOnly: true,
         expires: expect.any(Date),
         secure: false,
@@ -111,7 +115,7 @@ describe('AuthController', () => {
         role,
         accessToken,
       });
-      expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
+      expect(res.cookie).toHaveBeenCalledWith('refreshToken', refreshToken, {
         httpOnly: true,
         expires: expect.any(Date),
         secure: false,
@@ -222,7 +226,7 @@ describe('AuthController', () => {
         role,
         accessToken,
       });
-      expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
+      expect(res.cookie).toHaveBeenCalledWith('refreshToken', refreshToken, {
         httpOnly: true,
         expires: expect.any(Date),
         secure: false,
@@ -312,7 +316,7 @@ describe('AuthController', () => {
         accessToken,
         password: undefined,
       });
-      expect(res.cookie).toBeCalledWith('refreshToken', refreshToken, {
+      expect(res.cookie).toHaveBeenCalledWith('refreshToken', refreshToken, {
         httpOnly: true,
         expires: expect.any(Date),
         secure: false,
@@ -329,7 +333,7 @@ describe('AuthController', () => {
       res.clearCookie = jest.fn();
 
       await controller.logout(req, res);
-      expect(res.clearCookie).toBeCalledWith('refreshToken');
+      expect(res.clearCookie).toHaveBeenCalledWith('refreshToken');
     });
   });
 });

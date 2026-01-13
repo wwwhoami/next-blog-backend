@@ -1,8 +1,8 @@
+import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { NotificationService } from '@core/src/notification/notification.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockProxy, mock } from 'jest-mock-extended';
 import { Prisma } from 'prisma/generated/client';
-import { NotFoundError } from 'rxjs';
 import { CommentRepository } from '../comment.repository';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
@@ -79,6 +79,10 @@ describe('CommentService', () => {
 
     commentRepository = module.get(CommentRepository);
     service = module.get<CommentService>(CommentService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -225,7 +229,7 @@ describe('CommentService', () => {
       expect(updatedComment).toEqual(resolvedComment);
     });
 
-    it('should throw NotFoundError if comment is deleted', () => {
+    it('should throw NotFoundError if comment is deleted', async () => {
       const commentId = 1;
       const commentData = { content: 'new content' };
       const resolvedComment = {
@@ -235,8 +239,8 @@ describe('CommentService', () => {
 
       commentRepository.getOne.mockResolvedValue(resolvedComment);
 
-      expect(service.update(commentId, commentData)).rejects.toThrow(
-        new NotFoundError('Comment not found'),
+      await expect(service.update(commentId, commentData)).rejects.toThrow(
+        NotFoundError,
       );
     });
   });

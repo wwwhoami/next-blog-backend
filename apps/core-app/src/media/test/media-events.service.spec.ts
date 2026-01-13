@@ -14,6 +14,7 @@ jest.mock('ioredis');
 
 describe('MediaEventsService', () => {
   let service: MediaEventsService;
+  let module: TestingModule;
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockPubRedis: DeepMockProxy<Redis>;
   let mockSubRedis: DeepMockProxy<Redis>;
@@ -24,6 +25,10 @@ describe('MediaEventsService', () => {
     mockPubRedis = mockDeep<Redis>();
     mockSubRedis = mockDeep<Redis>();
     mockLogger = mockDeep<PinoLogger>();
+
+    // Mock Redis quit methods to avoid connection issues
+    mockPubRedis.quit.mockResolvedValue('OK');
+    mockSubRedis.quit.mockResolvedValue('OK');
 
     // Mock Redis constructor
     (Redis as jest.MockedClass<typeof Redis>).mockImplementation(
@@ -40,7 +45,7 @@ describe('MediaEventsService', () => {
       return config[key];
     });
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MediaEventsService,
         { provide: ConfigService, useValue: mockConfigService },
@@ -53,6 +58,13 @@ describe('MediaEventsService', () => {
     // Manually set the Redis instances for testing
     (service as any).pub = mockPubRedis;
     (service as any).sub = mockSubRedis;
+  });
+
+  afterEach(async () => {
+    jest.clearAllMocks();
+    if (module) {
+      await module.close();
+    }
   });
 
   it('should be defined', () => {
