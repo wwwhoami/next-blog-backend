@@ -1,4 +1,4 @@
-import '@dotenvx/dotenvx/config'
+import '@dotenvx/dotenvx/config';
 import 'tsconfig-paths/register';
 
 import { PrismaPg } from '@prisma/adapter-pg';

@@ -8,7 +8,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { compare, genSalt, hash } from 'bcrypt';
-import { Store } from 'cache-manager';
+import { Cache } from 'cache-manager';
 import { Role } from 'prisma/generated/client';
 import { UserNoPasswordEntity } from '../user/entities/user.entity';
 import { AuthCredentialsDto } from './dto/auth-credentials.dto';
@@ -20,7 +20,7 @@ export class AuthService {
     private userService: UserService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    @Inject(CACHE_MANAGER) private cacheManager: Store,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   /**

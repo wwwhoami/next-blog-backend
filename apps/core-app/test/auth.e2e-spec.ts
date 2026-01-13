@@ -382,10 +382,10 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/refresh (GET)', () => {
-    it('should logout user if has access token in bearer auth header', () => {
+    it('should logout user if has access token in bearer auth header', async () => {
       const agent = request.agent(app.getHttpServer());
 
-      return agent
+      await agent
         .post(`/auth/login`)
         .send(authCredentials)
         .expect(HttpStatus.CREATED)
@@ -399,20 +399,16 @@ describe('Auth (e2e)', () => {
             accessToken: expect.any(String),
             role: Role.User,
           });
-        })
-        .then(() => {
-          return agent
-            .get(`/auth/refresh`)
-            .expect(HttpStatus.OK)
-            .expect(
-              'set-cookie',
-              /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/,
-            )
-            .expect((response: request.Response) => {
-              expect(response.body).toMatchObject({
-                accessToken: expect.any(String),
-              });
-            });
+        });
+
+      return await agent
+        .get(`/auth/refresh`)
+        .expect(HttpStatus.OK)
+        .expect('set-cookie', /refreshToken=.*; Path=\/; Expires=.*; HttpOnly/)
+        .expect((response_1: request.Response) => {
+          expect(response_1.body).toMatchObject({
+            accessToken: expect.any(String),
+          });
         });
     });
 
