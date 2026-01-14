@@ -32,6 +32,8 @@ export class MediaRepository {
         secretAccessKey: configService.get<string>('MINIO_SECRET_KEY')!,
       },
     });
+
+    this.logger.setContext(MediaRepository.name);
   }
 
   async getAuthorId(id: string) {

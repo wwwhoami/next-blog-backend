@@ -16,7 +16,9 @@ import metadata from './metadata';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  app.useLogger(app.get(PinoLogger));
+
+  const logger = app.get(PinoLogger);
+  app.useLogger(logger);
 
   const configService = app.get<ConfigService>(ConfigService);
   const port = configService.getOrThrow<number>('APP_CORE_PORT');
@@ -59,7 +61,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(port, () => {
-    console.log(`listening on port ${port}`);
+    logger.log(`Application is running on: http://localhost:${port}`);
   });
 }
 

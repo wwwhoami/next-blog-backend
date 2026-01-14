@@ -12,7 +12,6 @@ import {
   REDIS_SOCKET_EVENT_SEND_NAME,
 } from '@ws-notification/src/shared/redis-propagator/redis-propagator.constants';
 import { RedisService } from '@ws-notification/src/shared/redis/redis.service';
-import { PinoLogger } from 'nestjs-pino';
 import { Socket, io } from 'socket.io-client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -51,7 +50,7 @@ describe('NotificationServiceController (e2e)', () => {
     redisService = moduleFixture.get(RedisService);
     wsApp = moduleFixture.createNestApplication();
 
-    initAdapters(wsApp);
+    await initAdapters(wsApp);
 
     await wsApp.init();
     await wsApp.listen(port);
@@ -63,9 +62,6 @@ describe('NotificationServiceController (e2e)', () => {
     coreApp = coreAppModuleRef.createNestApplication();
 
     await coreApp.init();
-
-    // disable logging
-    PinoLogger.root.level = 'silent';
   });
 
   beforeAll(async () => {

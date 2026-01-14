@@ -10,9 +10,10 @@ import { AuthenticatedSocket } from '../socket-state/socket-state.adapter';
 import { RedisPropagatorService } from './redis-propagator.service';
 
 @Injectable()
-export class RedisPropagatorInterceptor<T>
-  implements NestInterceptor<T, WsResponse<T>>
-{
+export class RedisPropagatorInterceptor<T> implements NestInterceptor<
+  T,
+  WsResponse<T>
+> {
   public constructor(
     private readonly redisPropagatorService: RedisPropagatorService,
   ) {}

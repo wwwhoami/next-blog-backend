@@ -10,7 +10,9 @@ async function bootstrap() {
   const app = await NestFactory.create(NotificationModule, {
     bufferLogs: true,
   });
-  app.useLogger(app.get(PinoLogger));
+
+  const logger = app.get(PinoLogger);
+  app.useLogger(logger);
 
   const config = app.get<ConfigService>(ConfigService);
   const redisHost = config.get<string>('REDIS_HOST');
@@ -42,7 +44,7 @@ async function bootstrap() {
   );
 
   await app.startAllMicroservices();
-  console.log('Notification service is listening');
+  logger.log('Notification service is listening');
 }
 
 bootstrap();

@@ -4,19 +4,21 @@ import {
   NotificationMessage,
   PostPayload,
 } from '@app/shared/entities';
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { NOTIFICATION_SERVICE } from '@app/shared/kafka';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { PinoLogger } from 'nestjs-pino';
 import { Prisma } from 'prisma/generated/client';
 import { catchError, lastValueFrom, throwError } from 'rxjs';
-import { NOTIFICATION_SERVICE } from '../../../../libs/shared/src/kafka/kafka.constants';
 
 @Injectable()
 export class NotificationService implements OnModuleInit {
   constructor(
     @Inject(NOTIFICATION_SERVICE) private readonly client: ClientKafka,
-  ) {}
-
-  logger = new Logger(NotificationService.name);
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(NotificationService.name);
+  }
 
   async onModuleInit() {
     const requestPatterns = [

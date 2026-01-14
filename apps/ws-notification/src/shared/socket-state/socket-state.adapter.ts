@@ -2,6 +2,7 @@ import { AppAuthService } from '@app/auth';
 import { AuthUser } from '@app/auth/types';
 import { INestApplicationContext, WebSocketAdapter } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { PinoLogger } from 'nestjs-pino';
 import { Server, ServerOptions, Socket } from 'socket.io';
 import { ExtendedError } from 'socket.io/dist/namespace';
 import { RedisPropagatorService } from '../redis-propagator/redis-propagator.service';
@@ -17,8 +18,10 @@ export class SocketStateAdapter extends IoAdapter implements WebSocketAdapter {
     private readonly socketStateService: SocketStateService,
     private readonly redisPropagatorService: RedisPropagatorService,
     private readonly authService: AppAuthService,
+    private readonly logger: PinoLogger,
   ) {
     super(app);
+    this.logger.setContext(SocketStateAdapter.name);
   }
 
   /**
@@ -48,6 +51,8 @@ export class SocketStateAdapter extends IoAdapter implements WebSocketAdapter {
       socket.auth = await this.authService.validateAccessToken(token);
       return next();
     } catch (error) {
+      this.logger.error('Socket authentication error:', error);
+
       return next(new Error('Invalid auth token'));
     }
   };

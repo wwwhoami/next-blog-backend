@@ -56,9 +56,6 @@ describe('Media (e2e)', () => {
 
     await app.init();
 
-    // Disable logging for tests
-    // PinoLogger.root.level = 'silent';
-
     // Login to get access token
     const loginResponse = await request(app.getHttpServer())
       .post('/auth/login')

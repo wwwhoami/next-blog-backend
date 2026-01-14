@@ -71,6 +71,8 @@ export class MediaEventsService
       port,
       password,
     });
+
+    this.logger.setContext(MediaEventsService.name);
   }
 
   async onModuleInit() {

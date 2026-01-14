@@ -7,7 +7,6 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
-import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import TestAgent from 'supertest/lib/agent';
 
@@ -39,9 +38,6 @@ describe('Auth (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
-
-    // disable logging
-    PinoLogger.root.level = 'silent';
   });
 
   afterAll(async () => {

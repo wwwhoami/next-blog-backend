@@ -2,6 +2,7 @@ import { NOTIFICATION_SERVICE } from '@app/shared/kafka/kafka.constants';
 import { ClientKafka } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockProxy, mock } from 'jest-mock-extended';
+import { PinoLogger } from 'nestjs-pino';
 import { lastValueFrom, of, throwError } from 'rxjs';
 import { NotificationService } from '../notification.service';
 
@@ -14,6 +15,7 @@ describe('NotificationService', () => {
       providers: [
         NotificationService,
         { provide: NOTIFICATION_SERVICE, useValue: mock<ClientKafka>() },
+        { provide: PinoLogger, useValue: mock<PinoLogger>() },
       ],
     }).compile();
 
