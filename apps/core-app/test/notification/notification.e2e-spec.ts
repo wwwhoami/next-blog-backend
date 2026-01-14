@@ -5,7 +5,7 @@ import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MicroserviceOptions } from '@nestjs/microservices';
+import { KafkaOptions, MicroserviceOptions } from '@nestjs/microservices';
 import { Test } from '@nestjs/testing';
 import { NotificationModule } from 'apps/notification/src/notification.module';
 import { NotificationService } from 'apps/notification/src/notification.service';
@@ -53,7 +53,7 @@ describe('Notification (e2e)', () => {
     app = moduleRef.createNestApplication();
 
     app.connectMicroservice<MicroserviceOptions>(
-      kafkaProviderFactory(configService),
+      kafkaProviderFactory(configService) as KafkaOptions,
       {
         inheritAppConfig: true,
       },

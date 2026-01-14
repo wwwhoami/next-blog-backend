@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   ClientKafka,
   ClientsModule,
+  KafkaOptions,
   MicroserviceOptions,
 } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -65,7 +66,7 @@ describe('NotificationController (e2e)', () => {
     app = moduleFixture.createNestApplication();
 
     app.connectMicroservice<MicroserviceOptions>(
-      kafkaProviderFactory(configService),
+      kafkaProviderFactory(configService) as KafkaOptions,
     );
 
     notificationService = moduleFixture.get(NotificationService);

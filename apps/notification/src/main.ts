@@ -2,7 +2,11 @@ import { kafkaProviderFactory } from '@app/shared/kafka';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import {
+  KafkaOptions,
+  MicroserviceOptions,
+  Transport,
+} from '@nestjs/microservices';
 import { LoggerErrorInterceptor, Logger as PinoLogger } from 'nestjs-pino';
 import { NotificationModule } from './notification.module';
 
@@ -28,9 +32,12 @@ async function bootstrap() {
     }),
   );
 
-  app.connectMicroservice<MicroserviceOptions>(kafkaProviderFactory(config), {
-    inheritAppConfig: true,
-  });
+  app.connectMicroservice<MicroserviceOptions>(
+    kafkaProviderFactory(config) as KafkaOptions,
+    {
+      inheritAppConfig: true,
+    },
+  );
   app.connectMicroservice<MicroserviceOptions>(
     {
       transport: Transport.REDIS,

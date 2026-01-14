@@ -42,7 +42,7 @@ export const pinoParams: Params = {
       return id;
     },
 
-    customLogLevel: (req, res, err) => {
+    customLogLevel: (_req, res, err) => {
       if (res.statusCode >= 500 || err) {
         return 'error';
       }
