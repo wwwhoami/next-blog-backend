@@ -14,7 +14,7 @@ import { AppAuthService } from './app-auth.service';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('ACCESS_JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('ACCESS_JWT_EXPIRATION'),
+          expiresIn: configService.get<number>('ACCESS_JWT_EXPIRATION'),
         },
       }),
     }),

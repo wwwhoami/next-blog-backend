@@ -13,11 +13,8 @@ export class AccessTokenStrategy extends PassportStrategy(
   constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: configService.get<string>('ACCESS_JWT_SECRET'),
+      secretOrKey: configService.getOrThrow<string>('ACCESS_JWT_SECRET'),
       ignoreExpiration: false,
-      signOptions: {
-        expiresIn: configService.get<string>('ACCESS_JWT_EXPIRATION'),
-      },
     });
   }
 
