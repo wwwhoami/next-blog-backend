@@ -14,4 +14,5 @@ export type MediaCreate = {
   commentId?: number;
   parentId?: string;
   hash?: string | null;
+  refCount?: number;
 };

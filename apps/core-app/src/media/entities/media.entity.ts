@@ -18,11 +18,4 @@ export class MediaEntity {
   refCount: number;
   createdAt: Date;
   deletedAt: Date | null;
-
-  fromPrisma(media: any): MediaEntity {
-    return Object.assign(this, {
-      ...media,
-      sizeBytes: media.sizeBytes.toString(),
-    });
-  }
 }

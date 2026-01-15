@@ -4,12 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';
+import { StorageService } from '../storage/storage.service';
 import {
   MAX_FILE_SIZE_BYTES,
   MEDIA_PROCESSOR_QUEUE,
   SUPPORTED_IMAGE_FORMATS,
   VARIANT_CONFIGS,
 } from './constants/media-processor.constants';
+import { ProcessingError } from './errors/processing.error';
+import { ValidationError } from './errors/validation.error';
 import { MediaEventsService } from './media-events.service';
 import { MediaRepository } from './media.repository';
 import { MediaCreate } from './types/media-create.type';
@@ -20,20 +23,13 @@ import { MediaProcessorJobData } from './types/media-job.type';
 export class MediaProcessor extends WorkerHost {
   constructor(
     private readonly repo: MediaRepository,
+    private readonly storageService: StorageService,
     private readonly events: MediaEventsService,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
     super();
     this.logger.setContext(MediaProcessor.name);
-  }
-
-  private buildPublicUrl(key: string): string {
-    const base =
-      this.configService.get<string>('MEDIA_BASE_URL') ??
-      this.configService.get<string>('MINIO_ENDPOINT') ??
-      '';
-    return `${base}/${this.repo.bucket}/${key}`;
   }
 
   private isImageSupported(mimeType: string): boolean {
@@ -46,15 +42,15 @@ export class MediaProcessor extends WorkerHost {
     mimeType: string,
   ): Promise<Buffer> {
     if (!this.isImageSupported(mimeType)) {
-      throw new Error(
+      throw new ValidationError(
         `Unsupported image format: ${mimeType} for mediaId: ${mediaId}`,
       );
     }
 
-    const buffer = await this.repo.downloadToBuffer(key);
+    const buffer = await this.storageService.downloadToBuffer(key);
 
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
-      throw new Error(
+      throw new ValidationError(
         `Image size exceeds limit (${MAX_FILE_SIZE_BYTES} bytes) for mediaId: ${mediaId}`,
       );
     }
@@ -83,7 +79,7 @@ export class MediaProcessor extends WorkerHost {
 
       const variantsToCreate: MediaCreate[] = [];
 
-      for (const cfg of VARIANT_CONFIGS) {
+      const variantPromises = VARIANT_CONFIGS.map(async (cfg) => {
         try {
           const outBuffer = await sharp(buffer)
             .resize({ width: cfg.width, withoutEnlargement: true })
@@ -92,19 +88,19 @@ export class MediaProcessor extends WorkerHost {
 
           const variantKey = `${original.key}__${cfg.suffix}.webp`;
 
-          await this.repo.uploadBuffer(
+          await this.storageService.uploadBuffer(
             outBuffer,
             variantKey,
             'image/webp',
             true,
           );
 
-          const publicUrl = this.buildPublicUrl(variantKey);
+          const publicUrl = this.storageService.buildPublicUrl(variantKey);
 
           variantsToCreate.push({
             key: variantKey,
             publicUrl,
-            bucket: this.repo.bucket,
+            bucket: this.storageService.bucket,
             ownerId: original.ownerId,
             parentId: original.id,
             type: original.type,
@@ -115,17 +111,20 @@ export class MediaProcessor extends WorkerHost {
             hash: null,
           });
         } catch (variantErr) {
-          this.logger.warn(
+          this.logger.error(
             `Failed to create ${cfg.variant} variant for mediaId: ${mediaId}`,
             variantErr,
           );
+
           throw variantErr;
         }
-      }
+      });
+
+      await Promise.all(variantPromises);
 
       const created = await this.repo.createMany(variantsToCreate);
       if (created.count === 0) {
-        throw new Error(
+        throw new ProcessingError(
           `Failed to create any variants in DB for mediaId: ${mediaId}`,
         );
       }
@@ -147,6 +146,7 @@ export class MediaProcessor extends WorkerHost {
       this.logger.info(
         `Successfully processed ${createdVariants.length} variants for mediaId: ${mediaId}`,
       );
+
       return { mediaId: original.id, variants: createdVariants };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);

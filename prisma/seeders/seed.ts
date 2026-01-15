@@ -1,7 +1,5 @@
-import '@dotenvx/dotenvx/config'
-import { PrismaClient } from 'prisma/generated/client';
+import '@dotenvx/dotenvx/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import {
   generateCategories,
   generateComments,
@@ -12,6 +10,8 @@ import {
 } from 'data/data-gen';
 import { getPostMocks } from 'data/post';
 import { categoryData, commentData, userData } from 'data/seed-data';
+import { Pool } from 'pg';
+import { PrismaClient } from 'prisma/generated/client';
 import { PrismaSeeder } from './prisma-seeder';
 
 const pool = new Pool({ connectionString: process.env.POSTGRES_URL });

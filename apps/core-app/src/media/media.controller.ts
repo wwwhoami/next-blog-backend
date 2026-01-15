@@ -16,7 +16,16 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Observable, filter, from, fromEvent, map, merge, take } from 'rxjs';
+import {
+  Observable,
+  filter,
+  from,
+  fromEvent,
+  map,
+  merge,
+  take,
+  timeout,
+} from 'rxjs';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { UuidId } from '../common/decorators/id-type.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
@@ -67,7 +76,9 @@ export class MediaController {
     const immediateCheck$ = from(
       this.mediaService.getProcessingResult(id),
     ).pipe(
-      filter((result) => result.status === 'completed'),
+      filter(
+        (result) => result.status === 'completed' || result.status === 'failed',
+      ),
       map(
         (result) =>
           ({
@@ -86,6 +97,7 @@ export class MediaController {
             type: 'upload-status',
           }) as MessageEvent,
       ),
+      timeout(1 * 60 * 1000), // 1 minute timeout
     );
 
     return merge(immediateCheck$, liveEvents$).pipe(
@@ -95,7 +107,7 @@ export class MediaController {
 
   @Get(':id')
   async getMedia(@Param('id', ParseUUIDPipe) id: string) {
-    return await this.mediaService.getMediaWithVariants(id);
+    return this.mediaService.getMediaWithVariants(id);
   }
 
   @Delete(':id')

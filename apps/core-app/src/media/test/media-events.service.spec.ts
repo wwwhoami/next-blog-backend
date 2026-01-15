@@ -96,13 +96,18 @@ describe('MediaEventsService', () => {
         ownerId: 'owner-1',
       };
 
+      const message = {
+        status: 'completed',
+        payload,
+      };
+
       mockSubRedis.subscribe.mockResolvedValue(1);
       mockSubRedis.on.mockImplementation((event, callback) => {
         if (event === 'message') {
           // Simulate message received
           setTimeout(
             () =>
-              callback(MEDIA_UPLOAD_STATUS_CHANNEL, JSON.stringify(payload)),
+              callback(MEDIA_UPLOAD_STATUS_CHANNEL, JSON.stringify(message)),
             0,
           );
         }
@@ -116,13 +121,7 @@ describe('MediaEventsService', () => {
       // Wait for async callback
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(emitSpy).toHaveBeenCalledWith('upload.status.media-1', {
-        status: 'completed',
-        mediaId: 'media-1',
-        variants: [
-          { key: 'test.webp', publicUrl: 'https://example.com/test.webp' },
-        ],
-      });
+      expect(emitSpy).toHaveBeenCalledWith('upload.status.media-1', message);
     });
 
     it('should handle invalid JSON messages gracefully', async () => {

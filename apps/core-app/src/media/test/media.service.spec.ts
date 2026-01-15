@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PinoLogger } from 'nestjs-pino';
 import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
-import { UnprocesasbleEntityError } from '../../common/errors/unprocessable-entity.errror';
+import { UnprocessableEntityError } from '../../common/errors/unprocessable-entity.error';
+import { StorageService } from '../../storage/storage.service';
 import { UploadMediaDto } from '../dto/upload-media.dto';
 import { MediaEventsService } from '../media-events.service';
 import { MediaRepository } from '../media.repository';
@@ -17,9 +19,11 @@ jest.mock('sharp');
 describe('MediaService', () => {
   let service: MediaService;
   let mockRepository: DeepMockProxy<MediaRepository>;
+  let mockStorageService: DeepMockProxy<StorageService>;
   let mockEventsService: DeepMockProxy<MediaEventsService>;
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockQueue: DeepMockProxy<Queue>;
+  let mockLogger: DeepMockProxy<PinoLogger>;
   let mockSharp: jest.MockedFunction<typeof sharp>;
 
   // Create a minimal valid PNG buffer (1x1 pixel)
@@ -69,19 +73,22 @@ describe('MediaService', () => {
     postId: null,
     commentId: null,
     parentId: null,
-    Variants: null,
+    Variants: [],
   };
 
   beforeEach(async () => {
     mockRepository = mockDeep<MediaRepository>();
+    mockStorageService = mockDeep<StorageService>();
     mockEventsService = mockDeep<MediaEventsService>();
     mockConfigService = mockDeep<ConfigService>();
     mockQueue = mockDeep<Queue>();
+    mockLogger = mockDeep<PinoLogger>();
 
     // Mock sharp
     mockSharp = sharp as jest.MockedFunction<typeof sharp>;
     const mockSharpInstance = {
       metadata: jest.fn().mockResolvedValue({ width: 100, height: 100 }),
+      resize: jest.fn().mockReturnThis(),
       toFormat: jest.fn().mockReturnThis(),
       toBuffer: jest.fn().mockResolvedValue({
         data: Buffer.from('processed-image-data'),
@@ -94,9 +101,11 @@ describe('MediaService', () => {
       providers: [
         MediaService,
         { provide: MediaRepository, useValue: mockRepository },
+        { provide: StorageService, useValue: mockStorageService },
         { provide: MediaEventsService, useValue: mockEventsService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: 'BullQueue_media-processor', useValue: mockQueue },
+        { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
 
@@ -104,13 +113,30 @@ describe('MediaService', () => {
 
     // Setup config service mocks
     mockConfigService.get.mockImplementation((key: string) => {
-      const config = {
+      const config: Record<string, string> = {
         MEDIA_BASE_URL: 'https://example.com/media',
         MINIO_MEDIA_BUCKET: 'test-bucket',
         MINIO_ENDPOINT: 'https://minio.example.com',
       };
       return config[key];
     });
+
+    mockConfigService.getOrThrow.mockImplementation((key: string) => {
+      const config: Record<string, string> = {
+        MINIO_MEDIA_BUCKET: 'test-bucket',
+      };
+      return config[key];
+    });
+
+    // Setup storage service mocks
+    mockStorageService.buildPublicUrl.mockImplementation(
+      (key: string) => `https://example.com/media/test-bucket/${key}`,
+    );
+    mockStorageService.uploadBuffer.mockResolvedValue(undefined);
+    mockStorageService.deleteObject.mockResolvedValue(undefined as any);
+    mockStorageService.getPresignedUrl.mockResolvedValue(
+      'https://example.com/presigned-url',
+    );
 
     // Set environment variable
     process.env.MINIO_MEDIA_BUCKET = 'test-bucket';
@@ -131,7 +157,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload(invalidFile, 'user-1', mockMediaDto),
-      ).rejects.toThrow(UnprocesasbleEntityError);
+      ).rejects.toThrow(UnprocessableEntityError);
     });
 
     it('should throw BadRequestException for file too large', async () => {
@@ -139,7 +165,7 @@ describe('MediaService', () => {
 
       await expect(
         service.upload(largeFile, 'user-1', mockMediaDto),
-      ).rejects.toThrow(UnprocesasbleEntityError);
+      ).rejects.toThrow(UnprocessableEntityError);
     });
 
     it('should return existing media if hash already exists', async () => {
@@ -206,7 +232,9 @@ describe('MediaService', () => {
         ],
       };
 
-      mockRepository.findByIdWithVariants.mockResolvedValue(mediaWithVariants);
+      mockRepository.findByIdWithVariants.mockResolvedValue(
+        mediaWithVariants as any,
+      );
 
       const result = await service.getMediaWithVariants('media-id-1');
 
@@ -254,42 +282,174 @@ describe('MediaService', () => {
   describe('getPresignedUrl', () => {
     it('should return presigned URL', async () => {
       const expectedUrl = 'https://example.com/presigned-url';
-      mockRepository.getPresignedUrl.mockResolvedValue(expectedUrl);
+      mockRepository.findByIdWithVariants.mockResolvedValue(mockMediaRecord);
+      mockStorageService.getPresignedUrl.mockResolvedValue(expectedUrl);
 
       const result = await service.getPresignedUrl('media-id-1', 600);
 
       expect(result).toBe(expectedUrl);
-      expect(mockRepository.getPresignedUrl).toHaveBeenCalledWith(
+      expect(mockRepository.findByIdWithVariants).toHaveBeenCalledWith(
         'media-id-1',
+      );
+      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+        'test-bucket',
+        'uploads/image/user-1/test.webp',
         600,
       );
     });
 
     it('should use default TTL when not specified', async () => {
       const expectedUrl = 'https://example.com/presigned-url';
-      mockRepository.getPresignedUrl.mockResolvedValue(expectedUrl);
+      mockRepository.findByIdWithVariants.mockResolvedValue(mockMediaRecord);
+      mockStorageService.getPresignedUrl.mockResolvedValue(expectedUrl);
 
       await service.getPresignedUrl('media-id-1');
 
-      expect(mockRepository.getPresignedUrl).toHaveBeenCalledWith(
-        'media-id-1',
+      expect(mockStorageService.getPresignedUrl).toHaveBeenCalledWith(
+        'test-bucket',
+        'uploads/image/user-1/test.webp',
         600,
       );
     });
   });
 
   describe('removeReference', () => {
-    it('should remove media reference', async () => {
-      const expectedResult = mockMediaRecord;
-      mockRepository.decrementRefCountOrRemove.mockResolvedValue(
-        expectedResult,
+    it('should remove media reference and delete when refCount reaches 0', async () => {
+      const mediaToDelete = { ...mockMediaRecord, refCount: 1 };
+      mockRepository.findById.mockResolvedValue(mediaToDelete);
+      mockRepository.delete.mockResolvedValue(mediaToDelete);
+
+      await service.removeReference('media-id-1');
+
+      expect(mockRepository.findById).toHaveBeenCalledWith('media-id-1');
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
+        'uploads/image/user-1/test.webp',
+        'test-bucket',
+      );
+      expect(mockRepository.delete).toHaveBeenCalledWith('media-id-1');
+    });
+
+    it('should decrement refCount when still referenced', async () => {
+      const mediaWithRefs = { ...mockMediaRecord, refCount: 2 };
+      mockRepository.findById.mockResolvedValue(mediaWithRefs);
+      mockRepository.update.mockResolvedValue({
+        ...mediaWithRefs,
+        refCount: 1,
+      });
+
+      await service.removeReference('media-id-1');
+
+      expect(mockRepository.findById).toHaveBeenCalledWith('media-id-1');
+      expect(mockRepository.update).toHaveBeenCalledWith('media-id-1', {
+        refCount: 1,
+      });
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProcessingResult', () => {
+    it('should return completed status if variants exist', async () => {
+      const mediaWithVariants = {
+        ...mockMediaRecord,
+        Variants: [
+          {
+            id: 'variant-1',
+            key: 'test__thumb.webp',
+            publicUrl: 'https://example.com/test__thumb.webp',
+            variant: MediaVariant.THUMBNAIL,
+          },
+        ],
+      };
+
+      mockRepository.findByIdWithVariants.mockResolvedValue(
+        mediaWithVariants as any,
       );
 
-      const result = await service.removeReference('media-id-1');
+      const result = await service.getProcessingResult('media-id-1');
 
-      expect(result).toEqual(expectedResult);
-      expect(mockRepository.decrementRefCountOrRemove).toHaveBeenCalledWith(
-        'media-id-1',
+      expect(result).toEqual({
+        status: 'completed',
+        payload: {
+          mediaId: mockMediaRecord.id,
+          ownerId: mockMediaRecord.ownerId,
+          variants: [
+            {
+              key: 'test__thumb.webp',
+              publicUrl: 'https://example.com/test__thumb.webp',
+              variant: MediaVariant.THUMBNAIL,
+            },
+          ],
+        },
+      });
+    });
+
+    it('should return failed status if job failed', async () => {
+      mockRepository.findByIdWithVariants.mockResolvedValue({
+        ...mockMediaRecord,
+        Variants: [],
+      } as any);
+
+      const mockJob = {
+        getState: jest.fn().mockResolvedValue('failed'),
+        failedReason: 'Processing error',
+      };
+      mockQueue.getJob.mockResolvedValue(mockJob as any);
+
+      const result = await service.getProcessingResult('media-id-1');
+
+      expect(result).toEqual({
+        status: 'failed',
+        payload: {
+          mediaId: mockMediaRecord.id,
+          error: 'Processing error',
+        },
+      });
+    });
+
+    it('should return pending status if job is active/waiting', async () => {
+      mockRepository.findByIdWithVariants.mockResolvedValue({
+        ...mockMediaRecord,
+        Variants: [],
+      } as any);
+
+      const mockJob = {
+        getState: jest.fn().mockResolvedValue('active'),
+      };
+      mockQueue.getJob.mockResolvedValue(mockJob as any);
+
+      const result = await service.getProcessingResult('media-id-1');
+
+      expect(result).toEqual({
+        status: 'pending',
+        payload: {
+          mediaId: mockMediaRecord.id,
+        },
+      });
+    });
+
+    it('should return pending status if job not found', async () => {
+      mockRepository.findByIdWithVariants.mockResolvedValue({
+        ...mockMediaRecord,
+        Variants: [],
+      } as any);
+
+      mockQueue.getJob.mockResolvedValue(undefined);
+
+      const result = await service.getProcessingResult('media-id-1');
+
+      expect(result).toEqual({
+        status: 'pending',
+        payload: {
+          mediaId: mockMediaRecord.id,
+        },
+      });
+    });
+
+    it('should throw NotFoundError if media not found', async () => {
+      mockRepository.findByIdWithVariants.mockResolvedValue(null);
+
+      await expect(service.getProcessingResult('non-existent')).rejects.toThrow(
+        NotFoundError,
       );
     });
   });

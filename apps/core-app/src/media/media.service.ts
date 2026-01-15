@@ -1,47 +1,28 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'crypto';
+import { PinoLogger } from 'nestjs-pino';
 import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
-import { UnprocesasbleEntityError } from '../common/errors/unprocessable-entity.errror';
-import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
-import { UploadMediaDto } from './dto/upload-media.dto';
+import { UnprocessableEntityError } from '../common/errors/unprocessable-entity.error';
+import { StorageService } from '../storage/storage.service';
 import {
-  MediaEventsService,
-  MediaVariantsStatusMsg,
-} from './media-events.service';
+  MEDIA_POLICIES,
+  MediaPolicyKey,
+} from './constants/media-policies.constants';
+import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
+import { QUEUE_JOB_CONFIG } from './constants/queue-config.constants';
+import { UploadMediaDto } from './dto/upload-media.dto';
+import { MediaVariantsStatusMsg } from './media-events.service';
 import { MediaRepository } from './media.repository';
-
-const MEDIA_POLICIES = {
-  POST_IMAGE: {
-    maxWidth: 2000,
-    maxHeight: 2000,
-    resizeTo: 1200,
-    formats: ['webp', 'jpeg', 'png'],
-    maxFileSize: 5 * 1024 * 1024,
-    multipleAllowed: true,
-  },
-  COMMENT_IMAGE: {
-    maxWidth: 1000,
-    maxHeight: 1000,
-    resizeTo: 800,
-    formats: ['webp', 'jpeg', 'png'],
-    maxFileSize: 2 * 1024 * 1024,
-    multipleAllowed: true,
-  },
-  USER_AVATAR_IMAGE: {
-    maxWidth: 500,
-    maxHeight: 500,
-    resizeTo: 256,
-    formats: ['webp', 'jpeg', 'png'],
-    maxFileSize: 1 * 1024 * 1024,
-    multipleAllowed: false,
-  },
-} as const;
 
 @Injectable()
 export class MediaService implements EntityWithAuthorService {
@@ -50,46 +31,83 @@ export class MediaService implements EntityWithAuthorService {
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MediaRepository,
-    private readonly events: MediaEventsService,
+    private readonly storageService: StorageService,
     @InjectQueue(MEDIA_PROCESSOR_QUEUE) private readonly mediaQueue: Queue,
+    private readonly logger: PinoLogger,
   ) {
-    this.bucket = configService.get<string>('MINIO_MEDIA_BUCKET') || '';
+    this.bucket = configService.getOrThrow<string>('MINIO_MEDIA_BUCKET');
+    this.logger.setContext(MediaService.name);
   }
 
+  /**
+   * Retrieves the media policy configuration for a given media type and target.
+   * @param mediaType - The type of media (IMAGE)
+   * @param mediaTarget - The target use case (POST, COMMENT, USER_AVATAR)
+   * @returns The policy configuration including size limits, formats, and dimensions
+   * @throws {Error} If the policy combination is not found
+   * @private
+   */
   private mediaPolicy(mediaType: MediaType, mediaTarget: MediaTarget) {
-    return MEDIA_POLICIES[`${mediaTarget}_${mediaType}`];
+    const key: MediaPolicyKey = `${mediaTarget}_${mediaType}`;
+    const policy = MEDIA_POLICIES[key];
+
+    if (!policy) {
+      throw new Error(
+        `No policy found for combination: ${mediaTarget}_${mediaType}`,
+      );
+    }
+
+    return policy;
   }
 
+  /**
+   * Computes a SHA-256 hash of the provided buffer for deduplication.
+   * @param buffer - The buffer to hash
+   * @returns The hexadecimal hash string
+   * @private
+   */
   private computeHash(buffer: Buffer): string {
     return createHash('sha256').update(buffer).digest('hex');
   }
 
-  private buildPublicUrl(key: string): string {
-    const base =
-      this.configService.get<string>('MEDIA_BASE_URL') ??
-      this.configService.get<string>('MINIO_ENDPOINT') ??
-      '';
-    return `${base}/${this.repo.bucket}/${key}`;
-  }
-
+  /**
+   * Uploads and processes a media file with validation, resizing, and variant generation.
+   *
+   * This method:
+   * 1. Validates file format, size, and dimensions against policy
+   * 2. Processes and resizes the image according to target requirements
+   * 3. Checks for duplicate uploads using content hash
+   * 4. Uploads the processed file to storage
+   * 5. Creates a database record
+   * 6. Enqueues a job for generating image variants (thumbnails, etc.)
+   *
+   * @param file - The uploaded file from multer
+   * @param userId - The ID of the user uploading the file
+   * @param mediaMeta - Metadata specifying the media type and target use case
+   * @returns The created media record with public URL
+   * @throws {UnprocessableEntityError} If file validation fails (format, size, or dimensions)
+   * @throws {InternalServerErrorException} If storage upload fails
+   */
   async upload(
     file: Express.Multer.File,
     userId: string,
     mediaMeta: UploadMediaDto,
   ) {
     const policy = this.mediaPolicy(mediaMeta.type, mediaMeta.target);
-    const format = 'webp';
+    const format = policy.formats[0];
 
     const allowedMimeTypes = policy.formats.map((format) => `image/${format}`);
     if (!allowedMimeTypes.includes(file.mimetype)) {
-      throw new UnprocesasbleEntityError('Unsupported file format');
+      throw new UnprocessableEntityError(
+        `Unsupported file format provided ${file.mimetype}, supported formats: ${allowedMimeTypes.join(', ')}`,
+      );
     }
 
     if (file.size === 0) {
-      throw new UnprocesasbleEntityError('File is empty');
+      throw new UnprocessableEntityError('File is empty');
     }
     if (file.size > policy.maxFileSize) {
-      throw new UnprocesasbleEntityError('File too large');
+      throw new UnprocessableEntityError('File too large');
     }
 
     const image = sharp(file.buffer);
@@ -99,18 +117,17 @@ export class MediaService implements EntityWithAuthorService {
       metadata.width > policy.maxWidth ||
       metadata.height > policy.maxHeight
     ) {
-      throw new UnprocesasbleEntityError('Image dimensions too large');
+      throw new UnprocessableEntityError('Image dimensions too large');
     }
 
     const processed = await image
-      // .resize({
-      //   width: policy.resizeTo,
-      //   height: policy.resizeTo,
-      //   fit: mediaMeta.target === 'USER_AVATAR' ? 'cover' : 'inside',
-      //   withoutEnlargement: true,
-      // })
-      // .toFormat(policy.formats[0], { quality: 90 })
-      .toFormat(format, { quality: 100 })
+      .resize({
+        width: policy.resizeTo,
+        height: policy.resizeTo,
+        fit: mediaMeta.target === 'USER_AVATAR' ? 'cover' : 'inside',
+        withoutEnlargement: true,
+      })
+      .toFormat(format, { quality: 90 })
       .toBuffer({ resolveWithObject: true });
 
     const hash = this.computeHash(processed.data);
@@ -122,17 +139,18 @@ export class MediaService implements EntityWithAuthorService {
     }
 
     const key = `${mediaMeta.type.toLowerCase()}/${userId}/${randomUUID()}.${policy.formats[0]}`;
-    const publicUrl = this.buildPublicUrl(key);
+    const publicUrl = this.storageService.buildPublicUrl(key);
 
     try {
-      await this.repo.uploadBuffer(
+      await this.storageService.uploadBuffer(
         processed.data,
         key,
         `image/${format}`,
         true,
       );
     } catch (error) {
-      console.error('Error uploading media buffer:', error);
+      this.logger.error('Error uploading media buffer:', error);
+
       throw new InternalServerErrorException('Failed to upload media');
     }
 
@@ -155,11 +173,12 @@ export class MediaService implements EntityWithAuthorService {
       'generateVariants',
       { mediaId: media.id },
       {
-        attempts: 5,
-        backoff: { type: 'exponential', delay: 2000 },
+        jobId: media.id,
+        attempts: QUEUE_JOB_CONFIG.RETRY_ATTEMPTS,
+        backoff: { type: 'exponential', delay: QUEUE_JOB_CONFIG.BACKOFF_DELAY },
         removeOnComplete: {
-          age: 3600,
-          count: 1000,
+          age: QUEUE_JOB_CONFIG.CLEANUP_AGE,
+          count: QUEUE_JOB_CONFIG.CLEANUP_COUNT,
         },
         removeOnFail: false,
       },
@@ -168,6 +187,12 @@ export class MediaService implements EntityWithAuthorService {
     return media;
   }
 
+  /**
+   * Retrieves a media record with all its generated variants.
+   * @param id - The UUID of the media record
+   * @returns A DTO containing the media record and all its variants (thumbnails, etc.)
+   * @throws {NotFoundError} If the media record is not found
+   */
   async getMediaWithVariants(id: string) {
     const media = await this.repo.findByIdWithVariants(id);
     if (!media) {
@@ -195,22 +220,83 @@ export class MediaService implements EntityWithAuthorService {
     return dto;
   }
 
+  /**
+   * Retrieves the owner/author ID of a media record.
+   * Used for authorization checks to ensure users can only modify their own media.
+   * @param id - The UUID of the media record
+   * @returns An object containing the authorId (ownerId)
+   */
   async getAuthorId(id: string) {
     return this.repo.getAuthorId(id);
   }
 
-  // async listByUser(userId: string) {
-  //   return this.repo.listByUser(userId);
-  // }
-
+  /**
+   * Generates a time-limited presigned URL for accessing a media file.
+   * Useful for private media or temporary access without exposing storage credentials.
+   * @param id - The UUID of the media record
+   * @param ttlSeconds - Time-to-live in seconds for the URL (default: 600 = 10 minutes)
+   * @returns A presigned URL string valid for the specified duration
+   * @throws {NotFoundException} If the media record is not found
+   */
   async getPresignedUrl(id: string, ttlSeconds = 600) {
-    return this.repo.getPresignedUrl(id, ttlSeconds);
+    const mediaRec = await this.repo.findByIdWithVariants(id);
+
+    if (!mediaRec) throw new NotFoundException('media not found');
+
+    return this.storageService.getPresignedUrl(
+      mediaRec.bucket,
+      mediaRec.key,
+      ttlSeconds,
+    );
   }
 
+  /**
+   * Decrements the reference count for a media record and removes it if no longer referenced.
+   *
+   * Media files use reference counting to support reuse across multiple entities.
+   * When the reference count reaches zero, both the storage object and database record are deleted.
+   *
+   * @param id - The UUID of the media record
+   * @returns The updated media record, or null if deleted
+   * @throws {NotFoundError} If the media record is not found
+   */
   async removeReference(id: string) {
-    return this.repo.decrementRefCountOrRemove(id);
+    const media = await this.repo.findById(id);
+
+    if (!media) throw new NotFoundError('Media not found');
+
+    const newCount = media.refCount - 1;
+    if (newCount <= 0) {
+      // delete stored object
+      try {
+        await this.storageService.deleteObject(media.key, media.bucket);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete object ${media.key} in bucket ${media.bucket}: `,
+          err,
+        );
+      }
+      // delete DB row
+      return this.repo.delete(id);
+    } else {
+      return this.repo.update(id, { refCount: newCount });
+    }
   }
 
+  /**
+   * Checks the processing status of media variants generation.
+   *
+   * This method determines the current state of variant processing:
+   * - "completed": All variants have been generated and are available
+   * - "failed": The processing job failed with an error
+   * - "pending": Variants are still being processed or queued
+   *
+   * Used by SSE endpoints to provide real-time status updates to clients.
+   *
+   * @param id - The UUID of the media record
+   * @returns A status message indicating the processing state and available variants
+   * @throws {NotFoundError} If the media record is not found
+   */
   async getProcessingResult(id: string): Promise<MediaVariantsStatusMsg> {
     const media = await this.repo.findByIdWithVariants(id);
 
@@ -232,6 +318,17 @@ export class MediaService implements EntityWithAuthorService {
           })),
         },
       };
+    }
+
+    const job = await this.mediaQueue.getJob(media.id);
+    if (job) {
+      const state = await job.getState();
+      if (state === 'failed') {
+        return {
+          status: 'failed',
+          payload: { mediaId: media.id, error: job.failedReason },
+        };
+      }
     }
 
     return { status: 'pending', payload: { mediaId: media.id } };

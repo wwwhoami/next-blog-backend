@@ -2,6 +2,7 @@ import { PrismaModule } from '@app/prisma';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
+import { StorageService } from '../storage/storage.service';
 import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
 import { MediaEventsService } from './media-events.service';
 import { MediaController } from './media.controller';
@@ -25,6 +26,7 @@ import { MediaService } from './media.service';
     },
     MediaProcessor,
     MediaEventsService,
+    StorageService,
   ],
   controllers: [MediaController],
   exports: [MediaService],

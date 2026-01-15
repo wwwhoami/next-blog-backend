@@ -12,6 +12,7 @@ import { pinoParams } from './common/pino/pino.provider';
 import { MediaModule } from './media/media.module';
 import { NotificationModule } from './notification/notification.module';
 import { PostModule } from './post/post.module';
+import { StorageService } from './storage/storage.service';
 import { UserModule } from './user/user.module';
 
 @Module({
@@ -66,5 +67,6 @@ import { UserModule } from './user/user.module';
     NotificationModule,
     MediaModule,
   ],
+  providers: [StorageService],
 })
 export class AppModule {}

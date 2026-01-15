@@ -1,4 +1,5 @@
 import { PrismaService } from '@app/prisma';
+import { StorageService } from '@core/src/storage/storage.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
@@ -15,12 +16,14 @@ describe('MediaModule Components', () => {
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockQueue: DeepMockProxy<Queue>;
   let mockLogger: DeepMockProxy<PinoLogger>;
+  let mockStorageService: DeepMockProxy<StorageService>;
 
   beforeEach(async () => {
     mockPrismaClient = mockDeep<PrismaClient>();
     mockConfigService = mockDeep<ConfigService>();
     mockQueue = mockDeep<Queue>();
     mockLogger = mockDeep<PinoLogger>();
+    mockStorageService = mockDeep<StorageService>();
 
     // Setup config service mocks
     mockConfigService.get.mockImplementation((key: string) => {
@@ -52,6 +55,7 @@ describe('MediaModule Components', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: 'BullQueue_media-processor', useValue: mockQueue },
         { provide: PinoLogger, useValue: mockLogger },
+        { provide: StorageService, useValue: mockStorageService },
       ],
     }).compile();
 
@@ -84,6 +88,7 @@ describe('MediaModule Components', () => {
         { provide: PrismaService, useValue: mockPrismaClient },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: PinoLogger, useValue: mockLogger },
+        { provide: StorageService, useValue: mockStorageService },
       ],
     }).compile();
 

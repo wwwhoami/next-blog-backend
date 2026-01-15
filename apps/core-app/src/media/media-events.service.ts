@@ -80,14 +80,13 @@ export class MediaEventsService
 
     this.sub.on('message', (_channel, message) => {
       try {
-        const payload = JSON.parse(message);
+        const msg = JSON.parse(message) as MediaVariantsStatusMsg;
+        const mediaId = msg.payload?.mediaId;
 
-        // Emit per-media-ID event for SSE endpoints
-        this.emit(`upload.status.${payload.mediaId}`, {
-          status: 'completed',
-          mediaId: payload.mediaId,
-          variants: payload.variants,
-        });
+        if (mediaId) {
+          // Emit per-media-ID event for SSE endpoints
+          this.emit(`upload.status.${mediaId}`, msg);
+        }
       } catch (err) {
         this.logger.error(
           `Failed to parse pubsub message for channel ${this.channel}: ${err}`,

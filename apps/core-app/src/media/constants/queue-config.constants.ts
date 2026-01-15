@@ -1,0 +1,6 @@
+export const QUEUE_JOB_CONFIG = {
+  RETRY_ATTEMPTS: 5,
+  BACKOFF_DELAY: 2000,
+  CLEANUP_AGE: 3600,
+  CLEANUP_COUNT: 1000,
+} as const;

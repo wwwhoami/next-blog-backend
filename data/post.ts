@@ -1,6 +1,6 @@
-import { Prisma } from 'prisma/generated/client';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import { Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import { Frontmatter } from './frontmatter.type';
 import { getMockSlugs, getPostMockFromSlugForDb } from './mdx';

@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { ConflictError } from '@core/src/common/errors/conflict.error';
-import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
+import { UnprocessableEntityError } from '@core/src/common/errors/unprocessable-entity.error';
 import { PostRepository } from '@core/src/post/post.repository';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
 import { Injectable } from '@nestjs/common';
@@ -463,9 +463,9 @@ export class CommentRepository {
    * @param {number} id - Comment id
    * @param {string} userId - User id
    * @description Like comment creating like record and incrementing likes count
-   * @throws {UnprocesasbleEntityError} - If comment is not found
+   * @throws {UnprocessableEntityError} - If comment is not found
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
-   * @throws {UnprocesasbleEntityError} - If comment is deleted
+   * @throws {UnprocessableEntityError} - If comment is deleted
    */
   async like(id: number, userId: string): Promise<CommentLike> {
     try {
@@ -478,7 +478,7 @@ export class CommentRepository {
     } catch (error) {
       // If comment is not found or is soft deleted
       if (error.code === 'P2025') {
-        throw new UnprocesasbleEntityError('Comment does not exist');
+        throw new UnprocessableEntityError('Comment does not exist');
       }
       throw error;
     }

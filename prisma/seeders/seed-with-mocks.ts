@@ -1,6 +1,6 @@
-import { PrismaClient } from 'prisma/generated/client';
 import { getPostMocks } from 'data/post';
 import { categoryData, commentData, userData } from 'data/seed-data';
+import { PrismaClient } from 'prisma/generated/client';
 import { PrismaSeeder } from './prisma-seeder';
 
 export async function seedWithMocks(prisma: PrismaClient) {

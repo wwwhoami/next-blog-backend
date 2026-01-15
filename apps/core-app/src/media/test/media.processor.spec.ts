@@ -1,3 +1,4 @@
+import { StorageService } from '@core/src/storage/storage.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Job } from 'bullmq';
@@ -18,6 +19,7 @@ describe('MediaProcessor', () => {
   let mockEventsService: DeepMockProxy<MediaEventsService>;
   let mockLogger: DeepMockProxy<PinoLogger>;
   let mockSharp: jest.MockedFunction<typeof sharp>;
+  let mockStorageService: DeepMockProxy<StorageService>;
 
   const mockOriginalMedia = {
     id: 'media-id-1',
@@ -48,6 +50,13 @@ describe('MediaProcessor', () => {
     mockRepository = mockDeep<MediaRepository>();
     mockEventsService = mockDeep<MediaEventsService>();
     mockLogger = mockDeep<PinoLogger>();
+    mockStorageService = mockDeep<StorageService>();
+
+    // Mock storage service properties and methods
+    mockStorageService.bucket = 'test-bucket';
+    mockStorageService.buildPublicUrl.mockImplementation(
+      (key: string) => `https://example.com/media/test-bucket/${key}`,
+    );
 
     // Mock sharp
     mockSharp = sharp as jest.MockedFunction<typeof sharp>;
@@ -60,12 +69,22 @@ describe('MediaProcessor', () => {
     };
     mockSharp.mockReturnValue(mockSharpInstance as any);
 
+    const mockConfigService = mockDeep<ConfigService>();
+    mockConfigService.get.mockImplementation((key: string) => {
+      const config: Record<string, string> = {
+        MEDIA_BASE_URL: 'https://example.com/media',
+        MINIO_ENDPOINT: 'https://minio.example.com',
+      };
+      return config[key];
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MediaProcessor,
         { provide: MediaRepository, useValue: mockRepository },
+        { provide: StorageService, useValue: mockStorageService },
         { provide: MediaEventsService, useValue: mockEventsService },
-        { provide: ConfigService, useValue: mockLogger },
+        { provide: ConfigService, useValue: mockConfigService },
         { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
@@ -88,10 +107,10 @@ describe('MediaProcessor', () => {
   describe('process', () => {
     beforeEach(() => {
       mockRepository.findById.mockResolvedValue(mockOriginalMedia as any);
-      mockRepository.downloadToBuffer.mockResolvedValue(
+      mockStorageService.downloadToBuffer.mockResolvedValue(
         Buffer.from('original-image-data'),
       );
-      mockRepository.uploadBuffer.mockResolvedValue(undefined);
+      mockStorageService.uploadBuffer.mockResolvedValue(undefined);
       mockRepository.createMany.mockResolvedValue({ count: 3 } as any);
       mockRepository.create.mockImplementation(
         async (data) =>
@@ -121,13 +140,13 @@ describe('MediaProcessor', () => {
       );
 
       expect(mockRepository.findById).toHaveBeenCalledWith('media-id-1');
-      expect(mockRepository.downloadToBuffer).toHaveBeenCalledWith(
+      expect(mockStorageService.downloadToBuffer).toHaveBeenCalledWith(
         mockOriginalMedia.key,
       );
 
       // Should create 3 variants
       expect(mockRepository.createMany).toHaveBeenCalledTimes(1);
-      expect(mockRepository.uploadBuffer).toHaveBeenCalledTimes(3);
+      expect(mockStorageService.uploadBuffer).toHaveBeenCalledTimes(3);
 
       // Check thumbnail variant
       expect(mockRepository.createMany).toHaveBeenCalledWith(

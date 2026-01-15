@@ -1,9 +1,6 @@
 import { PrismaService } from '@app/prisma';
-import { S3Client } from '@aws-sdk/client-s3';
-import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { PinoLogger } from 'nestjs-pino';
 import {
   MediaTarget,
   MediaType,
@@ -12,16 +9,9 @@ import {
 } from 'prisma/generated/client';
 import { MediaRepository } from '../media.repository';
 
-// Mock AWS SDK
-jest.mock('@aws-sdk/client-s3');
-jest.mock('@aws-sdk/s3-request-presigner');
-
 describe('MediaRepository', () => {
   let repository: MediaRepository;
   let mockPrismaClient: DeepMockProxy<PrismaClient>;
-  let mockConfigService: DeepMockProxy<ConfigService>;
-  let mockLogger: DeepMockProxy<PinoLogger>;
-  let mockS3Client: DeepMockProxy<S3Client>;
 
   const mockMediaRecord = {
     id: 'media-id-1',
@@ -38,6 +28,7 @@ describe('MediaRepository', () => {
     refCount: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
+    deletedAt: null,
     postId: null,
     commentId: null,
     parentId: null,
@@ -45,34 +36,11 @@ describe('MediaRepository', () => {
 
   beforeEach(async () => {
     mockPrismaClient = mockDeep<PrismaClient>();
-    mockConfigService = mockDeep<ConfigService>();
-    mockLogger = mockDeep<PinoLogger>();
-    mockS3Client = mockDeep<S3Client>();
-
-    // Mock S3Client constructor
-    (S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
-      () => mockS3Client as any,
-    );
-
-    // Setup config mocks
-    mockConfigService.get.mockImplementation((key: string) => {
-      const config: Record<string, string> = {
-        MINIO_MEDIA_BUCKET: 'test-bucket',
-        MINIO_REGION: 'us-east-1',
-        MINIO_ENDPOINT: 'https://minio.example.com',
-        MINIO_ACCESS_KEY: 'test-access-key',
-        MINIO_SECRET_KEY: 'test-secret-key',
-      };
-
-      return config[key];
-    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MediaRepository,
         { provide: PrismaService, useValue: mockPrismaClient },
-        { provide: ConfigService, useValue: mockConfigService },
-        { provide: PinoLogger, useValue: mockLogger },
       ],
     }).compile();
 
@@ -192,71 +160,6 @@ describe('MediaRepository', () => {
     });
   });
 
-  describe('decrementRefCountOrRemove', () => {
-    it('should decrement ref count when count > 1', async () => {
-      const mediaWithHighRefCount = { ...mockMediaRecord, refCount: 2 };
-      const updatedMedia = { ...mockMediaRecord, refCount: 1 };
-
-      mockPrismaClient.media.findUnique.mockResolvedValue(
-        mediaWithHighRefCount as any,
-      );
-      mockPrismaClient.media.update.mockResolvedValue(updatedMedia as any);
-
-      const result = await repository.decrementRefCountOrRemove('media-id-1');
-
-      expect(result).toEqual(updatedMedia);
-      expect(mockPrismaClient.media.update).toHaveBeenCalledWith({
-        where: { id: 'media-id-1' },
-        data: { refCount: 1 },
-      });
-    });
-
-    it('should delete media when ref count reaches 0', async () => {
-      const mediaWithLowRefCount = { ...mockMediaRecord, refCount: 1 };
-
-      mockPrismaClient.media.findUnique.mockResolvedValue(
-        mediaWithLowRefCount as any,
-      );
-      mockPrismaClient.media.delete.mockResolvedValue(mockMediaRecord as any);
-      mockS3Client.send.mockResolvedValue({} as never);
-
-      const result = await repository.decrementRefCountOrRemove('media-id-1');
-
-      expect(result).toEqual(mockMediaRecord);
-      expect(mockS3Client.send).toHaveBeenCalled(); // S3 delete command
-      expect(mockPrismaClient.media.delete).toHaveBeenCalledWith({
-        where: { id: 'media-id-1' },
-      });
-    });
-
-    it('should return null when media not found', async () => {
-      mockPrismaClient.media.findUnique.mockResolvedValue(null);
-
-      const result =
-        await repository.decrementRefCountOrRemove('non-existent-id');
-
-      expect(result).toBeNull();
-    });
-
-    it('should handle S3 delete errors gracefully', async () => {
-      const mediaWithLowRefCount = { ...mockMediaRecord, refCount: 1 };
-
-      mockPrismaClient.media.findUnique.mockResolvedValue(
-        mediaWithLowRefCount as any,
-      );
-      mockPrismaClient.media.delete.mockResolvedValue(mockMediaRecord as any);
-      mockS3Client.send.mockRejectedValue(new Error('S3 Error') as never);
-
-      const result = await repository.decrementRefCountOrRemove('media-id-1');
-
-      expect(result).toEqual(mockMediaRecord);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to delete object'),
-        expect.any(Error),
-      );
-    });
-  });
-
   describe('create', () => {
     it('should create new media record', async () => {
       const createData = {
@@ -283,41 +186,31 @@ describe('MediaRepository', () => {
     });
   });
 
-  describe('uploadBuffer', () => {
-    it('should upload buffer to S3', async () => {
-      const buffer = Buffer.from('test-data');
-      mockS3Client.send.mockResolvedValue({} as never);
+  describe('delete', () => {
+    it('should delete media record', async () => {
+      mockPrismaClient.media.delete.mockResolvedValue(mockMediaRecord);
 
-      await repository.uploadBuffer(buffer, 'test-key', 'image/webp', true);
+      const result = await repository.delete('media-id-1');
 
-      expect(mockS3Client.send).toHaveBeenCalled();
+      expect(result).toEqual(mockMediaRecord);
+      expect(mockPrismaClient.media.delete).toHaveBeenCalledWith({
+        where: { id: 'media-id-1' },
+      });
     });
   });
 
-  describe('downloadToBuffer', () => {
-    it('should download file from S3 as buffer', async () => {
-      const mockResponse = {
-        Body: {
-          transformToByteArray: jest
-            .fn()
-            .mockResolvedValue(new Uint8Array([1, 2, 3, 4])),
-        },
-      };
-      mockS3Client.send.mockResolvedValue(mockResponse as never);
+  describe('update', () => {
+    it('should update media record', async () => {
+      const updatedMedia = { ...mockMediaRecord, refCount: 2 };
+      mockPrismaClient.media.update.mockResolvedValue(updatedMedia);
 
-      const result = await repository.downloadToBuffer('test-key');
+      const result = await repository.update('media-id-1', { refCount: 2 });
 
-      expect(result).toBeInstanceOf(Buffer);
-      expect(mockS3Client.send).toHaveBeenCalled();
-    });
-
-    it('should return empty buffer when body is undefined', async () => {
-      const mockResponse = { Body: undefined };
-      mockS3Client.send.mockResolvedValue(mockResponse as never);
-
-      const result = await repository.downloadToBuffer('test-key');
-
-      expect(result).toEqual(Buffer.from([]));
+      expect(result).toEqual(updatedMedia);
+      expect(mockPrismaClient.media.update).toHaveBeenCalledWith({
+        where: { id: 'media-id-1' },
+        data: { refCount: 2 },
+      });
     });
   });
 });

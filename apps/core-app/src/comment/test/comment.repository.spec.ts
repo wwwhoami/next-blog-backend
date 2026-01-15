@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { ConflictError } from '@core/src/common/errors/conflict.error';
-import { UnprocesasbleEntityError } from '@core/src/common/errors/unprocessable-entity.errror';
+import { UnprocessableEntityError } from '@core/src/common/errors/unprocessable-entity.error';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
@@ -632,7 +632,7 @@ describe('CommentService', () => {
       expect(commentLikes).toEqual(expected);
     });
 
-    it('should throw UnprocesasbleEntityError if no comment exists', () => {
+    it('should throw UnprocessableEntityError if no comment exists', () => {
       const commentId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
       const exception = new Prisma.PrismaClientKnownRequestError(
@@ -646,7 +646,7 @@ describe('CommentService', () => {
       prisma.comment.findFirstOrThrow.mockRejectedValue(exception);
 
       expect(repository.like(commentId, userId)).rejects.toThrow(
-        UnprocesasbleEntityError,
+        UnprocessableEntityError,
       );
     });
   });
