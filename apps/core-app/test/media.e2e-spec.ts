@@ -43,6 +43,7 @@ describe('Media (e2e)', () => {
   let accessToken: string;
   let userId: string;
   let testImageBuffer: Buffer;
+  let testGifBuffer: Buffer;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -68,6 +69,7 @@ describe('Media (e2e)', () => {
     accessToken = loginResponse.body.accessToken;
     userId = userData[0].id;
     testImageBuffer = await fs.promises.readFile('./data/media/sample_png.png');
+    testGifBuffer = await fs.promises.readFile('./data/media/sample_gif.gif');
   });
 
   afterAll(async () => {
@@ -84,6 +86,40 @@ describe('Media (e2e)', () => {
         .attach('file', testImageBuffer, {
           filename: 'test.png',
           contentType: 'image/png',
+        })
+        .expect(HttpStatus.CREATED);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          key: expect.stringContaining('image/'),
+          bucket: expect.any(String),
+          ownerId: userId,
+          parentId: null,
+          type: MediaType.IMAGE,
+          target: MediaTarget.POST,
+          variant: MediaVariant.ORIGINAL,
+          mimeType: 'image/webp',
+          publicUrl: expect.stringContaining('http'),
+          hash: expect.any(String),
+          createdAt: expect.any(String),
+          deletedAt: null,
+          refCount: 1,
+        }),
+      );
+      // Check for a correct date
+      expect(new Date(response.body.createdAt).getTime).not.toBe(NaN);
+    });
+
+    it('should upload GIF successfully', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/media')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .field('type', MediaType.IMAGE)
+        .field('target', MediaTarget.POST)
+        .attach('file', testGifBuffer, {
+          filename: 'test.gif',
+          contentType: 'image/gif',
         })
         .expect(HttpStatus.CREATED);
 

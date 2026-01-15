@@ -153,7 +153,7 @@ describe('MediaService', () => {
 
   describe('upload', () => {
     it('should throw BadRequestException for unsupported file format', async () => {
-      const invalidFile = { ...mockFile, mimetype: 'image/gif' };
+      const invalidFile = { ...mockFile, mimetype: 'image/unsupported' };
 
       await expect(
         service.upload(invalidFile, 'user-1', mockMediaDto),

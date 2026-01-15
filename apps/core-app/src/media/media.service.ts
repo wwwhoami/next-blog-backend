@@ -94,7 +94,7 @@ export class MediaService implements EntityWithAuthorService {
     mediaMeta: UploadMediaDto,
   ) {
     const policy = this.mediaPolicy(mediaMeta.type, mediaMeta.target);
-    const format = policy.formats[0];
+    const formatToConvertTo = 'webp'; // prefer webp for uploads
 
     const allowedMimeTypes = policy.formats.map((format) => `image/${format}`);
     if (!allowedMimeTypes.includes(file.mimetype)) {
@@ -127,7 +127,7 @@ export class MediaService implements EntityWithAuthorService {
         fit: mediaMeta.target === 'USER_AVATAR' ? 'cover' : 'inside',
         withoutEnlargement: true,
       })
-      .toFormat(format, { quality: 90 })
+      .toFormat(formatToConvertTo, { quality: 90 })
       .toBuffer({ resolveWithObject: true });
 
     const hash = this.computeHash(processed.data);
@@ -145,7 +145,7 @@ export class MediaService implements EntityWithAuthorService {
       await this.storageService.uploadBuffer(
         processed.data,
         key,
-        `image/${format}`,
+        `image/${formatToConvertTo}`,
         true,
       );
     } catch (error) {
@@ -162,7 +162,7 @@ export class MediaService implements EntityWithAuthorService {
       type: mediaMeta.type,
       target: mediaMeta.target,
       variant: MediaVariant.ORIGINAL,
-      mimeType: `image/${format}`,
+      mimeType: `image/${formatToConvertTo}`,
       sizeBytes: processed.data.length,
       publicUrl,
       hash,
