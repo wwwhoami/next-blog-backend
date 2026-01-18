@@ -42,7 +42,7 @@ services:
 
   kafka:
     container_name: next-blog-kafka
-    image: bitnami/kafka:3.4
+    image: bitnamilegacy/kafka:3.4
     restart: always
     healthcheck:
       test: /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL} || exit 1
