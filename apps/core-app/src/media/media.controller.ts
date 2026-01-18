@@ -154,6 +154,7 @@ export class MediaController {
 
   @Delete(':id')
   @UuidId()
+  @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.mediaService.removeReference(id);
