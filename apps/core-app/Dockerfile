@@ -13,6 +13,8 @@ COPY . .
 
 FROM base AS development
 ENV NODE_ENV=dev
+# Postgres URL is required to generate the Prisma client
+ENV POSTGRES_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public"
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm prisma generate
 

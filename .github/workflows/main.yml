@@ -30,6 +30,8 @@ jobs:
         run: pnpm install
 
       - name: Generate Prisma client
+        env:
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
         run: pnpm prisma generate
 
       - name: Run Unit Tests
