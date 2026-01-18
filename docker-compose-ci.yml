@@ -110,6 +110,7 @@ volumes:
     driver: local
   redis:
     driver: local
+  minio:
 
 networks:
   default:
