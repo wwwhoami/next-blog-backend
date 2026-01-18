@@ -65,12 +65,14 @@ jobs:
           KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT_EXTERNAL }}
           MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          MINIO_S3_PORT: ${{ secrets.MINIO_S3_PORT }}
+          MINIO_WEB_PORT: ${{ secrets.MINIO_WEB_PORT }}
           MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+          MINIO_PUBLIC_URL: ${{ secrets.MINIO_PUBLIC_URL }}
           MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_REGION: ${{ secrets.MINIO_REGION }}
           MINIO_MEDIA_BUCKET: ${{ secrets.MINIO_MEDIA_BUCKET }}
-          MINIO_PUBLIC_URL: ${{ secrets.MINIO_PUBLIC_URL }}
         run: |
           touch .env.docker-compose
           echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
@@ -95,12 +97,14 @@ jobs:
           echo KAFKA_PORT_EXTERNAL=$KAFKA_PORT_EXTERNAL >> .env.docker-compose
           echo MINIO_ROOT_USER=$MINIO_ROOT_USER >> .env.docker-compose
           echo MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD >> .env.docker-compose
+          echo MINIO_S3_PORT=$MINIO_S3_PORT >> .env.docker-compose
+          echo MINIO_WEB_PORT=$MINIO_WEB_PORT >> .env.docker-compose
           echo MINIO_ENDPOINT=$MINIO_ENDPOINT >> .env.docker-compose
+          echo MINIO_PUBLIC_URL=$MINIO_PUBLIC_URL >> .env.docker-compose
           echo MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY >> .env.docker-compose
           echo MINIO_SECRET_KEY=$MINIO_SECRET_KEY >> .env.docker-compose
           echo MINIO_REGION=$MINIO_REGION >> .env.docker-compose
           echo MINIO_MEDIA_BUCKET=$MINIO_MEDIA_BUCKET >> .env.docker-compose
-          echo MINIO_PUBLIC_URL=$MINIO_PUBLIC_URL >> .env.docker-compose
 
       - name: Build Docker Containers
         run: docker compose --env-file .env.docker-compose -f "docker-compose-ci.yml" up -d --build

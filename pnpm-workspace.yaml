@@ -1,8 +1,11 @@
 onlyBuiltDependencies:
   - '@nestjs/core'
+  - '@prisma/engines'
   - '@scarf/scarf'
   - '@swc/core'
   - bcrypt
+  - esbuild
+  - msgpackr-extract
   - nestjs-pino
   - prisma
   - sharp
