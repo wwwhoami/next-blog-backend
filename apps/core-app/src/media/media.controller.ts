@@ -17,6 +17,15 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiProperty,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { MediaTarget, MediaType } from 'prisma/generated/enums';
+import {
   Observable,
   filter,
   from,
@@ -46,6 +55,39 @@ export class MediaController {
   ) {}
 
   @Post()
+  @ApiOperation({ summary: 'Upload media file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Image file (jpeg, png, webp, or gif)',
+        },
+        type: {
+          type: 'string',
+          enum: [MediaType.IMAGE],
+          description: "Uploaded media's type",
+        },
+        target: {
+          type: 'string',
+          enum: [
+            MediaTarget.POST,
+            MediaTarget.COMMENT,
+            MediaTarget.USER_AVATAR,
+          ],
+          description: "Uploaded media's target",
+        },
+      },
+    },
+  })
+  @ApiProperty({ type: UploadMediaDto })
+  @ApiBearerAuth('accessToken')
+  @ApiResponse({ status: 201, description: 'File uploaded successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 422, description: 'Invalid file type or size' })
   @UseGuards(AccessTokenGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
