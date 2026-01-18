@@ -14,6 +14,7 @@ COPY . .
 FROM base AS development
 ENV NODE_ENV=dev
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm prisma generate
 
 ###################
 # PROD DEPENDENCIES
