@@ -75,6 +75,10 @@ export class MediaEventsService
     this.logger.setContext(MediaEventsService.name);
   }
 
+  /**
+   * Initializes the Redis subscription and sets up message handling.
+   * Subscribes to the media upload status channel and emits per-media-ID events.
+   */
   async onModuleInit() {
     await this.sub.subscribe(this.channel);
 
@@ -95,18 +99,22 @@ export class MediaEventsService
     });
   }
 
+  /**
+   * Cleans up Redis connections when the module is destroyed.
+   * Closes both publisher and subscriber connections.
+   */
   async onModuleDestroy() {
     await this.pub.quit();
     await this.sub.quit();
   }
 
   /**
-   * Publish an event to all instances
+   * Publishes media upload status to all instances via Redis and emits locally
+   * for immediate local listeners.
+   * @param message - The media variants status message to publish
    */
   async publishUploadStatus(message: MediaVariantsStatusMsg) {
     await this.pub.publish(this.channel, JSON.stringify(message));
-
-    // Also emit locally for immediate local listeners
     this.emit(`upload.status.${message.payload.mediaId}`, message);
   }
 }

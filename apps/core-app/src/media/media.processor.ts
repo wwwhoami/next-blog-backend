@@ -32,10 +32,23 @@ export class MediaProcessor extends WorkerHost {
     this.logger.setContext(MediaProcessor.name);
   }
 
+  /**
+   * Checks if the image MIME type is supported for processing.
+   * @param mimeType - The MIME type to validate
+   * @returns True if the image format is supported, false otherwise
+   */
   private isImageSupported(mimeType: string): boolean {
     return SUPPORTED_IMAGE_FORMATS.includes(mimeType.toLowerCase());
   }
 
+  /**
+   * Validates the image format and size, then downloads it to a buffer.
+   * @param mediaId - The ID of the media being validated
+   * @param key - The storage key of the media file
+   * @param mimeType - The MIME type of the media file
+   * @returns A buffer containing the media file data
+   * @throws {ValidationError} If the image format is unsupported or size exceeds the limit
+   */
   private async validateAndGetBuffer(
     mediaId: string,
     key: string,
@@ -58,6 +71,14 @@ export class MediaProcessor extends WorkerHost {
     return buffer;
   }
 
+  /**
+   * Processes a media job by creating image variants.
+   * Downloads the original image, generates variants with different sizes and qualities,
+   * uploads them to storage, and publishes status updates.
+   * @param job - The BullMQ job containing media processing data
+   * @returns An object containing the media ID and created variants
+   * @throws {ProcessingError} If variant creation fails
+   */
   async process(job: Job<MediaProcessorJobData>) {
     this.logger.info(
       `Processing job ${job.id} for mediaId: ${job.data.mediaId}`,
@@ -167,6 +188,11 @@ export class MediaProcessor extends WorkerHost {
     }
   }
 
+  /**
+   * Handles failed job events from the BullMQ queue.
+   * @param job - The failed job
+   * @param err - The error that caused the failure
+   */
   @OnQueueEvent('failed')
   onFailed(job: Job<MediaProcessorJobData>, err: Error) {
     this.logger.error(
