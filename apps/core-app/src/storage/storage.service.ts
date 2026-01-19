@@ -1,19 +1,26 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PinoLogger } from 'nestjs-pino';
+import { StorageConnectionError } from './storage-connection.error';
 
 @Injectable()
 export class StorageService {
   private readonly s3: S3Client;
   public readonly bucket: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(StorageService.name);
     this.bucket = this.configService.getOrThrow<string>('MINIO_MEDIA_BUCKET');
 
     this.s3 = new S3Client({
@@ -21,16 +28,34 @@ export class StorageService {
       endpoint: configService.getOrThrow<string>('MINIO_ENDPOINT'),
       forcePathStyle: true,
       credentials: {
-        accessKeyId: configService.getOrThrow<string>('MINIO_ACCESS_KEY')!,
-        secretAccessKey: configService.getOrThrow<string>('MINIO_SECRET_KEY')!,
+        accessKeyId: configService.getOrThrow<string>('MINIO_ACCESS_KEY'),
+        secretAccessKey: configService.getOrThrow<string>('MINIO_SECRET_KEY'),
       },
     });
+  }
+
+  async onModuleInit() {
+    try {
+      await this.s3.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      this.logger.info('S3 connection verified successfully');
+    } catch (_) {
+      const error = new StorageConnectionError(
+        'Failed to connect to S3 bucket',
+        {
+          region: this.configService.get<string>('MINIO_REGION'),
+          endpoint: this.configService.get<string>('MINIO_ENDPOINT'),
+          bucket: this.bucket,
+        },
+      );
+
+      throw error;
+    }
   }
 
   buildPublicUrl(key: string): string {
     const base =
       this.configService.get<string>('MEDIA_BASE_URL') ??
-      this.configService.get<string>('MINIO_ENDPOINT') ??
+      this.configService.getOrThrow<string>('MINIO_ENDPOINT') ??
       '';
     return `${base}/${this.bucket}/${key}`;
   }
