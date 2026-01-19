@@ -114,6 +114,23 @@ jobs:
       - name: List Docker Containers
         run: docker ps -a
 
+      - name: Create Kafka topics
+        run: |
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read.reply --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many.reply --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.create --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.like --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.unlike --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists
+          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists
+
+      - name: Create Minio media bucket
+        run: |
+          docker exec -t next-blog-minio /usr/bin/mc alias set dockerminio ${MINIO_ENDPOINT} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+          docker exec -t next-blog-minio /usr/bin/mc mb dockerminio/$MINIO_MEDIA_BUCKET
+
       - name: Run E2E Tests for Core App Gateway API
         run: docker exec -t next-blog-core-app pnpm test:e2e:core
 
