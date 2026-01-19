@@ -50,6 +50,18 @@ services:
       interval: 5s
       timeout: 10s
       retries: 15
+    entrypoint: >
+      /bin/sh -c "
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read --create --if-not-exists       
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many --create --if-not-exists           
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read.reply --create --if-not-exists 
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many.reply --create --if-not-exists     
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.create --create --if-not-exists                  
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.like --create --if-not-exists                    
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.unlike --create --if-not-exists                  
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists                       
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists                     
+      "
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
     environment:
@@ -87,6 +99,13 @@ services:
     volumes:
       - minio:/data
     command: server /data --console-address ":9001"
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set dockerminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+      /usr/bin/mc mb dockerminio/${MINIO_MEDIA_BUCKET};
+      exit 0;
+      "
 
   core-app:
     container_name: next-blog-core-app
