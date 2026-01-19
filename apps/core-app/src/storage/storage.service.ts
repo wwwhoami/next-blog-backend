@@ -55,7 +55,7 @@ export class StorageService {
   buildPublicUrl(key: string): string {
     const base =
       this.configService.get<string>('MEDIA_BASE_URL') ??
-      this.configService.getOrThrow<string>('MINIO_ENDPOINT') ??
+      this.configService.get<string>('MINIO_ENDPOINT') ??
       '';
     return `${base}/${this.bucket}/${key}`;
   }

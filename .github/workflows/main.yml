@@ -109,7 +109,7 @@ jobs:
           echo MINIO_MEDIA_BUCKET=$MINIO_MEDIA_BUCKET >> .env.docker-compose
 
       - name: Build Docker Containers
-        run: docker:compose:ci:up --build
+        run: pnpm docker:compose:ci:up --build
 
       - name: List Docker Containers
         run: docker ps -a
@@ -140,4 +140,4 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker:compose:ci:down
+        run: pnpm docker:compose:ci:down

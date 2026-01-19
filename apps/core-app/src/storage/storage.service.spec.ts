@@ -8,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
+import { PinoLogger } from 'nestjs-pino';
 import { StorageService } from './storage.service';
 
 // Mock AWS SDK
@@ -18,10 +19,12 @@ describe('StorageService', () => {
   let service: StorageService;
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockS3Client: DeepMockProxy<S3Client>;
+  let mockLogger: DeepMockProxy<PinoLogger>;
 
   beforeEach(async () => {
     mockConfigService = mockDeep<ConfigService>();
     mockS3Client = mockDeep<S3Client>();
+    mockLogger = mockDeep<PinoLogger>();
 
     // Mock S3Client constructor
     (S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
@@ -45,6 +48,10 @@ describe('StorageService', () => {
       providers: [
         StorageService,
         { provide: ConfigService, useValue: mockConfigService },
+        {
+          provide: PinoLogger,
+          useValue: mockLogger,
+        },
       ],
     }).compile();
 
