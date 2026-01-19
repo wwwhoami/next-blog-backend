@@ -52,15 +52,16 @@ services:
       retries: 15
     entrypoint: >
       /bin/sh -c "
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read --create --if-not-exists       
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many --create --if-not-exists           
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read.reply --create --if-not-exists 
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many.reply --create --if-not-exists     
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.create --create --if-not-exists                  
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.like --create --if-not-exists                    
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.unlike --create --if-not-exists                  
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists                       
-      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists                     
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic notification.mark-as-read --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic notification.get-many --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic notification.mark-as-read.reply --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic notification.get-many.reply --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic comment.create --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic comment.like --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic comment.unlike --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic post.like --create --if-not-exists;
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${KAFKA_HOST}:${KAFKA_PORT} --topic post.unlike --create --if-not-exists;
+      exit 0;
       "
     ports:
       - '${KAFKA_PORT_EXTERNAL}:${KAFKA_PORT_EXTERNAL}'
