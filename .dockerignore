@@ -8,5 +8,6 @@ coverage
 .gitignore
 .vscode
 prisma/generated
+scripts
 # OS
 .DS_Store
