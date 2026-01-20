@@ -62,8 +62,12 @@ services:
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_HOST_INTERNAL=${KAFKA_HOST_INTERNAL}
+      - KAFKA_PORT_INTERNAL=${KAFKA_PORT_INTERNAL}
     volumes:
       - kafka:/bitnami/kafka
+      - ./scripts/kafka-init-wrapper.sh:/kafka-init-wrapper.sh:ro
+    entrypoint: ['/bin/bash', '/kafka-init-wrapper.sh']
     networks:
       - default
 

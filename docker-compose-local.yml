@@ -46,6 +46,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: /opt/bitnami/kafka/bin/kafka-cluster.sh cluster-id --bootstrap-server ${KAFKA_HOST_INTERNAL}:${KAFKA_PORT_INTERNAL} || exit 1
+      start_period: 10s
       interval: 5s
       timeout: 10s
       retries: 15
@@ -61,8 +62,12 @@ services:
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_HOST_INTERNAL=${KAFKA_HOST_INTERNAL}
+      - KAFKA_PORT_INTERNAL=${KAFKA_PORT_INTERNAL}
     volumes:
       - kafka:/bitnami/kafka
+      - ./scripts/kafka-init-wrapper.sh:/kafka-init-wrapper.sh:ro
+    entrypoint: ['/bin/bash', '/kafka-init-wrapper.sh']
     networks:
       - default
 
@@ -85,7 +90,7 @@ services:
       - '${MINIO_WEB_PORT}:9001' # Web console
     volumes:
       - minio:/data
-    command: server /data --console-address ":9001"
+    command: server /data --console-address ":9001";
 
 volumes:
   postgres:

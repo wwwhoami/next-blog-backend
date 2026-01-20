@@ -39,42 +39,43 @@ jobs:
 
   test-e2e:
     runs-on: ubuntu-latest
-    env:
-      ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
-      ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
-      REFRESH_JWT_SECRET: ${{ secrets.REFRESH_JWT_SECRET }}
-      REFRESH_JWT_EXPIRATION: ${{ secrets.REFRESH_JWT_EXPIRATION }}
-      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-      POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
-      POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-      REDIS_HOST: ${{ secrets.REDIS_HOST }}
-      REDIS_PORT: ${{ secrets.REDIS_PORT }}
-      REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-      KAFKA_NODE_ID: ${{ secrets.KAFKA_NODE_ID }}
-      KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
-      KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
-      KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST }}
-      KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT }}
-      KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST_EXTERNAL }}
-      KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT_EXTERNAL }}
-      MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
-      MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
-      MINIO_S3_PORT: ${{ secrets.MINIO_S3_PORT }}
-      MINIO_WEB_PORT: ${{ secrets.MINIO_WEB_PORT }}
-      MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
-      MINIO_PUBLIC_URL: ${{ secrets.MINIO_PUBLIC_URL }}
-      MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
-      MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
-      MINIO_REGION: ${{ secrets.MINIO_REGION }}
-      MINIO_MEDIA_BUCKET: ${{ secrets.MINIO_MEDIA_BUCKET }}
-
     steps:
       - uses: actions/checkout@v3
 
       - name: Create and populate .env file
+
+        env:
+          ACCESS_JWT_SECRET: ${{ secrets.ACCESS_JWT_SECRET }}
+          ACCESS_JWT_EXPIRATION: ${{ secrets.ACCESS_JWT_EXPIRATION }}
+          REFRESH_JWT_SECRET: ${{ secrets.REFRESH_JWT_SECRET }}
+          REFRESH_JWT_EXPIRATION: ${{ secrets.REFRESH_JWT_EXPIRATION }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          KAFKA_NODE_ID: ${{ secrets.KAFKA_NODE_ID }}
+          KAFKA_HOST: ${{ secrets.KAFKA_HOST }}
+          KAFKA_PORT: ${{ secrets.KAFKA_PORT }}
+          KAFKA_HOST_INTERNAL: ${{ secrets.KAFKA_HOST }}
+          KAFKA_PORT_INTERNAL: ${{ secrets.KAFKA_PORT }}
+          KAFKA_HOST_EXTERNAL: ${{ secrets.KAFKA_HOST_EXTERNAL }}
+          KAFKA_PORT_EXTERNAL: ${{ secrets.KAFKA_PORT_EXTERNAL }}
+          MINIO_ROOT_USER: ${{ secrets.MINIO_ROOT_USER }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          MINIO_S3_PORT: ${{ secrets.MINIO_S3_PORT }}
+          MINIO_WEB_PORT: ${{ secrets.MINIO_WEB_PORT }}
+          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+          MINIO_PUBLIC_URL: ${{ secrets.MINIO_PUBLIC_URL }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_REGION: ${{ secrets.MINIO_REGION }}
+          MINIO_MEDIA_BUCKET: ${{ secrets.MINIO_MEDIA_BUCKET }}
+
         run: |
           touch .env.docker-compose
           echo ACCESS_JWT_SECRET="$ACCESS_JWT_SECRET" >> .env.docker-compose
@@ -114,22 +115,8 @@ jobs:
       - name: List Docker Containers
         run: docker ps -a
 
-      - name: Create Kafka topics
-        run: |
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.mark-as-read.reply --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic notification.get-many.reply --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.create --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.like --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic comment.unlike --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.like --create --if-not-exists
-          docker exec -t next-blog-kafka /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server ${{ secrets.KAFKA_HOST }}:${{ secrets.KAFKA_PORT }} --topic post.unlike --create --if-not-exists
-
       - name: Create Minio media bucket
-        run: |
-          docker exec -t next-blog-minio /usr/bin/mc alias set dockerminio ${MINIO_ENDPOINT} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
-          docker exec -t next-blog-minio /usr/bin/mc mb dockerminio/$MINIO_MEDIA_BUCKET
+        run: docker exec -t next-blog-core-app pnpm minio:create-bucket
 
       - name: Run E2E Tests for Core App Gateway API
         run: docker exec -t next-blog-core-app pnpm test:e2e:core

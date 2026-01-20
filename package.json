@@ -52,7 +52,8 @@
     "db:push": "dotenvx run -f .env.dev --quiet -- pnpm prisma db push",
     "db:migrate": "dotenvx run -f .env.dev --quiet -- pnpm prisma migrate dev",
     "db:seed": "dotenvx run -f .env.dev --quiet -- pnpm prisma db seed",
-    "db:reset": "dotenvx run -f .env.dev --quiet -- pnpm prisma migrate reset"
+    "db:reset": "dotenvx run -f .env.dev --quiet -- pnpm prisma migrate reset",
+    "minio:create-bucket": "dotenvx run -f .env --quiet -- ./scripts/minio-bucket-create.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.967.0",
