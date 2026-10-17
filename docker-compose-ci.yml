@@ -5,7 +5,9 @@ services:
     container_name: next-blog-postgres
     image: postgres:16.4
     healthcheck:
-      test: ['CMD', 'pg_isready']
+      test:
+        - CMD-SHELL
+        - pg_isready -U $${POSTGRES_USER:${POSTGRES_USER}} -d $${POSTGRES_DB:${POSTGRES_DB}}
       interval: 5s
       timeout: 5s
       retries: 5
