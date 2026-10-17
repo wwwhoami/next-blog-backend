@@ -1,5 +1,3 @@
-version: '3.9'
-
 include:
   - docker-compose-local.yml
 
