@@ -45,6 +45,21 @@ export class DraftRepository {
     });
   }
 
+  markPublishing(id: string, ownerId: string) {
+    return this.prisma.draft.updateMany({
+      where: { id, ownerId, status: DraftStatus.ACTIVE },
+      data: { status: DraftStatus.PUBLISHING, validationError: null },
+    });
+  }
+
+  markValidationFailed(id: string, error: string) {
+    return this.prisma.draft.update({
+      where: { id },
+      data: { status: DraftStatus.ACTIVE, validationError: error },
+      include: { media: true },
+    });
+  }
+
   findAttachableMedia(ownerId: string, mediaIds: string[]) {
     return this.prisma.media.findMany({
       where: {

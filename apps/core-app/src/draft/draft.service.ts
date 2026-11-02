@@ -1,38 +1,27 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { DraftStatus, MediaTarget } from 'prisma/generated/client';
-import slugify from 'slugify';
+import { Queue } from 'bullmq';
+import { DraftStatus } from 'prisma/generated/client';
 import {
-  MAX_DRAFT_CONTENT_LENGTH,
-  MAX_DRAFT_IMAGE_REFERENCES,
-} from './constants/draft-content.constants';
+  DRAFT_PROCESSOR_QUEUE,
+  VALIDATE_AND_PUBLISH_JOB,
+} from './constants/draft-processor.constants';
 import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 
-const imagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-
 @Injectable()
 export class DraftService {
-  private readonly externalHosts: Set<string>;
-
   constructor(
     private readonly repo: DraftRepository,
-    configService: ConfigService,
-  ) {
-    this.externalHosts = new Set(
-      (configService.get<string>('EXTERNAL_MEDIA_DOMAINS') ?? '')
-        .split(',')
-        .map((host) => host.trim().toLowerCase())
-        .filter(Boolean),
-    );
-  }
+    @InjectQueue(DRAFT_PROCESSOR_QUEUE)
+    private readonly draftQueue: Queue,
+  ) {}
 
   getAuthorId(id: string): Promise<{ authorId: string }> {
     return this.repo.getAuthorId(id);
@@ -70,6 +59,9 @@ export class DraftService {
    */
   async update(id: string, ownerId: string, dto: UpdateDraftDto) {
     const draft = await this.get(id, ownerId);
+    if (draft.status !== DraftStatus.ACTIVE) {
+      throw new ConflictException('Draft is not editable while publishing');
+    }
     const { mediaIds, ...draftData } = dto;
 
     if (mediaIds) {
@@ -84,45 +76,42 @@ export class DraftService {
   }
 
   /**
-   * Validates and publishes an active draft as a complete post.
+   * Starts asynchronous validation and publication of an active draft.
    *
-   * Publishing requires complete text fields, an attached POST cover asset,
-   * and valid Markdown image references. The repository then creates the post,
-   * transfers the draft's media, and archives the draft in one transaction.
-   * Archived drafts are rejected to prevent duplicate post creation.
+   * The worker performs content and media validation before the repository
+   * creates the post, transfers media, and archives the draft transactionally.
+   * The publishing state prevents duplicate jobs from creating duplicate posts.
    */
   async publish(id: string, ownerId: string) {
     const draft = await this.get(id, ownerId);
     if (draft.status !== DraftStatus.ACTIVE) {
-      throw new ConflictException('Draft has already been published');
-    }
-
-    if (!draft.title.trim() || !draft.excerpt.trim() || !draft.content.trim()) {
-      throw new UnprocessableEntityException(
-        'Title, excerpt, and content are required to publish',
+      throw new ConflictException(
+        'Draft is already being published or archived',
       );
     }
 
-    const cover = draft.media.find(
-      (media) =>
-        media.id === draft.coverMediaId && media.target === MediaTarget.POST,
-    );
-    if (!cover) {
-      throw new UnprocessableEntityException(
-        'A cover image attached to the draft is required to publish',
+    const claimed = await this.repo.markPublishing(id, ownerId);
+    if (claimed.count !== 1) {
+      throw new ConflictException(
+        'Draft is already being published or archived',
       );
     }
 
-    this.validateMarkdownImages(draft.content, draft.media);
+    try {
+      await this.draftQueue.add(
+        VALIDATE_AND_PUBLISH_JOB,
+        { draftId: id, ownerId },
+        { attempts: 1, removeOnComplete: true, removeOnFail: false },
+      );
+    } catch (error) {
+      await this.repo.markValidationFailed(
+        id,
+        error instanceof Error ? error.message : 'Failed to queue publication',
+      );
+      throw error;
+    }
 
-    return this.repo.publish(draft.id, ownerId, {
-      title: draft.title,
-      slug: slugify(draft.title, { lower: true }),
-      excerpt: draft.excerpt,
-      content: draft.content,
-      coverImage: cover.publicUrl,
-      categoryNames: draft.categoryNames,
-    });
+    return this.get(id, ownerId);
   }
 
   private async syncMedia(id: string, ownerId: string, mediaIds: string[]) {
@@ -152,47 +141,5 @@ export class DraftService {
     }
 
     await this.repo.setCoverMedia(id, coverMediaId);
-  }
-
-  private validateMarkdownImages(
-    content: string,
-    media: { publicUrl: string }[],
-  ) {
-    if (content.length > MAX_DRAFT_CONTENT_LENGTH) {
-      throw new UnprocessableEntityException(
-        `Content exceeds the maximum length of ${MAX_DRAFT_CONTENT_LENGTH} characters`,
-      );
-    }
-
-    const knownUrls = new Set(media.map(({ publicUrl }) => publicUrl));
-    let imageReferenceCount = 0;
-    for (const match of content.matchAll(imagePattern)) {
-      imageReferenceCount += 1;
-      if (imageReferenceCount > MAX_DRAFT_IMAGE_REFERENCES) {
-        throw new UnprocessableEntityException(
-          `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
-        );
-      }
-
-      const rawUrl = match[1];
-      let url: URL;
-      try {
-        url = new URL(rawUrl);
-      } catch {
-        throw new UnprocessableEntityException(
-          `Invalid image URL in Markdown: ${rawUrl}`,
-        );
-      }
-
-      if (knownUrls.has(rawUrl)) continue;
-      if (
-        url.protocol !== 'https:' ||
-        !this.externalHosts.has(url.hostname.toLowerCase())
-      ) {
-        throw new UnprocessableEntityException(
-          `Image URL is not attached media or an allowed external host: ${rawUrl}`,
-        );
-      }
-    }
   }
 }

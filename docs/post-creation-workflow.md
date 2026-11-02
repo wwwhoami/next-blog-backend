@@ -18,6 +18,8 @@ The current contract keeps standard Markdown image URLs and uses attached media 
 
 Draft Markdown is bounded to 2,000,000 characters and 100 image references. The API rejects content above either limit before completing image-reference validation, keeping synchronous parsing bounded at the draft save and publish boundaries.
 
+Publishing is queued asynchronously. `POST /draft/:id/publish` claims the active draft, changes it to `PUBLISHING`, and returns the draft while a BullMQ worker validates Markdown and media. Successful validation creates the post and archives the draft; validation failures return the draft to `ACTIVE` with `validationError` populated.
+
 At publish time:
 
 - URLs matching attached media are accepted.

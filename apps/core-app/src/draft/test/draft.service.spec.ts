@@ -1,27 +1,18 @@
-import {
-  ConflictException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConflictException } from '@nestjs/common';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { DraftStatus } from 'prisma/generated/client';
-import {
-  MAX_DRAFT_CONTENT_LENGTH,
-  MAX_DRAFT_IMAGE_REFERENCES,
-} from '../constants/draft-content.constants';
 import { DraftRepository } from '../draft.repository';
 import { DraftService } from '../draft.service';
 
 describe('DraftService', () => {
   let service: DraftService;
   let repository: DeepMockProxy<DraftRepository>;
-  let config: DeepMockProxy<ConfigService>;
+  let queue: { add: jest.Mock };
 
   beforeEach(() => {
     repository = mockDeep<DraftRepository>();
-    config = mockDeep<ConfigService>();
-    config.get.mockReturnValue('');
-    service = new DraftService(repository, config);
+    queue = { add: jest.fn() };
+    service = new DraftService(repository, queue as never);
   });
 
   it('creates an incomplete draft without creating a Post', async () => {
@@ -45,24 +36,6 @@ describe('DraftService', () => {
     );
   });
 
-  it('rejects publishing a draft without a cover media asset', async () => {
-    repository.findById.mockResolvedValue({
-      id: 'draft-id',
-      ownerId: 'owner-id',
-      title: 'Title',
-      excerpt: 'Excerpt',
-      content: '# Content',
-      categoryNames: [],
-      coverMediaId: null,
-      status: DraftStatus.ACTIVE,
-      media: [],
-    } as never);
-
-    await expect(service.publish('draft-id', 'owner-id')).rejects.toThrow(
-      UnprocessableEntityException,
-    );
-  });
-
   it('rejects repeated publishing of an archived draft', async () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
@@ -72,6 +45,37 @@ describe('DraftService', () => {
 
     await expect(service.publish('draft-id', 'owner-id')).rejects.toThrow(
       ConflictException,
+    );
+  });
+
+  it('claims an active draft and queues asynchronous publication', async () => {
+    repository.findById
+      .mockResolvedValueOnce({
+        id: 'draft-id',
+        ownerId: 'owner-id',
+        status: DraftStatus.ACTIVE,
+      } as never)
+      .mockResolvedValueOnce({
+        id: 'draft-id',
+        ownerId: 'owner-id',
+        status: DraftStatus.PUBLISHING,
+      } as never);
+    repository.markPublishing.mockResolvedValue({ count: 1 } as never);
+
+    await expect(
+      service.publish('draft-id', 'owner-id'),
+    ).resolves.toMatchObject({
+      status: DraftStatus.PUBLISHING,
+    });
+
+    expect(repository.markPublishing).toHaveBeenCalledWith(
+      'draft-id',
+      'owner-id',
+    );
+    expect(queue.add).toHaveBeenCalledWith(
+      'validate-and-publish',
+      { draftId: 'draft-id', ownerId: 'owner-id' },
+      expect.objectContaining({ attempts: 1 }),
     );
   });
 
@@ -93,33 +97,5 @@ describe('DraftService', () => {
     expect(repository.findAttachableMedia).toHaveBeenCalledWith('owner-id', [
       'media-id',
     ]);
-  });
-
-  it('rejects content above the parsing size limit', () => {
-    expect(() =>
-      (service as any).validateMarkdownImages(
-        'x'.repeat(MAX_DRAFT_CONTENT_LENGTH + 1),
-        [],
-      ),
-    ).toThrow(
-      `Content exceeds the maximum length of ${MAX_DRAFT_CONTENT_LENGTH} characters`,
-    );
-  });
-
-  it('rejects content with too many image references', () => {
-    const media = Array.from(
-      { length: MAX_DRAFT_IMAGE_REFERENCES + 1 },
-      (_, index) => ({ publicUrl: `https://example.com/${index}.png` }),
-    );
-    const content = Array.from(
-      { length: MAX_DRAFT_IMAGE_REFERENCES + 1 },
-      (_, index) => `![image](https://example.com/${index}.png)`,
-    ).join('\n');
-
-    expect(() =>
-      (service as any).validateMarkdownImages(content, media),
-    ).toThrow(
-      `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
-    );
   });
 });

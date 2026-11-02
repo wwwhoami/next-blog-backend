@@ -70,6 +70,7 @@ model Post {
 
 enum DraftStatus {
   ACTIVE
+  PUBLISHING
   ARCHIVED
 }
 
@@ -83,6 +84,7 @@ model Draft {
   coverMediaId  String?     @map("cover_media_id") @db.Uuid
   postId        Int?        @unique @map("post_id")
   status        DraftStatus @default(ACTIVE)
+  validationError String?    @map("validation_error")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   archivedAt    DateTime?   @map("archived_at") @db.Timestamptz(6)
