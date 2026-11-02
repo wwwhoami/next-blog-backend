@@ -75,19 +75,19 @@ enum DraftStatus {
 }
 
 model Draft {
-  id            String      @id @default(uuid()) @db.Uuid
-  ownerId       String      @map("owner_id") @db.Uuid
-  title         String      @default("")
-  excerpt       String      @default("")
-  content       String      @default("")
-  categoryNames String[]    @default([]) @map("category_names")
-  coverMediaId  String?     @map("cover_media_id") @db.Uuid
-  postId        Int?        @unique @map("post_id")
-  status        DraftStatus @default(ACTIVE)
-  validationError String?    @map("validation_error")
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  archivedAt    DateTime?   @map("archived_at") @db.Timestamptz(6)
+  id              String      @id @default(uuid()) @db.Uuid
+  ownerId         String      @map("owner_id") @db.Uuid
+  title           String      @default("")
+  excerpt         String      @default("")
+  content         String      @default("")
+  categoryNames   String[]    @default([]) @map("category_names")
+  coverMediaId    String?     @map("cover_media_id") @db.Uuid
+  postId          Int?        @unique @map("post_id")
+  status          DraftStatus @default(ACTIVE)
+  validationError String?     @map("validation_error")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt      DateTime?   @map("archived_at") @db.Timestamptz(6)
 
   owner User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   post  Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
@@ -224,6 +224,7 @@ model Media {
   @@index([draftId])
 }
 
+// TODO: remove these many-to-many join tables if we don't need them, since we already have postId and commentId in the Media table
 // model MediaToPost {
 //   mediaId String @map("media_id") @db.Uuid
 //   postId  Int    @map("post_id")

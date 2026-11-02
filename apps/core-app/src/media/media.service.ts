@@ -47,7 +47,7 @@ export class MediaService implements EntityWithAuthorService {
       {},
       {
         jobId: 'cleanup-unattached-media',
-        repeat: { every: 24 * 60 * 60 * 1000 },
+        repeat: { every: 24 * 60 * 60 * 1000 }, // run once per day
         removeOnComplete: true,
         removeOnFail: false,
       },

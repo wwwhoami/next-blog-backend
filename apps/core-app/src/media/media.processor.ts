@@ -73,6 +73,7 @@ export class MediaProcessor extends WorkerHost {
 
   /**
    * Processes a media job by creating image variants.
+   * Cleanup jobs for unattached media are also handled here.
    * Downloads the original image, generates variants with different sizes and qualities,
    * uploads them to storage, and publishes status updates.
    * @param job - The BullMQ job containing media processing data
@@ -195,6 +196,14 @@ export class MediaProcessor extends WorkerHost {
     }
   }
 
+  /**
+   * Removes media that has remained unattached beyond the retention period.
+   *
+   * Each original and its variants is deleted from storage before the database
+   * record is removed.
+   *
+   * @returns The number of original media records removed.
+   */
   private async cleanupUnattached() {
     const retentionDays = Number(
       this.configService.get<number>('MEDIA_UNATTACHED_RETENTION_DAYS') ?? 30,
@@ -209,7 +218,7 @@ export class MediaProcessor extends WorkerHost {
           await this.storageService.deleteObject(object.key, object.bucket);
         } catch (error) {
           this.logger.warn(
-            `Failed to delete media object ${object.key}`,
+            `Failed to delete (due to unused) media object ${object.key}`,
             error,
           );
         }
