@@ -71,7 +71,7 @@ export class DraftProcessor extends WorkerHost {
    * @throws {ConflictException} If the draft is no longer publishing.
    * @throws {UnprocessableEntityException} If draft content or media is invalid.
    */
-  process(job: Job<DraftPublishJobData>) {
+  async process(job: Job<DraftPublishJobData>) {
     if (job.name !== VALIDATE_AND_PUBLISH_JOB) {
       return;
     }

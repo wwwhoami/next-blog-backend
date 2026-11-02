@@ -10,8 +10,8 @@ export type MediaCreate = {
   publicUrl: string;
   sizeBytes: bigint | number;
   ownerId: string;
-  postId?: number;
-  commentId?: number;
+  postId?: number | null;
+  commentId?: number | null;
   draftId?: string | null;
   parentId?: string;
   hash?: string | null;

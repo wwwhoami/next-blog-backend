@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { DraftStatus, MediaTarget } from 'prisma/generated/client';
+import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
 import { DraftRepository } from '../draft.repository';
 
 describe('DraftRepository', () => {
@@ -84,9 +84,9 @@ describe('DraftRepository', () => {
       status: DraftStatus.ARCHIVED,
       postId: post.id,
     } as never);
-    prisma.$transaction.mockImplementation(async (callback: any) =>
-      callback(tx as never),
-    );
+    prisma.$transaction.mockImplementation((async (
+      callback: (client: Prisma.TransactionClient) => Promise<unknown>,
+    ) => callback(tx)) as never);
 
     await repository.publish('draft-id', 'owner-id', {
       title: 'Title',

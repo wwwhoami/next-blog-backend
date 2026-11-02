@@ -31,6 +31,7 @@ describe('MediaRepository', () => {
     deletedAt: null,
     postId: null,
     commentId: null,
+    draftId: null,
     parentId: null,
   };
 

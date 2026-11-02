@@ -6,13 +6,13 @@ import { DraftStatus, MediaTarget } from 'prisma/generated/client';
 export class DraftRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  getAuthorId(id: string): Promise<{ authorId: string }> {
-    return this.prisma.draft
-      .findUniqueOrThrow({
-        where: { id },
-        select: { ownerId: true },
-      })
-      .then(({ ownerId }) => ({ authorId: ownerId }));
+  async getAuthorId(id: string): Promise<{ authorId: string }> {
+    const { ownerId } = await this.prisma.draft.findUniqueOrThrow({
+      where: { id },
+      select: { ownerId: true },
+    });
+
+    return { authorId: ownerId };
   }
 
   create(ownerId: string, data: Record<string, unknown>) {

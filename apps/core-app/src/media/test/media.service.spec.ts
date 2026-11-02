@@ -330,7 +330,9 @@ describe('MediaService', () => {
           },
         ],
       };
-      mockRepository.findByIdWithVariants.mockResolvedValue(mediaToDelete);
+      mockRepository.findByIdWithVariants.mockResolvedValue(
+        mediaToDelete as any,
+      );
       mockRepository.delete.mockResolvedValue(mediaToDelete);
 
       await service.removeReference('media-id-1');

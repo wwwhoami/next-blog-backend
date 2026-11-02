@@ -35,7 +35,7 @@ export class MediaService implements EntityWithAuthorService {
   private bucket: string;
 
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
     private readonly repo: MediaRepository,
     private readonly draftRepo: DraftRepository,
     private readonly storageService: StorageService,
