@@ -318,15 +318,30 @@ describe('MediaService', () => {
 
   describe('removeReference', () => {
     it('should remove media reference and delete when refCount reaches 0', async () => {
-      const mediaToDelete = { ...mockMediaRecord, refCount: 1 };
-      mockRepository.findById.mockResolvedValue(mediaToDelete);
+      const mediaToDelete = {
+        ...mockMediaRecord,
+        refCount: 1,
+        Variants: [
+          {
+            key: 'uploads/image/user-1/test__thumb.webp',
+            bucket: 'test-bucket',
+          },
+        ],
+      };
+      mockRepository.findByIdWithVariants.mockResolvedValue(mediaToDelete);
       mockRepository.delete.mockResolvedValue(mediaToDelete);
 
       await service.removeReference('media-id-1');
 
-      expect(mockRepository.findById).toHaveBeenCalledWith('media-id-1');
+      expect(mockRepository.findByIdWithVariants).toHaveBeenCalledWith(
+        'media-id-1',
+      );
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
         'uploads/image/user-1/test.webp',
+        'test-bucket',
+      );
+      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
+        'uploads/image/user-1/test__thumb.webp',
         'test-bucket',
       );
       expect(mockRepository.delete).toHaveBeenCalledWith('media-id-1');
@@ -334,7 +349,7 @@ describe('MediaService', () => {
 
     it('should decrement refCount when still referenced', async () => {
       const mediaWithRefs = { ...mockMediaRecord, refCount: 2 };
-      mockRepository.findById.mockResolvedValue(mediaWithRefs);
+      mockRepository.findByIdWithVariants.mockResolvedValue(mediaWithRefs);
       mockRepository.update.mockResolvedValue({
         ...mediaWithRefs,
         refCount: 1,
@@ -342,11 +357,30 @@ describe('MediaService', () => {
 
       await service.removeReference('media-id-1');
 
-      expect(mockRepository.findById).toHaveBeenCalledWith('media-id-1');
+      expect(mockRepository.findByIdWithVariants).toHaveBeenCalledWith(
+        'media-id-1',
+      );
       expect(mockRepository.update).toHaveBeenCalledWith('media-id-1', {
         refCount: 1,
       });
       expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('detaches post media while retaining it when references remain', async () => {
+      const attachedMedia = {
+        ...mockMediaRecord,
+        postId: 42,
+        refCount: 2,
+      };
+      mockRepository.findByIdWithVariants.mockResolvedValue(attachedMedia);
+      mockRepository.update.mockResolvedValue(attachedMedia);
+
+      await service.removeReference('media-id-1');
+
+      expect(mockRepository.update).toHaveBeenCalledWith('media-id-1', {
+        refCount: 1,
+        postId: null,
+      });
     });
   });
 

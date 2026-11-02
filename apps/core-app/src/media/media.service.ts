@@ -316,17 +316,19 @@ export class MediaService implements EntityWithAuthorService {
   }
 
   /**
-   * Decrements the reference count for a media record and removes it if no longer referenced.
+   * Removes one media reference and deletes unreferenced storage objects.
    *
-   * Media files use reference counting to support reuse across multiple entities.
-   * When the reference count reaches zero, both the storage object and database record are deleted.
+   * Draft media is detached without changing its stored asset. Post and
+   * comment references are detached while shared references remain. When the
+   * count reaches zero, the original and all generated variants are removed
+   * from storage before the database record is deleted.
    *
    * @param id - The UUID of the media record
-   * @returns The updated media record, or null if deleted
+   * @returns The updated or deleted media record
    * @throws {NotFoundError} If the media record is not found
    */
   async removeReference(id: string) {
-    const media = await this.repo.findById(id);
+    const media = await this.repo.findByIdWithVariants(id);
 
     if (!media) throw new NotFoundError('Media not found');
 
@@ -336,19 +338,23 @@ export class MediaService implements EntityWithAuthorService {
 
     const newCount = media.refCount - 1;
     if (newCount <= 0) {
-      // delete stored object
-      try {
-        await this.storageService.deleteObject(media.key, media.bucket);
-      } catch (err) {
-        this.logger.warn(
-          `Failed to delete object ${media.key} in bucket ${media.bucket}: `,
-          err,
-        );
+      for (const object of [media, ...media.Variants]) {
+        try {
+          await this.storageService.deleteObject(object.key, object.bucket);
+        } catch (err) {
+          this.logger.warn(
+            `Failed to delete object ${object.key} in bucket ${object.bucket}: `,
+            err,
+          );
+        }
       }
-      // delete DB row
       return this.repo.delete(id);
     } else {
-      return this.repo.update(id, { refCount: newCount });
+      return this.repo.update(id, {
+        refCount: newCount,
+        ...(media.postId ? { postId: null } : {}),
+        ...(media.commentId ? { commentId: null } : {}),
+      });
     }
   }
 
