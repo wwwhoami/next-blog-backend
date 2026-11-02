@@ -41,6 +41,9 @@ export class DraftProcessor extends WorkerHost {
    *
    * Only HTTPS image URLs from this allowlist may be referenced externally;
    * URLs belonging to media attached to the draft are accepted directly.
+   *
+   * @param repo Draft persistence and publication transaction boundary.
+   * @param configService Provides the external image host allowlist.
    */
   constructor(
     private readonly repo: DraftRepository,
@@ -63,6 +66,10 @@ export class DraftProcessor extends WorkerHost {
    *
    * @param job - The queued draft job and its draft ownership payload.
    * @returns The created post for a publication job, or `undefined` otherwise.
+   * @throws {NotFoundException} If the queued draft no longer exists or is not
+   * owned by the job owner.
+   * @throws {ConflictException} If the draft is no longer publishing.
+   * @throws {UnprocessableEntityException} If draft content or media is invalid.
    */
   process(job: Job<DraftPublishJobData>) {
     if (job.name !== VALIDATE_AND_PUBLISH_JOB) {
@@ -79,6 +86,15 @@ export class DraftProcessor extends WorkerHost {
    * `PUBLISHING` state. The repository owns the final transaction that creates
    * the post, transfers media, and archives the draft. Any failure is recorded
    * before the error is rethrown so BullMQ marks the job as failed.
+   *
+   * @param id Draft identifier from the queued job.
+   * @param ownerId Expected draft owner from the queued job.
+   * @returns The newly created post.
+   * @throws {NotFoundException} If the draft does not exist or has another
+   * owner.
+   * @throws {ConflictException} If the draft is not in `PUBLISHING` state.
+   * @throws {UnprocessableEntityException} If required fields, cover media, or
+   * Markdown image references are invalid.
    */
   private async publish(id: string, ownerId: string) {
     try {
@@ -137,6 +153,7 @@ export class DraftProcessor extends WorkerHost {
    *
    * @param content - Draft Markdown content to inspect.
    * @param media - Media currently attached to the draft.
+   * @returns Nothing when all image references are valid.
    * @throws {UnprocessableEntityException} When a reference is invalid,
    * detached, disallowed, or exceeds a configured limit.
    */

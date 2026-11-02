@@ -15,6 +15,9 @@ import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
 
+/**
+ * Coordinates draft access, editing, media ownership, and async publication.
+ */
 @Injectable()
 export class DraftService {
   constructor(
@@ -25,6 +28,9 @@ export class DraftService {
 
   /**
    * Returns the draft owner for shared authorization checks.
+   *
+   * @param id Draft identifier.
+   * @returns The owner's identifier.
    */
   getAuthorId(id: string): Promise<{ authorId: string }> {
     return this.repo.getAuthorId(id);
@@ -32,6 +38,9 @@ export class DraftService {
 
   /**
    * Lists the owner's active drafts; archived drafts are excluded.
+   *
+   * @param ownerId Authenticated owner identifier.
+   * @returns The owner's active drafts.
    */
   list(ownerId: string) {
     return this.repo.findMany(ownerId);
@@ -39,6 +48,12 @@ export class DraftService {
 
   /**
    * Returns an owned draft, hiding missing and foreign drafts as not found.
+   *
+   * @param id Draft identifier.
+   * @param ownerId Authenticated owner identifier.
+   * @returns The requested draft with its related data.
+   * @throws {NotFoundException} If the draft does not exist or is not owned by
+   * the requested user.
    */
   async get(id: string, ownerId: string) {
     const draft = await this.repo.findById(id);
@@ -52,6 +67,10 @@ export class DraftService {
   /**
    * Creates a server-side draft for the editor's explicit save flow.
    * Incomplete fields are validated later by the publish worker.
+   *
+   * @param ownerId Authenticated owner identifier.
+   * @param dto Initial draft fields.
+   * @returns The created draft.
    */
   create(ownerId: string, dto: CreateDraftDto) {
     return this.repo.create(ownerId, {
@@ -64,6 +83,15 @@ export class DraftService {
 
   /**
    * Saves editable fields and synchronizes owned media and `coverMediaId`.
+   *
+   * @param id Draft identifier.
+   * @param ownerId Authenticated owner identifier.
+   * @param dto Updated fields, media attachments, and optional cover.
+   * @returns The updated draft.
+   * @throws {NotFoundException} If the draft does not exist or is not owned by
+   * the requested user.
+   * @throws {ConflictException} If the draft is publishing or archived.
+   * @throws {BadRequestException} If a media ID is invalid or not attachable.
    */
   async update(id: string, ownerId: string, dto: UpdateDraftDto) {
     const draft = await this.get(id, ownerId);
@@ -86,6 +114,14 @@ export class DraftService {
   /**
    * Atomically claims an active draft and queues validation and publication.
    * The worker creates the post, transfers media, and archives the draft.
+   *
+   * @param id Draft identifier.
+   * @param ownerId Authenticated owner identifier.
+   * @returns The draft in `PUBLISHING` state.
+   * @throws {NotFoundException} If the draft does not exist or is not owned by
+   * the requested user.
+   * @throws {ConflictException} If the draft is already publishing or archived.
+   * @throws {Error} If the publication job cannot be queued.
    */
   async publish(id: string, ownerId: string) {
     const draft = await this.get(id, ownerId);
@@ -121,6 +157,11 @@ export class DraftService {
 
   /**
    * Validates ownership before replacing the draft's media attachments.
+   *
+   * @param id Draft identifier.
+   * @param ownerId Authenticated owner identifier.
+   * @param mediaIds Media identifiers to attach.
+   * @throws {BadRequestException} If any media is invalid or not attachable.
    */
   private async syncMedia(id: string, ownerId: string, mediaIds: string[]) {
     const media = await this.repo.findAttachableMedia(ownerId, mediaIds);
@@ -133,6 +174,12 @@ export class DraftService {
 
   /**
    * Sets or clears `coverMediaId` after confirming the media is attached.
+   *
+   * @param id Draft identifier.
+   * @param ownerId Authenticated owner identifier.
+   * @param coverMediaId Attached media identifier, or `null` to clear it.
+   * @throws {BadRequestException} If the cover media is not attached to the
+   * draft or is not owned by the requested user.
    */
   private async setCoverMedia(
     id: string,
