@@ -3,8 +3,12 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /usr/src/app
-# openssl is required for Prisma to work properly
-RUN apt-get update -y && apt-get -y install openssl && rm -rf /var/lib/apt/lists/*
+# openssl is required for Prisma to work properly.
+# The package version follows the base image's Debian repositories.
+# hadolint ignore=DL3008
+RUN apt-get update -y && \
+  apt-get install -y --no-install-recommends openssl && \
+  rm -rf /var/lib/apt/lists/*
 COPY . .
 
 ###################
@@ -46,7 +50,10 @@ COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY --from=build /usr/src/app/prisma/generated ./prisma/generated
 COPY --from=build /usr/src/app/dist ./dist
 
-RUN apt-get update -y && apt-get -y install openssl && rm -rf /var/lib/apt/lists/*
+# hadolint ignore=DL3008
+RUN apt-get update -y && \
+  apt-get install -y --no-install-recommends openssl && \
+  rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
 
