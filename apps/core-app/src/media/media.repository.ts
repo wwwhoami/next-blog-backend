@@ -32,19 +32,6 @@ export class MediaRepository {
   }
 
   /**
-   * Finds an active draft and its owner for validating draft-bound uploads.
-   *
-   * @param draftId - The draft ID.
-   * @returns The draft owner and status, or `null` when it does not exist.
-   */
-  async findActiveDraftOwner(draftId: string) {
-    return this.prisma.draft.findUnique({
-      where: { id: draftId },
-      select: { ownerId: true, status: true },
-    });
-  }
-
-  /**
    * Lists media owned by a user, optionally filtered by attachment state.
    *
    * @param ownerId - The media owner's ID.

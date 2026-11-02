@@ -23,6 +23,6 @@ import { DraftService } from './draft.service';
       useExisting: DraftService,
     },
   ],
-  exports: [DraftService],
+  exports: [DraftService, DraftRepository],
 })
 export class DraftModule {}

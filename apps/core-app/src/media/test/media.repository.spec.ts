@@ -87,21 +87,6 @@ describe('MediaRepository', () => {
     });
   });
 
-  describe('findActiveDraftOwner', () => {
-    it('should find draft ownership and status', async () => {
-      const draft = { ownerId: 'user-1', status: 'ACTIVE' };
-      mockPrismaClient.draft.findUnique.mockResolvedValue(draft as any);
-
-      const result = await repository.findActiveDraftOwner('draft-id');
-
-      expect(result).toEqual(draft);
-      expect(mockPrismaClient.draft.findUnique).toHaveBeenCalledWith({
-        where: { id: 'draft-id' },
-        select: { ownerId: true, status: true },
-      });
-    });
-  });
-
   describe('findOwnedMedia', () => {
     it('should list owned media with attachment filtering', async () => {
       mockPrismaClient.media.findMany.mockResolvedValue([]);

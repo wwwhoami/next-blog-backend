@@ -37,6 +37,16 @@ export class DraftRepository {
     });
   }
 
+  /**
+   * Finds a draft for validating media attachment ownership and lifecycle.
+   */
+  findForMediaAttachment(id: string) {
+    return this.prisma.draft.findUnique({
+      where: { id },
+      select: { ownerId: true, status: true },
+    });
+  }
+
   update(id: string, data: Record<string, unknown>) {
     return this.prisma.draft.update({
       where: { id },

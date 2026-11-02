@@ -20,6 +20,19 @@ describe('DraftRepository', () => {
     prisma = module.get(PrismaService);
   });
 
+  it('finds draft ownership and status for media attachment validation', async () => {
+    const draft = { ownerId: 'owner-id', status: DraftStatus.ACTIVE };
+    prisma.draft.findUnique.mockResolvedValue(draft as any);
+
+    await expect(
+      repository.findForMediaAttachment('draft-id'),
+    ).resolves.toEqual(draft);
+    expect(prisma.draft.findUnique).toHaveBeenCalledWith({
+      where: { id: 'draft-id' },
+      select: { ownerId: true, status: true },
+    });
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });

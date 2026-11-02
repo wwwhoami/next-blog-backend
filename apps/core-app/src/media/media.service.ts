@@ -18,6 +18,7 @@ import {
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocessableEntityError } from '../common/errors/unprocessable-entity.error';
+import { DraftRepository } from '../draft/draft.repository';
 import { StorageService } from '../storage/storage.service';
 import {
   MEDIA_POLICIES,
@@ -36,6 +37,7 @@ export class MediaService implements EntityWithAuthorService {
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MediaRepository,
+    private readonly draftRepo: DraftRepository,
     private readonly storageService: StorageService,
     @InjectQueue(MEDIA_PROCESSOR_QUEUE) private readonly mediaQueue: Queue,
     private readonly logger: PinoLogger,
@@ -113,7 +115,9 @@ export class MediaService implements EntityWithAuthorService {
   ) {
     const policy = this.mediaPolicy(mediaMeta.type, mediaMeta.target);
     if (mediaMeta.draftId) {
-      const draft = await this.repo.findActiveDraftOwner(mediaMeta.draftId);
+      const draft = await this.draftRepo.findForMediaAttachment(
+        mediaMeta.draftId,
+      );
       if (
         !draft ||
         draft.ownerId !== userId ||

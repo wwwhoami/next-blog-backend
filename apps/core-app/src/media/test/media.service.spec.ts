@@ -7,6 +7,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { UnprocessableEntityError } from '../../common/errors/unprocessable-entity.error';
+import { DraftRepository } from '../../draft/draft.repository';
 import { StorageService } from '../../storage/storage.service';
 import { UploadMediaDto } from '../dto/upload-media.dto';
 import { MediaEventsService } from '../media-events.service';
@@ -19,6 +20,7 @@ jest.mock('sharp');
 describe('MediaService', () => {
   let service: MediaService;
   let mockRepository: DeepMockProxy<MediaRepository>;
+  let mockDraftRepository: DeepMockProxy<DraftRepository>;
   let mockStorageService: DeepMockProxy<StorageService>;
   let mockEventsService: DeepMockProxy<MediaEventsService>;
   let mockConfigService: DeepMockProxy<ConfigService>;
@@ -79,6 +81,7 @@ describe('MediaService', () => {
 
   beforeEach(async () => {
     mockRepository = mockDeep<MediaRepository>();
+    mockDraftRepository = mockDeep<DraftRepository>();
     mockStorageService = mockDeep<StorageService>();
     mockEventsService = mockDeep<MediaEventsService>();
     mockConfigService = mockDeep<ConfigService>();
@@ -102,6 +105,7 @@ describe('MediaService', () => {
       providers: [
         MediaService,
         { provide: MediaRepository, useValue: mockRepository },
+        { provide: DraftRepository, useValue: mockDraftRepository },
         { provide: StorageService, useValue: mockStorageService },
         { provide: MediaEventsService, useValue: mockEventsService },
         { provide: ConfigService, useValue: mockConfigService },

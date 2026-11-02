@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaClient } from 'prisma/generated/client';
+import { DraftRepository } from '../../draft/draft.repository';
 import { MediaEventsService } from '../media-events.service';
 import { MediaProcessor } from '../media.processor';
 import { MediaRepository } from '../media.repository';
@@ -50,6 +51,7 @@ describe('MediaModule Components', () => {
       providers: [
         MediaService,
         MediaRepository,
+        DraftRepository,
         MediaEventsService,
         { provide: PrismaService, useValue: mockPrismaClient },
         { provide: ConfigService, useValue: mockConfigService },
