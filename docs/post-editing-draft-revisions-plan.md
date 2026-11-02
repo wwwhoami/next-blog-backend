@@ -5,8 +5,7 @@
 Allow authors and administrators to edit an already published post without
 changing the live post while it is being edited, validated, reviewed, or
 abandoned. The existing draft publication workflow should be extended so that a
-draft can either create a new post or represent a revision of an existing
-post.
+draft can either create a new post or represent a revision of an existing post.
 
 ## Editorial workflow
 
@@ -42,8 +41,8 @@ or an `updatedAt` snapshot.
 
 Recommended constraints:
 
-- At most one active revision per post and author unless competing revisions
-  are an explicit product requirement.
+- At most one active revision per post and author unless competing revisions are
+  an explicit product requirement.
 - A revision can be published only once.
 - A revision cannot switch between new-post and edit-post modes.
 - Archived revisions retain their `postId` for traceability.
@@ -68,8 +67,8 @@ PUT /draft/:id
 POST /draft/:id/publish
 ```
 
-The draft response should identify whether it is a new-post draft or a
-revision, and include the linked `postId` when applicable.
+The draft response should identify whether it is a new-post draft or a revision,
+and include the linked `postId` when applicable.
 
 Add a preview endpoint only if the existing draft read response is not suitable
 for the editor:
@@ -96,18 +95,18 @@ The revision publication transaction must:
 - Check the source version or timestamp for stale edits.
 - Prevent a second publication.
 - Keep the post and media references consistent if any operation fails.
-- Preserve the post's existing publication state unless an explicit
-  moderation or scheduling rule changes it.
+- Preserve the post's existing publication state unless an explicit moderation
+  or scheduling rule changes it.
 
 If the source post changed after the revision was created, reject publication
-with a conflict and keep the revision editable. Do not silently overwrite
-newer content.
+with a conflict and keep the revision editable. Do not silently overwrite newer
+content.
 
 ## Media handling
 
-Revision uploads should use the existing draft-bound media contract. New
-uploads remain attached to the revision while it is active and are moved to
-the post only after successful publication.
+Revision uploads should use the existing draft-bound media contract. New uploads
+remain attached to the revision while it is active and are moved to the post
+only after successful publication.
 
 When publishing a revision:
 
@@ -119,22 +118,22 @@ When publishing a revision:
 - The cover remains sourced from `Draft.coverMediaId` until the transaction
   updates the post.
 
-The implementation should define whether media uploaded before revision
-creation can be selected, or whether revisions may use only newly attached
-media and media already attached to the target post.
+The implementation should define whether media uploaded before revision creation
+can be selected, or whether revisions may use only newly attached media and
+media already attached to the target post.
 
 ## Authorization and editorial roles
 
 - Authors may create revisions for posts they own, subject to the existing
   author policy.
 - Administrators may create revisions for any post.
-- Direct `PUT /post/:id` remains an administrative maintenance/import path or
-  is deprecated after all editorial callers migrate.
-- Draft ownership and linked-post authorization must be checked on every
-  read, update, media attachment, and publish operation.
+- Direct `PUT /post/:id` remains an administrative maintenance/import path or is
+  deprecated after all editorial callers migrate.
+- Draft ownership and linked-post authorization must be checked on every read,
+  update, media attachment, and publish operation.
 
-If moderation is required later, add review states separately rather than
-making `PUBLISHING` represent both queue processing and editorial approval.
+If moderation is required later, add review states separately rather than making
+`PUBLISHING` represent both queue processing and editorial approval.
 
 ## Testing plan
 
@@ -169,8 +168,8 @@ Add focused unit and e2e coverage for:
 
 ## Risks and decisions
 
-- **Concurrent editors:** use a source version check; do not silently
-  overwrite newer changes.
+- **Concurrent editors:** use a source version check; do not silently overwrite
+  newer changes.
 - **Multiple active revisions:** default to one active revision per post and
   author to simplify media ownership and editor UX.
 - **Media cleanup:** synchronize references transactionally and retain detached

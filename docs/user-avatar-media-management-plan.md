@@ -9,8 +9,8 @@ previous asset and its generated variants.
 
 The current schema stores `User.image` as a URL while `Media` stores uploaded
 objects separately. This makes active avatar ownership difficult to determine
-from the database. The preferred solution is to add an explicit relation
-between a user and their avatar media.
+from the database. The preferred solution is to add an explicit relation between
+a user and their avatar media.
 
 ## Recommended data model
 
@@ -31,8 +31,8 @@ avatars require a migration decision:
    them to users.
 2. Preserve external URLs as legacy values until the user uploads a managed
    avatar.
-3. Keep `User.image` temporarily for backward compatibility, but never claim
-   an arbitrary external URL is an owned `Media` record.
+3. Keep `User.image` temporarily for backward compatibility, but never claim an
+   arbitrary external URL is an owned `Media` record.
 
 The migration must not delete existing avatar URLs or media records.
 
@@ -58,9 +58,9 @@ Replacing an avatar must update the user relation and detach the old media in
 one database transaction. The old object must not be deleted before the new
 relation is committed.
 
-The old media is eligible for retention cleanup only when it has no other
-draft, post, comment, or user-avatar references. Shared media must remain
-available until all references are gone.
+The old media is eligible for retention cleanup only when it has no other draft,
+post, comment, or user-avatar references. Shared media must remain available
+until all references are gone.
 
 ### Remove avatar
 
@@ -72,8 +72,9 @@ Removing an avatar should:
   that behavior is explicitly supported.
 - Otherwise mark it as detached and let the retention cleanup job remove it.
 
-The API should distinguish “remove current avatar” from deleting an arbitrary
-media asset. A user must not be able to delete another user's active avatar.
+The API should distinguish “remove current avatar” from deleting an
+arbitrary media asset. A user must not be able to delete another user's active
+avatar.
 
 ## Cleanup eligibility
 
@@ -85,8 +86,7 @@ following are true:
 - It has no `draftId`, `postId`, or `commentId` reference.
 - It is an avatar or another supported target whose retention policy allows
   cleanup.
-- It is not currently processing, being replaced, or protected by a retry
-  state.
+- It is not currently processing, being replaced, or protected by a retry state.
 
 The current cleanup behavior excludes `USER_AVATAR` because avatar ownership is
 represented only by `User.image`. After adding `avatarMediaId`, avatar records
@@ -101,14 +101,13 @@ record.
 
 Keep Prisma access in repositories:
 
-- `UserRepository` owns selecting, replacing, and clearing
-  `avatarMediaId`.
+- `UserRepository` owns selecting, replacing, and clearing `avatarMediaId`.
 - `MediaRepository` owns media lookup, reference checks, and deletion
   eligibility.
 - `MediaService` coordinates authorization, storage operations, and repository
   calls without direct Prisma access.
-- The cleanup processor asks `MediaRepository` for eligible records and
-  removes storage objects before deleting records.
+- The cleanup processor asks `MediaRepository` for eligible records and removes
+  storage objects before deleting records.
 
 Avatar replacement should expose a transaction-capable repository operation so
 the user relation and media detachment cannot diverge.
