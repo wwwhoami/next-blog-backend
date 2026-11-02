@@ -1,6 +1,7 @@
 import { GetUser } from '@core/src/auth/decorators/get-user.decorator';
 import { AccessTokenGuard } from '@core/src/common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from '@core/src/common/guards/is-admin-or-author.guard';
+import { IsAdminGuard } from '@core/src/common/guards/is-admin.guard';
 import { UserNameImage } from '@core/src/user/entities/user.entity';
 import {
   Body,
@@ -58,8 +59,16 @@ export class PostController {
   }
 
   @ApiBearerAuth('accessToken')
-  @UseGuards(AccessTokenGuard)
+  @UseGuards(AccessTokenGuard, IsAdminGuard)
   @Post()
+  /**
+   * Creates a complete post for trusted administrative, import, and migration
+   * workflows. The editor workflow must use drafts and publish them instead.
+   *
+   * @param {string} userId - Authenticated administrator's user id
+   * @param {CreatePostDto} post - Complete post data
+   * @returns {Promise<PostEntity>} The created post
+   */
   create(
     @GetUser('id') userId: string,
     @Body() post: CreatePostDto,

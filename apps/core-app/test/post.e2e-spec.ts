@@ -356,6 +356,8 @@ describe('Post (e2e)', () => {
   describe('/post (POST)', () => {
     let agent: TestAgent;
     let accessToken: string;
+    let adminAgent: TestAgent;
+    let adminAccessToken: string;
 
     beforeEach(async () => {
       const authCredentials: AuthCredentialsDto = {
@@ -363,16 +365,38 @@ describe('Post (e2e)', () => {
         email: 'alice@prisma.io',
         password: 'password',
       };
+      const adminAuthCredentials: AuthCredentialsDto = {
+        name: 'Admin',
+        email: 'admin@admin.com',
+        password: 'password',
+      };
       agent = request.agent(app.getHttpServer());
+      adminAgent = request.agent(app.getHttpServer());
 
       accessToken = (await agent.post(`/auth/login`).send(authCredentials))
         .body['accessToken'];
+      adminAccessToken = (
+        await adminAgent.post(`/auth/login`).send(adminAuthCredentials)
+      ).body['accessToken'];
     });
 
-    it('should create new post if user is logged in', () => {
+    it('should return 403 if a non-admin user attempts direct post creation', () => {
+      return agent
+        .post(`/post`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          title: 'Direct post',
+          excerpt: 'Excerpt',
+          content: 'Content',
+          published: true,
+          coverImage: 'http://loremflickr.com/1200/480/business',
+        })
+        .expect(HttpStatus.FORBIDDEN);
+    });
+
+    it('should create new post if an administrator is logged in', () => {
       const author = {
-        image: 'https://randomuser.me/api/portraits/women/12.jpg',
-        name: 'Alice Johnson',
+        name: 'Admin',
       };
       const newPost = {
         title: 'Architectom iustoa nesciunts.',
@@ -399,9 +423,9 @@ describe('Post (e2e)', () => {
         },
       ];
 
-      return agent
+      return adminAgent
         .post(`/post`)
-        .auth(accessToken, { type: 'bearer' })
+        .auth(adminAccessToken, { type: 'bearer' })
         .send({ ...newPost, categories: categoriesForNewPost })
         .expect(HttpStatus.CREATED)
         .expect((response: request.Response) => {
@@ -443,7 +467,7 @@ describe('Post (e2e)', () => {
 
       return agent
         .post(`/post`)
-        .auth(accessToken, { type: 'bearer' })
+        .auth(adminAccessToken, { type: 'bearer' })
         .send({ ...newPost, categories: categoriesForNewPost })
         .expect(HttpStatus.CONFLICT);
     });
@@ -451,7 +475,7 @@ describe('Post (e2e)', () => {
     it('should return 400 if bad body provided', () => {
       return agent
         .post(`/post`)
-        .auth(accessToken, { type: 'bearer' })
+        .auth(adminAccessToken, { type: 'bearer' })
         .send({ name: 'name' })
         .expect(HttpStatus.BAD_REQUEST);
     });
