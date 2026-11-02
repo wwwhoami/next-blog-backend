@@ -92,6 +92,16 @@ export class MediaRepository {
     });
   }
 
+  /**
+   * Finds old, unattached post and comment media eligible for cleanup.
+   *
+   * Media linked to drafts, posts, or comments is excluded. Avatar media is
+   * also excluded because user avatar ownership is represented by `User.image`
+   * rather than a media relation.
+   *
+   * @param cutoff Media must have been created before this timestamp.
+   * @returns Original media records with their stored variants.
+   */
   async findUnattachedBefore(cutoff: Date) {
     return this.prisma.media.findMany({
       where: {
