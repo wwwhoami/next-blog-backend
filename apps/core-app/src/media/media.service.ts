@@ -253,6 +253,17 @@ export class MediaService implements EntityWithAuthorService {
     return dto;
   }
 
+  /**
+   * Lists media owned by a user, optionally filtered by attachment state.
+   *
+   * Variants are included so callers can render the available media URLs
+   * without issuing separate lookups.
+   *
+   * @param ownerId - UUID of the media owner.
+   * @param attached - When `true`, return media attached to a draft or post;
+   * when `false`, return unattached media; when omitted, return both.
+   * @returns The owner's media records ordered from newest to oldest.
+   */
   listOwnedMedia(ownerId: string, attached?: boolean) {
     return this.prisma.media.findMany({
       where: {
@@ -261,9 +272,13 @@ export class MediaService implements EntityWithAuthorService {
           ? {}
           : attached
             ? {
-                OR: [{ draftId: { not: null } }, { postId: { not: null } }],
+                OR: [
+                  { draftId: { not: null } },
+                  { postId: { not: null } },
+                  { commentId: { not: null } },
+                ],
               }
-            : { draftId: null, postId: null }),
+            : { draftId: null, postId: null, commentId: null }),
       },
       include: { Variants: true },
       orderBy: { createdAt: 'desc' },
