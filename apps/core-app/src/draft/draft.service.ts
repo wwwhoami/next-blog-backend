@@ -23,14 +23,23 @@ export class DraftService {
     private readonly draftQueue: Queue,
   ) {}
 
+  /**
+   * Returns the draft owner for shared authorization checks.
+   */
   getAuthorId(id: string): Promise<{ authorId: string }> {
     return this.repo.getAuthorId(id);
   }
 
+  /**
+   * Lists the owner's active drafts; archived drafts are excluded.
+   */
   list(ownerId: string) {
     return this.repo.findMany(ownerId);
   }
 
+  /**
+   * Returns an owned draft, hiding missing and foreign drafts as not found.
+   */
   async get(id: string, ownerId: string) {
     const draft = await this.repo.findById(id);
     if (!draft || draft.ownerId !== ownerId) {
@@ -40,6 +49,10 @@ export class DraftService {
     return draft;
   }
 
+  /**
+   * Creates a server-side draft for the editor's explicit save flow.
+   * Incomplete fields are validated later by the publish worker.
+   */
   create(ownerId: string, dto: CreateDraftDto) {
     return this.repo.create(ownerId, {
       title: dto.title ?? '',
@@ -50,12 +63,7 @@ export class DraftService {
   }
 
   /**
-   * Saves draft fields and synchronizes its media relationships.
-   *
-   * Media IDs are validated against the authenticated owner before attachment,
-   * while cover selection is stored separately through the draft's
-   * `coverMediaId` relationship. This keeps media ownership and cover
-   * designation consistent before the draft content is persisted.
+   * Saves editable fields and synchronizes owned media and `coverMediaId`.
    */
   async update(id: string, ownerId: string, dto: UpdateDraftDto) {
     const draft = await this.get(id, ownerId);
@@ -76,11 +84,8 @@ export class DraftService {
   }
 
   /**
-   * Starts asynchronous validation and publication of an active draft.
-   *
-   * The worker performs content and media validation before the repository
-   * creates the post, transfers media, and archives the draft transactionally.
-   * The publishing state prevents duplicate jobs from creating duplicate posts.
+   * Atomically claims an active draft and queues validation and publication.
+   * The worker creates the post, transfers media, and archives the draft.
    */
   async publish(id: string, ownerId: string) {
     const draft = await this.get(id, ownerId);
@@ -114,6 +119,9 @@ export class DraftService {
     return this.get(id, ownerId);
   }
 
+  /**
+   * Validates ownership before replacing the draft's media attachments.
+   */
   private async syncMedia(id: string, ownerId: string, mediaIds: string[]) {
     const media = await this.repo.findAttachableMedia(ownerId, mediaIds);
     if (media.length !== mediaIds.length) {
@@ -123,6 +131,9 @@ export class DraftService {
     await this.repo.attachMedia(id, mediaIds);
   }
 
+  /**
+   * Sets or clears `coverMediaId` after confirming the media is attached.
+   */
   private async setCoverMedia(
     id: string,
     ownerId: string,
