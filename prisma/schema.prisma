@@ -187,11 +187,6 @@ enum MediaVariant {
   THUMBNAIL
 }
 
-enum MediaRole {
-  COVER
-  BODY
-}
-
 model Media {
   id        String       @id @default(uuid()) @db.Uuid
   key       String       @unique
@@ -202,7 +197,6 @@ model Media {
   draftId   String?      @map("draft_id") @db.Uuid
   type      MediaType    @map("media_type")
   target    MediaTarget  @map("media_target")
-  role      MediaRole     @default(BODY)
   variant   MediaVariant @default(ORIGINAL) @map("media_variant")
   mimeType  String       @map("mime_type") @db.VarChar
   sizeBytes BigInt       @map("size_bytes") @db.BigInt

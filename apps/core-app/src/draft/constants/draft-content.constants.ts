@@ -1,0 +1,2 @@
+export const MAX_DRAFT_CONTENT_LENGTH = 2_000_000;
+export const MAX_DRAFT_IMAGE_REFERENCES = 100;

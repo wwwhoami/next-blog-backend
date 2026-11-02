@@ -1,16 +1,10 @@
-import {
-  MediaRole,
-  MediaTarget,
-  MediaType,
-  MediaVariant,
-} from 'prisma/generated/client';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 
 export type MediaCreate = {
   key: string;
   bucket: string;
   type: MediaType;
   target: MediaTarget;
-  role?: MediaRole;
   variant: MediaVariant;
   mimeType: string;
   publicUrl: string;

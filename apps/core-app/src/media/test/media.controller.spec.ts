@@ -1,10 +1,5 @@
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import {
-  MediaRole,
-  MediaTarget,
-  MediaType,
-  MediaVariant,
-} from 'prisma/generated/client';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import { Observable } from 'rxjs';
 import { UploadMediaDto } from '../dto/upload-media.dto';
 import { MediaEventsService } from '../media-events.service';
@@ -52,7 +47,6 @@ describe('MediaController', () => {
     postId: null,
     commentId: null,
     draftId: null,
-    role: MediaRole.BODY,
     parentId: null,
     deletedAt: null,
   };

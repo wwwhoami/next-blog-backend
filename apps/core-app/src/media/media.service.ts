@@ -10,12 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'crypto';
 import { PinoLogger } from 'nestjs-pino';
-import {
-  MediaRole,
-  MediaTarget,
-  MediaType,
-  MediaVariant,
-} from 'prisma/generated/client';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocessableEntityError } from '../common/errors/unprocessable-entity.error';
@@ -170,10 +165,7 @@ export class MediaService implements EntityWithAuthorService {
     if (existing) {
       await this.repo.incrementRefCount(existing.id);
       if (mediaMeta.draftId) {
-        await this.repo.update(existing.id, {
-          draftId: mediaMeta.draftId,
-          role: mediaMeta.role ?? MediaRole.BODY,
-        });
+        await this.repo.update(existing.id, { draftId: mediaMeta.draftId });
       }
       return existing;
     }
@@ -201,7 +193,6 @@ export class MediaService implements EntityWithAuthorService {
       ownerId: userId,
       type: mediaMeta.type,
       target: mediaMeta.target,
-      role: mediaMeta.role ?? MediaRole.BODY,
       draftId: mediaMeta.draftId,
       variant: MediaVariant.ORIGINAL,
       mimeType: `image/${formatToConvertTo}`,
@@ -325,7 +316,7 @@ export class MediaService implements EntityWithAuthorService {
     if (!media) throw new NotFoundError('Media not found');
 
     if (media.draftId) {
-      return this.repo.update(id, { draftId: null, role: MediaRole.BODY });
+      return this.repo.update(id, { draftId: null });
     }
 
     const newCount = media.refCount - 1;

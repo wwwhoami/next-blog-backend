@@ -5,12 +5,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
-import {
-  MediaRole,
-  MediaTarget,
-  MediaType,
-  MediaVariant,
-} from 'prisma/generated/client';
+import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 import sharp from 'sharp';
 import { UnprocessableEntityError } from '../../common/errors/unprocessable-entity.error';
 import { StorageService } from '../../storage/storage.service';
@@ -80,7 +75,6 @@ describe('MediaService', () => {
     commentId: null,
     parentId: null,
     draftId: null,
-    role: MediaRole.BODY,
     Variants: [],
   };
 

@@ -1,6 +1,6 @@
 import { PrismaService } from '@app/prisma';
 import { Injectable } from '@nestjs/common';
-import { DraftStatus } from 'prisma/generated/client';
+import { DraftStatus, MediaTarget } from 'prisma/generated/client';
 
 @Injectable()
 export class DraftRepository {
@@ -42,6 +42,105 @@ export class DraftRepository {
       where: { id },
       data,
       include: { media: true },
+    });
+  }
+
+  findAttachableMedia(ownerId: string, mediaIds: string[]) {
+    return this.prisma.media.findMany({
+      where: {
+        id: { in: mediaIds },
+        ownerId,
+        target: MediaTarget.POST,
+      },
+    });
+  }
+
+  attachMedia(id: string, mediaIds: string[]) {
+    return this.prisma.$transaction([
+      this.prisma.media.updateMany({
+        where: { draftId: id },
+        data: { draftId: null },
+      }),
+      this.prisma.media.updateMany({
+        where: { id: { in: mediaIds } },
+        data: { draftId: id },
+      }),
+    ]);
+  }
+
+  clearCoverMedia(id: string) {
+    return this.prisma.draft.update({
+      where: { id },
+      data: { coverMediaId: null },
+    });
+  }
+
+  findCoverCandidate(id: string, ownerId: string, mediaId: string) {
+    return this.prisma.media.findFirst({
+      where: {
+        id: mediaId,
+        ownerId,
+        draftId: id,
+        target: MediaTarget.POST,
+      },
+    });
+  }
+
+  setCoverMedia(id: string, mediaId: string) {
+    return this.prisma.draft.update({
+      where: { id },
+      data: { coverMediaId: mediaId },
+    });
+  }
+
+  publish(
+    draftId: string,
+    ownerId: string,
+    data: {
+      title: string;
+      slug: string;
+      excerpt: string;
+      content: string;
+      coverImage: string;
+      categoryNames: string[];
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const post = await tx.post.create({
+        data: {
+          title: data.title,
+          slug: data.slug,
+          excerpt: data.excerpt,
+          content: data.content,
+          coverImage: data.coverImage,
+          authorId: ownerId,
+          categories: {
+            create: data.categoryNames.map((name) => ({
+              category: { connect: { name } },
+            })),
+          },
+        },
+        include: {
+          author: { select: { name: true, image: true } },
+          categories: { include: { category: true } },
+        },
+      });
+
+      await tx.media.updateMany({
+        where: { draftId },
+        data: { draftId: null, postId: post.id },
+      });
+
+      await tx.draft.update({
+        where: { id: draftId },
+        data: {
+          status: DraftStatus.ARCHIVED,
+          postId: post.id,
+          archivedAt: new Date(),
+        },
+      });
+
+      return post;
     });
   }
 }

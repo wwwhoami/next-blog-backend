@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { MAX_DRAFT_CONTENT_LENGTH } from '../constants/draft-content.constants';
 
 export class CreateDraftDto {
   @IsOptional()
@@ -11,6 +12,7 @@ export class CreateDraftDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(MAX_DRAFT_CONTENT_LENGTH)
   content?: string;
 
   @IsOptional()

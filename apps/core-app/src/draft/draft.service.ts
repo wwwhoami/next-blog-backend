@@ -1,4 +1,3 @@
-import { PrismaService } from '@app/prisma';
 import {
   BadRequestException,
   ConflictException,
@@ -7,8 +6,12 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DraftStatus, MediaRole, MediaTarget } from 'prisma/generated/client';
+import { DraftStatus, MediaTarget } from 'prisma/generated/client';
 import slugify from 'slugify';
+import {
+  MAX_DRAFT_CONTENT_LENGTH,
+  MAX_DRAFT_IMAGE_REFERENCES,
+} from './constants/draft-content.constants';
 import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
@@ -21,7 +24,6 @@ export class DraftService {
 
   constructor(
     private readonly repo: DraftRepository,
-    private readonly prisma: PrismaService,
     configService: ConfigService,
   ) {
     this.externalHosts = new Set(
@@ -58,6 +60,14 @@ export class DraftService {
     });
   }
 
+  /**
+   * Saves draft fields and synchronizes its media relationships.
+   *
+   * Media IDs are validated against the authenticated owner before attachment,
+   * while cover selection is stored separately through the draft's
+   * `coverMediaId` relationship. This keeps media ownership and cover
+   * designation consistent before the draft content is persisted.
+   */
   async update(id: string, ownerId: string, dto: UpdateDraftDto) {
     const draft = await this.get(id, ownerId);
     const { mediaIds, ...draftData } = dto;
@@ -73,6 +83,14 @@ export class DraftService {
     return this.repo.update(draft.id, draftData);
   }
 
+  /**
+   * Validates and publishes an active draft as a complete post.
+   *
+   * Publishing requires complete text fields, an attached POST cover asset,
+   * and valid Markdown image references. The repository then creates the post,
+   * transfers the draft's media, and archives the draft in one transaction.
+   * Archived drafts are rejected to prevent duplicate post creation.
+   */
   async publish(id: string, ownerId: string) {
     const draft = await this.get(id, ownerId);
     if (draft.status !== DraftStatus.ACTIVE) {
@@ -87,9 +105,7 @@ export class DraftService {
 
     const cover = draft.media.find(
       (media) =>
-        media.id === draft.coverMediaId &&
-        media.role === MediaRole.COVER &&
-        media.target === MediaTarget.POST,
+        media.id === draft.coverMediaId && media.target === MediaTarget.POST,
     );
     if (!cover) {
       throw new UnprocessableEntityException(
@@ -99,67 +115,23 @@ export class DraftService {
 
     this.validateMarkdownImages(draft.content, draft.media);
 
-    return this.prisma.$transaction(async (tx) => {
-      const post = await tx.post.create({
-        data: {
-          title: draft.title,
-          slug: slugify(draft.title, { lower: true }),
-          excerpt: draft.excerpt,
-          content: draft.content,
-          coverImage: cover.publicUrl,
-          authorId: ownerId,
-          categories: {
-            create: draft.categoryNames.map((name) => ({
-              category: { connect: { name } },
-            })),
-          },
-        },
-        include: {
-          author: { select: { name: true, image: true } },
-          categories: { include: { category: true } },
-        },
-      });
-
-      await tx.media.updateMany({
-        where: { draftId: draft.id },
-        data: { draftId: null, postId: post.id },
-      });
-
-      await tx.draft.update({
-        where: { id: draft.id },
-        data: {
-          status: DraftStatus.ARCHIVED,
-          postId: post.id,
-          archivedAt: new Date(),
-        },
-      });
-
-      return post;
+    return this.repo.publish(draft.id, ownerId, {
+      title: draft.title,
+      slug: slugify(draft.title, { lower: true }),
+      excerpt: draft.excerpt,
+      content: draft.content,
+      coverImage: cover.publicUrl,
+      categoryNames: draft.categoryNames,
     });
   }
 
   private async syncMedia(id: string, ownerId: string, mediaIds: string[]) {
-    const media = await this.prisma.media.findMany({
-      where: {
-        id: { in: mediaIds },
-        ownerId,
-        target: MediaTarget.POST,
-      },
-    });
+    const media = await this.repo.findAttachableMedia(ownerId, mediaIds);
     if (media.length !== mediaIds.length) {
       throw new BadRequestException('One or more media assets are invalid');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.media.updateMany({
-        where: { draftId: id },
-        data: { draftId: null },
-      }),
-      this.prisma.media.updateMany({
-        where: { id: { in: mediaIds } },
-        data: { draftId: id },
-      }),
-    ]);
+    await this.repo.attachMedia(id, mediaIds);
   }
 
   private async setCoverMedia(
@@ -168,45 +140,40 @@ export class DraftService {
     coverMediaId: string | null,
   ) {
     if (!coverMediaId) {
-      await this.prisma.media.updateMany({
-        where: { draftId: id, role: MediaRole.COVER },
-        data: { role: MediaRole.BODY },
-      });
+      await this.repo.clearCoverMedia(id);
       return;
     }
 
-    const media = await this.prisma.media.findFirst({
-      where: {
-        id: coverMediaId,
-        ownerId,
-        draftId: id,
-        target: MediaTarget.POST,
-      },
-    });
+    const media = await this.repo.findCoverCandidate(id, ownerId, coverMediaId);
     if (!media) {
       throw new BadRequestException(
         'Cover media must be attached to the draft',
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.media.updateMany({
-        where: { draftId: id, role: MediaRole.COVER },
-        data: { role: MediaRole.BODY },
-      }),
-      this.prisma.media.update({
-        where: { id: coverMediaId },
-        data: { role: MediaRole.COVER },
-      }),
-    ]);
+    await this.repo.setCoverMedia(id, coverMediaId);
   }
 
   private validateMarkdownImages(
     content: string,
     media: { publicUrl: string }[],
   ) {
+    if (content.length > MAX_DRAFT_CONTENT_LENGTH) {
+      throw new UnprocessableEntityException(
+        `Content exceeds the maximum length of ${MAX_DRAFT_CONTENT_LENGTH} characters`,
+      );
+    }
+
     const knownUrls = new Set(media.map(({ publicUrl }) => publicUrl));
+    let imageReferenceCount = 0;
     for (const match of content.matchAll(imagePattern)) {
+      imageReferenceCount += 1;
+      if (imageReferenceCount > MAX_DRAFT_IMAGE_REFERENCES) {
+        throw new UnprocessableEntityException(
+          `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
+        );
+      }
+
       const rawUrl = match[1];
       let url: URL;
       try {

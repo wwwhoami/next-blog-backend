@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsUUID } from 'class-validator';
-import { MediaRole, MediaTarget, MediaType } from 'prisma/generated/client';
+import { MediaTarget, MediaType } from 'prisma/generated/client';
 
 export class UploadMediaDto {
   @IsEnum(MediaType)
@@ -14,8 +14,4 @@ export class UploadMediaDto {
   @IsOptional()
   @IsUUID()
   draftId?: string;
-
-  @IsOptional()
-  @IsEnum(MediaRole)
-  role?: MediaRole = MediaRole.BODY;
 }

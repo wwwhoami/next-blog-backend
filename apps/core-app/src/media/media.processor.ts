@@ -131,7 +131,6 @@ export class MediaProcessor extends WorkerHost {
             postId: original.postId ?? undefined,
             commentId: original.commentId ?? undefined,
             draftId: original.draftId ?? undefined,
-            role: original.role,
             type: original.type,
             target: original.target,
             variant: cfg.variant,
