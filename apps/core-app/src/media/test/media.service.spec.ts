@@ -1,10 +1,16 @@
+import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
-import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
+import {
+  MediaRole,
+  MediaTarget,
+  MediaType,
+  MediaVariant,
+} from 'prisma/generated/client';
 import sharp from 'sharp';
 import { UnprocessableEntityError } from '../../common/errors/unprocessable-entity.error';
 import { StorageService } from '../../storage/storage.service';
@@ -73,6 +79,8 @@ describe('MediaService', () => {
     postId: null,
     commentId: null,
     parentId: null,
+    draftId: null,
+    role: MediaRole.BODY,
     Variants: [],
   };
 
@@ -106,6 +114,7 @@ describe('MediaService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: 'BullQueue_media-processor', useValue: mockQueue },
         { provide: PinoLogger, useValue: mockLogger },
+        { provide: PrismaService, useValue: mockDeep<PrismaService>() },
       ],
     }).compile();
 

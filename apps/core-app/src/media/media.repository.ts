@@ -92,6 +92,19 @@ export class MediaRepository {
     });
   }
 
+  async findUnattachedBefore(cutoff: Date) {
+    return this.prisma.media.findMany({
+      where: {
+        draftId: null,
+        postId: null,
+        commentId: null,
+        target: { in: ['POST', 'COMMENT'] },
+        createdAt: { lt: cutoff },
+      },
+      include: { Variants: true },
+    });
+  }
+
   /**
    * Increments the reference count for a media record.
    * @param id - The media ID

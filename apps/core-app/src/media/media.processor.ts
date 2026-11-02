@@ -80,6 +80,10 @@ export class MediaProcessor extends WorkerHost {
    * @throws {ProcessingError} If variant creation fails
    */
   async process(job: Job<MediaProcessorJobData>) {
+    if (job.name === 'cleanupUnattached') {
+      return this.cleanupUnattached();
+    }
+
     this.logger.info(
       `Processing job ${job.id} for mediaId: ${job.data.mediaId}`,
     );
@@ -124,6 +128,10 @@ export class MediaProcessor extends WorkerHost {
             bucket: this.storageService.bucket,
             ownerId: original.ownerId,
             parentId: original.id,
+            postId: original.postId ?? undefined,
+            commentId: original.commentId ?? undefined,
+            draftId: original.draftId ?? undefined,
+            role: original.role,
             type: original.type,
             target: original.target,
             variant: cfg.variant,
@@ -186,6 +194,31 @@ export class MediaProcessor extends WorkerHost {
       );
       throw err;
     }
+  }
+
+  private async cleanupUnattached() {
+    const retentionDays = Number(
+      this.configService.get<number>('MEDIA_UNATTACHED_RETENTION_DAYS') ?? 30,
+    );
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    const mediaRecords = await this.repo.findUnattachedBefore(cutoff);
+
+    for (const media of mediaRecords) {
+      const objects = [media, ...media.Variants];
+      for (const object of objects) {
+        try {
+          await this.storageService.deleteObject(object.key, object.bucket);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete media object ${object.key}`,
+            error,
+          );
+        }
+      }
+      await this.repo.delete(media.id);
+    }
+
+    return { deleted: mediaRecords.length };
   }
 
   /**

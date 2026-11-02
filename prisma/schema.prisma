@@ -29,6 +29,7 @@ model User {
   followers    Follows[]      @relation("follower")
   following    Follows[]      @relation("following")
   Media        Media[]
+  drafts       Draft[]
 }
 
 model Follows {
@@ -58,12 +59,40 @@ model Post {
   comment    Comment[]
   PostLikes  PostLikes[]
   Media      Media[]
+  draft      Draft?
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Post_title_trgm_idx")
   @@index([slug])
   @@index([createdAt])
   @@index([published])
   @@index([language])
+}
+
+enum DraftStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Draft {
+  id            String      @id @default(uuid()) @db.Uuid
+  ownerId       String      @map("owner_id") @db.Uuid
+  title         String      @default("")
+  excerpt       String      @default("")
+  content       String      @default("")
+  categoryNames String[]    @default([]) @map("category_names")
+  coverMediaId  String?     @map("cover_media_id") @db.Uuid
+  postId        Int?        @unique @map("post_id")
+  status        DraftStatus @default(ACTIVE)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt    DateTime?   @map("archived_at") @db.Timestamptz(6)
+
+  owner User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  post  Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+  media Media[]
+
+  @@index([ownerId, status])
+  @@index([updatedAt])
 }
 
 model PostToCategory {
@@ -158,6 +187,11 @@ enum MediaVariant {
   THUMBNAIL
 }
 
+enum MediaRole {
+  COVER
+  BODY
+}
+
 model Media {
   id        String       @id @default(uuid()) @db.Uuid
   key       String       @unique
@@ -165,8 +199,10 @@ model Media {
   parentId  String?      @db.Uuid
   postId    Int?
   commentId Int?
+  draftId   String?      @map("draft_id") @db.Uuid
   type      MediaType    @map("media_type")
   target    MediaTarget  @map("media_target")
+  role      MediaRole     @default(BODY)
   variant   MediaVariant @default(ORIGINAL) @map("media_variant")
   mimeType  String       @map("mime_type") @db.VarChar
   sizeBytes BigInt       @map("size_bytes") @db.BigInt
@@ -180,6 +216,7 @@ model Media {
   User     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   Post     Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   Comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  Draft    Draft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
   Parent   Media?   @relation("MediaVariants", fields: [parentId], references: [id])
   Variants Media[]  @relation("MediaVariants")
 
@@ -188,6 +225,7 @@ model Media {
   @@index([ownerId])
   @@index([postId])
   @@index([commentId])
+  @@index([draftId])
 }
 
 // model MediaToPost {

@@ -1,3 +1,4 @@
+import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
 import {
@@ -9,7 +10,12 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'crypto';
 import { PinoLogger } from 'nestjs-pino';
-import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
+import {
+  MediaRole,
+  MediaTarget,
+  MediaType,
+  MediaVariant,
+} from 'prisma/generated/client';
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocessableEntityError } from '../common/errors/unprocessable-entity.error';
@@ -31,12 +37,26 @@ export class MediaService implements EntityWithAuthorService {
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MediaRepository,
+    private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     @InjectQueue(MEDIA_PROCESSOR_QUEUE) private readonly mediaQueue: Queue,
     private readonly logger: PinoLogger,
   ) {
     this.bucket = configService.getOrThrow<string>('MINIO_MEDIA_BUCKET');
     this.logger.setContext(MediaService.name);
+  }
+
+  async onModuleInit() {
+    await this.mediaQueue.add(
+      'cleanupUnattached',
+      {},
+      {
+        jobId: 'cleanup-unattached-media',
+        repeat: { every: 24 * 60 * 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
   }
 
   /**
@@ -94,6 +114,20 @@ export class MediaService implements EntityWithAuthorService {
     mediaMeta: UploadMediaDto,
   ) {
     const policy = this.mediaPolicy(mediaMeta.type, mediaMeta.target);
+    if (mediaMeta.draftId) {
+      const draft = await this.prisma.draft.findUnique({
+        where: { id: mediaMeta.draftId },
+        select: { ownerId: true, status: true },
+      });
+      if (!draft || draft.ownerId !== userId || draft.status !== 'ACTIVE') {
+        throw new NotFoundException('Draft not found');
+      }
+      if (mediaMeta.target !== MediaTarget.POST) {
+        throw new UnprocessableEntityError(
+          'Draft-bound media must target a post',
+        );
+      }
+    }
     const formatToConvertTo = 'webp'; // prefer webp for uploads
 
     const allowedMimeTypes = policy.formats.map((format) => `image/${format}`);
@@ -135,6 +169,12 @@ export class MediaService implements EntityWithAuthorService {
     const existing = await this.repo.findByHashAndType(hash, mediaMeta.type);
     if (existing) {
       await this.repo.incrementRefCount(existing.id);
+      if (mediaMeta.draftId) {
+        await this.repo.update(existing.id, {
+          draftId: mediaMeta.draftId,
+          role: mediaMeta.role ?? MediaRole.BODY,
+        });
+      }
       return existing;
     }
 
@@ -161,6 +201,8 @@ export class MediaService implements EntityWithAuthorService {
       ownerId: userId,
       type: mediaMeta.type,
       target: mediaMeta.target,
+      role: mediaMeta.role ?? MediaRole.BODY,
+      draftId: mediaMeta.draftId,
       variant: MediaVariant.ORIGINAL,
       mimeType: `image/${formatToConvertTo}`,
       sizeBytes: processed.data.length,
@@ -220,6 +262,23 @@ export class MediaService implements EntityWithAuthorService {
     return dto;
   }
 
+  listOwnedMedia(ownerId: string, attached?: boolean) {
+    return this.prisma.media.findMany({
+      where: {
+        ownerId,
+        ...(attached === undefined
+          ? {}
+          : attached
+            ? {
+                OR: [{ draftId: { not: null } }, { postId: { not: null } }],
+              }
+            : { draftId: null, postId: null }),
+      },
+      include: { Variants: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /**
    * Retrieves the owner/author ID of a media record.
    * Used for authorization checks to ensure users can only modify their own media.
@@ -264,6 +323,10 @@ export class MediaService implements EntityWithAuthorService {
     const media = await this.repo.findById(id);
 
     if (!media) throw new NotFoundError('Media not found');
+
+    if (media.draftId) {
+      return this.repo.update(id, { draftId: null, role: MediaRole.BODY });
+    }
 
     const newCount = media.refCount - 1;
     if (newCount <= 0) {

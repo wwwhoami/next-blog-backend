@@ -7,9 +7,11 @@ import {
   HttpStatus,
   MaxFileSizeValidator,
   Param,
+  ParseBoolPipe,
   ParseFilePipe,
   ParseUUIDPipe,
   Post,
+  Query,
   Sse,
   UploadedFile,
   UseGuards,
@@ -150,6 +152,17 @@ export class MediaController {
   @Get(':id')
   async getMedia(@Param('id', ParseUUIDPipe) id: string) {
     return this.mediaService.getMediaWithVariants(id);
+  }
+
+  @Get()
+  @ApiBearerAuth('accessToken')
+  @UseGuards(AccessTokenGuard)
+  list(
+    @GetUser('id') ownerId: string,
+    @Query('attached', new ParseBoolPipe({ optional: true }))
+    attached?: boolean,
+  ) {
+    return this.mediaService.listOwnedMedia(ownerId, attached);
   }
 
   @Delete(':id')

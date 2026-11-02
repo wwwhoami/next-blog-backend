@@ -28,4 +28,7 @@ export const configValidationSchema = Joi.object({
   MINIO_SECRET_KEY: Joi.string().required(),
   MINIO_MEDIA_BUCKET: Joi.string().required(),
   MINIO_PUBLIC_URL: Joi.string().required(),
+  MEDIA_BASE_URL: Joi.string(),
+  EXTERNAL_MEDIA_DOMAINS: Joi.string().default(''),
+  MEDIA_UNATTACHED_RETENTION_DAYS: Joi.number().default(30),
 });

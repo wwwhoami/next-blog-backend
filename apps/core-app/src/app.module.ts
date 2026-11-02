@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { CommentModule } from './comment/comment.module';
 import { pinoParams } from './common/pino/pino.provider';
+import { DraftModule } from './draft/draft.module';
 import { MediaModule } from './media/media.module';
 import { NotificationModule } from './notification/notification.module';
 import { PostModule } from './post/post.module';
@@ -66,6 +67,7 @@ import { UserModule } from './user/user.module';
     CommentModule,
     NotificationModule,
     MediaModule,
+    DraftModule,
   ],
   providers: [StorageService],
 })
