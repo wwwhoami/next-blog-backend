@@ -32,6 +32,47 @@ export class MediaRepository {
   }
 
   /**
+   * Finds an active draft and its owner for validating draft-bound uploads.
+   *
+   * @param draftId - The draft ID.
+   * @returns The draft owner and status, or `null` when it does not exist.
+   */
+  async findActiveDraftOwner(draftId: string) {
+    return this.prisma.draft.findUnique({
+      where: { id: draftId },
+      select: { ownerId: true, status: true },
+    });
+  }
+
+  /**
+   * Lists media owned by a user, optionally filtered by attachment state.
+   *
+   * @param ownerId - The media owner's ID.
+   * @param attached - Whether to return attached, unattached, or all media.
+   * @returns Media records with their variants, newest first.
+   */
+  async findOwnedMedia(ownerId: string, attached?: boolean) {
+    return this.prisma.media.findMany({
+      where: {
+        ownerId,
+        ...(attached === undefined
+          ? {}
+          : attached
+            ? {
+                OR: [
+                  { draftId: { not: null } },
+                  { postId: { not: null } },
+                  { commentId: { not: null } },
+                ],
+              }
+            : { draftId: null, postId: null, commentId: null }),
+      },
+      include: { Variants: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
    * Finds a media record by its storage key.
    * @param key - The storage key
    * @returns The media record or null if not found

@@ -1,4 +1,3 @@
-import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
 import {
@@ -10,7 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'crypto';
 import { PinoLogger } from 'nestjs-pino';
-import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
+import {
+  DraftStatus,
+  MediaTarget,
+  MediaType,
+  MediaVariant,
+} from 'prisma/generated/client';
 import sharp from 'sharp';
 import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { UnprocessableEntityError } from '../common/errors/unprocessable-entity.error';
@@ -32,7 +36,6 @@ export class MediaService implements EntityWithAuthorService {
   constructor(
     private readonly configService: ConfigService,
     private readonly repo: MediaRepository,
-    private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     @InjectQueue(MEDIA_PROCESSOR_QUEUE) private readonly mediaQueue: Queue,
     private readonly logger: PinoLogger,
@@ -110,11 +113,12 @@ export class MediaService implements EntityWithAuthorService {
   ) {
     const policy = this.mediaPolicy(mediaMeta.type, mediaMeta.target);
     if (mediaMeta.draftId) {
-      const draft = await this.prisma.draft.findUnique({
-        where: { id: mediaMeta.draftId },
-        select: { ownerId: true, status: true },
-      });
-      if (!draft || draft.ownerId !== userId || draft.status !== 'ACTIVE') {
+      const draft = await this.repo.findActiveDraftOwner(mediaMeta.draftId);
+      if (
+        !draft ||
+        draft.ownerId !== userId ||
+        draft.status !== DraftStatus.ACTIVE
+      ) {
         throw new NotFoundException('Draft not found');
       }
       if (mediaMeta.target !== MediaTarget.POST) {
@@ -265,24 +269,7 @@ export class MediaService implements EntityWithAuthorService {
    * @returns The owner's media records ordered from newest to oldest.
    */
   listOwnedMedia(ownerId: string, attached?: boolean) {
-    return this.prisma.media.findMany({
-      where: {
-        ownerId,
-        ...(attached === undefined
-          ? {}
-          : attached
-            ? {
-                OR: [
-                  { draftId: { not: null } },
-                  { postId: { not: null } },
-                  { commentId: { not: null } },
-                ],
-              }
-            : { draftId: null, postId: null, commentId: null }),
-      },
-      include: { Variants: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.repo.findOwnedMedia(ownerId, attached);
   }
 
   /**

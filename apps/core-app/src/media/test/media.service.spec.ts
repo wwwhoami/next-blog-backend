@@ -1,4 +1,3 @@
-import { PrismaService } from '@app/prisma';
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -108,7 +107,6 @@ describe('MediaService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: 'BullQueue_media-processor', useValue: mockQueue },
         { provide: PinoLogger, useValue: mockLogger },
-        { provide: PrismaService, useValue: mockDeep<PrismaService>() },
       ],
     }).compile();
 
