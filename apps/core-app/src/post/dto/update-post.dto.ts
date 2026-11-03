@@ -8,6 +8,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+/**
+ * Legacy content-update payload retained for generated metadata compatibility.
+ * Post content changes must use the draft revision workflow.
+ */
 export class UpdatePostDto {
   @IsString()
   title: string;

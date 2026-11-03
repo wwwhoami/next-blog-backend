@@ -4,7 +4,6 @@ import { Injectable } from '@nestjs/common';
 import { NotificationService } from '../notification/notification.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto } from './dto/get-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
 import { PostRepository } from './post.repository';
 
@@ -56,8 +55,8 @@ export class PostService implements EntityWithAuthorService {
     return this.postRepository.create(post, authorId);
   }
 
-  update(id: number, post: UpdatePostDto): Promise<PostEntity> {
-    return this.postRepository.update(id, post);
+  updatePublication(id: number, published: boolean): Promise<PostEntity> {
+    return this.postRepository.updatePublication(id, published);
   }
 
   async like(id: number, userId: string): Promise<PostLike> {

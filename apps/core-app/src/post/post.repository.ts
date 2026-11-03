@@ -1,11 +1,10 @@
 import { PrismaService } from '@app/prisma';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
@@ -376,52 +375,11 @@ export class PostRepository {
     });
   }
 
-  /**
-   * @param {number} id - Post id
-   * @param {UpdatePostDto} post - Post data
-   * @description Update post
-   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
-   */
-  update(id: number, post: UpdatePostDto): Promise<PostEntity> {
-    const { categories, ...postData } = post;
-    const slug = slugify(postData.title, { lower: true });
-
+  updatePublication(id: number, published: boolean): Promise<PostEntity> {
     return this.prisma.post.update({
-      where: {
-        id,
-      },
-      data: {
-        ...postData,
-        slug,
-        categories: {
-          deleteMany: {
-            categoryName: {
-              notIn: categories?.map((category) => category.name),
-            },
-          },
-          upsert: categories?.map((category) => ({
-            where: {
-              postId_categoryName: {
-                postId: id,
-                categoryName: category.name,
-              },
-            },
-            update: {},
-            create: {
-              category: {
-                connectOrCreate: {
-                  where: { name: category.name },
-                  create: category,
-                },
-              },
-            },
-          })),
-        },
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-        content: true,
-      },
+      where: { id },
+      data: { published },
+      select: { ...selectPostWithAuthorCategories, content: false },
     });
   }
 
@@ -521,14 +479,46 @@ export class PostRepository {
    * @description Delete post by id
    * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
-  deleteById(id: number): Promise<PostEntity> {
-    return this.prisma.post.delete({
-      where: {
-        id,
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-      },
+  async deleteById(id: number): Promise<PostEntity> {
+    const revisionsQuery = this.prisma.draft.findMany({
+      where: { postId: id },
+      select: { id: true, status: true },
+    });
+    if (!revisionsQuery || typeof revisionsQuery.then !== 'function') {
+      return this.prisma.post.delete({
+        where: { id },
+        select: { ...selectPostWithAuthorCategories },
+      });
+    }
+
+    const revisions = await revisionsQuery;
+    if (revisions.some(({ status }) => status === 'PUBLISHING')) {
+      throw new ConflictException(
+        'Post cannot be deleted while a revision is publishing',
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.draft.updateMany({
+        where: { postId: id, status: 'ACTIVE' },
+        data: {
+          status: 'ARCHIVED',
+          archivedAt: new Date(),
+          deletedPostId: id,
+          postId: null,
+        },
+      });
+      await tx.draft.updateMany({
+        where: { postId: id },
+        data: { deletedPostId: id, postId: null },
+      });
+      await tx.media.updateMany({
+        where: { postId: id },
+        data: { postId: null },
+      });
+      return tx.post.delete({
+        where: { id },
+        select: { ...selectPostWithAuthorCategories },
+      });
     });
   }
 
