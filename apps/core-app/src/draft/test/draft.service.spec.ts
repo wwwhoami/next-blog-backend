@@ -36,6 +36,49 @@ describe('DraftService', () => {
     );
   });
 
+  it('creates an owned post revision and exposes revision metadata', async () => {
+    repository.createRevision.mockResolvedValue({
+      id: 'revision-id',
+      ownerId: 'owner-id',
+      postId: 7,
+      sourceVersion: 3,
+      status: DraftStatus.ACTIVE,
+      draftMedia: [],
+      media: [],
+    } as never);
+
+    await expect(service.createRevision(7, 'owner-id')).resolves.toMatchObject({
+      id: 'revision-id',
+      revisionMode: 'REVISION',
+      effectiveMedia: [],
+    });
+    expect(repository.createRevision).toHaveBeenCalledWith('owner-id', 7);
+  });
+
+  it('returns a structured conflict when a revision is publishing', async () => {
+    repository.createRevision.mockResolvedValue({
+      id: 'revision-id',
+      ownerId: 'owner-id',
+      postId: 7,
+      status: DraftStatus.PUBLISHING,
+    } as never);
+
+    await expect(service.createRevision(7, 'owner-id')).rejects.toMatchObject({
+      response: {
+        draftId: 'revision-id',
+        status: DraftStatus.PUBLISHING,
+      },
+    });
+  });
+
+  it('rejects revision creation when the post is not owned or missing', async () => {
+    repository.createRevision.mockResolvedValue(null);
+
+    await expect(service.createRevision(7, 'owner-id')).rejects.toThrow(
+      'Post not found',
+    );
+  });
+
   it('rejects repeated publishing of an archived draft', async () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
@@ -75,7 +118,7 @@ describe('DraftService', () => {
     expect(queue.add).toHaveBeenCalledWith(
       'validate-and-publish',
       { draftId: 'draft-id', ownerId: 'owner-id' },
-      expect.objectContaining({ attempts: 1 }),
+      expect.objectContaining({ attempts: 3 }),
     );
   });
 
@@ -97,5 +140,33 @@ describe('DraftService', () => {
     expect(repository.findAttachableMedia).toHaveBeenCalledWith('owner-id', [
       'media-id',
     ]);
+  });
+
+  it('preserves revision media in update responses', async () => {
+    repository.findById.mockResolvedValue({
+      id: 'revision-id',
+      ownerId: 'owner-id',
+      postId: 7,
+      status: DraftStatus.ACTIVE,
+      draftMedia: [{ media: { id: 'media-id' } }],
+      media: [],
+    } as never);
+    repository.update.mockResolvedValue({
+      id: 'revision-id',
+      ownerId: 'owner-id',
+      postId: 7,
+      status: DraftStatus.ACTIVE,
+      draftMedia: [{ media: { id: 'media-id' } }],
+      media: [],
+    } as never);
+
+    await expect(
+      service.update('revision-id', 'owner-id', { title: 'Updated title' }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        revisionMode: 'REVISION',
+        effectiveMedia: [{ id: 'media-id' }],
+      }),
+    );
   });
 });
