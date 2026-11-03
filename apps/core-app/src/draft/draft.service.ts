@@ -8,6 +8,7 @@ import {
 import { Queue } from 'bullmq';
 import { DraftStatus } from 'prisma/generated/client';
 import {
+  CLEANUP_ARCHIVED_REVISIONS_JOB,
   DRAFT_PROCESSOR_QUEUE,
   VALIDATE_AND_PUBLISH_JOB,
 } from './constants/draft-processor.constants';
@@ -37,13 +38,40 @@ export class DraftService {
   }
 
   /**
+   * Shapes a draft for the editor by adding its mode and effective media.
+   * Revision media links are flattened to media records.
+   *
+   * @param draft Draft record returned by the repository.
+   * @returns The draft with normalized `revisionMode` and `effectiveMedia`.
+   */
+  private present<T extends { postId?: number | null; draftMedia?: unknown[] }>(
+    draft: T,
+  ) {
+    const revisionMedia = (draft.draftMedia ?? []).map((link) =>
+      typeof link === 'object' && link !== null && 'media' in link
+        ? (link as { media: unknown }).media
+        : link,
+    );
+
+    return {
+      ...draft,
+      revisionMode: draft.postId ? 'REVISION' : 'NEW',
+      effectiveMedia: revisionMedia.length
+        ? revisionMedia
+        : ((draft as T & { media?: unknown[] }).media ?? []),
+    };
+  }
+
+  /**
    * Lists the owner's active drafts; archived drafts are excluded.
    *
    * @param ownerId Authenticated owner identifier.
    * @returns The owner's active drafts.
    */
-  list(ownerId: string) {
-    return this.repo.findMany(ownerId);
+  async list(ownerId: string) {
+    return this.repo
+      .findMany(ownerId)
+      .then((drafts) => drafts.map((draft) => this.present(draft)));
   }
 
   /**
@@ -61,7 +89,7 @@ export class DraftService {
       throw new NotFoundException('Draft not found');
     }
 
-    return draft;
+    return this.present(draft);
   }
 
   /**
@@ -70,15 +98,44 @@ export class DraftService {
    *
    * @param ownerId Authenticated owner identifier.
    * @param dto Initial draft fields.
-   * @returns The created draft.
+   * @returns The created draft with normalized revision metadata and media.
    */
-  create(ownerId: string, dto: CreateDraftDto) {
-    return this.repo.create(ownerId, {
-      title: dto.title ?? '',
-      excerpt: dto.excerpt ?? '',
-      content: dto.content ?? '',
-      categoryNames: dto.categoryNames ?? [],
-    });
+  async create(ownerId: string, dto: CreateDraftDto) {
+    return this.repo
+      .create(ownerId, {
+        title: dto.title ?? '',
+        excerpt: dto.excerpt ?? '',
+        content: dto.content ?? '',
+        categoryNames: dto.categoryNames ?? [],
+      })
+      .then((draft) => this.present(draft));
+  }
+
+  /**
+   * Creates or returns the author's active revision for an existing post.
+   * Publishing revisions are not replaced so concurrent publication remains
+   * visible to the caller as a structured conflict.
+   *
+   * @param postId Existing post identifier.
+   * @param ownerId Authenticated post author identifier.
+   * @returns The revision with editor-facing mode and media fields.
+   * @throws {NotFoundException} If the post does not exist or is not owned by
+   * the requested author.
+   * @throws {ConflictException} If the existing revision is publishing.
+   */
+  async createRevision(postId: number, ownerId: string) {
+    const revision = await this.repo.createRevision(ownerId, postId);
+    if (!revision) {
+      throw new NotFoundException('Post not found');
+    }
+    if (revision.status === DraftStatus.PUBLISHING) {
+      throw new ConflictException({
+        message: 'Post revision is already being published',
+        draftId: revision.id,
+        status: revision.status,
+      });
+    }
+    return this.present(revision);
   }
 
   /**
@@ -87,7 +144,7 @@ export class DraftService {
    * @param id Draft identifier.
    * @param ownerId Authenticated owner identifier.
    * @param dto Updated fields, media attachments, and optional cover.
-   * @returns The updated draft.
+   * @returns The updated draft with normalized revision metadata and media.
    * @throws {NotFoundException} If the draft does not exist or is not owned by
    * the requested user.
    * @throws {ConflictException} If the draft is publishing or archived.
@@ -108,12 +165,14 @@ export class DraftService {
       await this.setCoverMedia(id, ownerId, dto.coverMediaId);
     }
 
-    return this.repo.update(draft.id, draftData);
+    return this.present(await this.repo.update(draft.id, draftData));
   }
 
   /**
    * Atomically claims an active draft and queues validation and publication.
-   * The worker creates the post, transfers media, and archives the draft.
+   * The worker creates or updates the post, transfers media, and archives the
+   * draft. The queue allows bounded retries; validation and final worker
+   * failures restore the draft to `ACTIVE` with a persisted error.
    *
    * @param id Draft identifier.
    * @param ownerId Authenticated owner identifier.
@@ -142,7 +201,7 @@ export class DraftService {
       await this.draftQueue.add(
         VALIDATE_AND_PUBLISH_JOB,
         { draftId: id, ownerId },
-        { attempts: 1, removeOnComplete: true, removeOnFail: false },
+        { attempts: 3, removeOnComplete: true, removeOnFail: false },
       );
     } catch (error) {
       await this.repo.markValidationFailed(
@@ -153,6 +212,22 @@ export class DraftService {
     }
 
     return this.get(id, ownerId);
+  }
+
+  /**
+   * Schedule daily cleanup of archived revision history.
+   */
+  async onModuleInit() {
+    await this.draftQueue.add(
+      CLEANUP_ARCHIVED_REVISIONS_JOB,
+      {},
+      {
+        jobId: CLEANUP_ARCHIVED_REVISIONS_JOB,
+        repeat: { every: 24 * 60 * 60 * 1000 },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
   }
 
   /**
