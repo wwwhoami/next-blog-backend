@@ -1,182 +1,179 @@
 # Post editing with draft revisions
 
-## Goal
+## Problem and proposed approach
 
-Allow authors and administrators to edit an already published post without
-changing the live post while it is being edited, validated, reviewed, or
-abandoned. The existing draft publication workflow should be extended so that a
-draft can either create a new post or represent a revision of an existing post.
+Extend the existing draft publication workflow so an author can edit any
+existing post they own without changing the live post until publication. A
+revision is a `Draft` linked to its source post, with a captured content
+version and a `DraftMedia` relation representing the revision's desired media
+set.
 
-## Editorial workflow
+The planning documents live in the repository's `docs/` folder:
 
-1. An authorized user selects **Edit** for a published post.
-2. The API creates an active draft revision linked to the post and copies the
-   current title, excerpt, Markdown content, categories, and cover reference
-   into it.
-3. The editor updates the draft and uploads or detaches draft-bound media.
-4. Preview reads the draft revision; public reads continue to return the
-   unchanged published post.
-5. The user submits **Publish changes**.
-6. The publication queue claims the revision and validates its fields, cover,
-   Markdown references, and external image URLs.
-7. A database transaction updates the post, synchronizes categories and media
-   references, and archives the revision.
-8. Validation failures return the revision to `ACTIVE` with a persisted
-   `validationError`. The published post remains unchanged.
+- `docs/post-editing-draft-revisions-plan.md`
+- `docs/media-model-refactoring-plan.md`
 
-## Domain model
+No implementation code is included in this planning document.
 
-Extend `Draft` with an optional relation to the post being revised:
+Authors retain post authorship and are the only users allowed to edit post
+content. Administrators may delete posts and may publish or unpublish them,
+but cannot modify content. The existing direct post update route becomes an
+administrator-only publication-state operation; author content changes use
+revisions.
 
-- `postId`: nullable foreign key to `Post`.
-- A draft with `postId = null` is a new-post draft.
-- A draft with `postId` set is an edit revision.
-- The post should expose its active or archived revisions only where the
-  editorial API requires them.
+The implementation will preserve public slugs, preserve the current
+`published` state when a revision is published, reject title uniqueness
+conflicts, and use optimistic concurrency with a content-only `Post.version`.
 
-The post must remain complete and publicly readable throughout the editing
-process. A revision must preserve the source post identity and capture the
-source version used to initialize it, preferably through a post version number
-or an `updatedAt` snapshot.
+## Decisions
 
-Recommended constraints:
+- One active revision per post globally.
+- `POST /post/:id/draft` returns an existing ACTIVE revision and returns a
+  structured conflict for PUBLISHING, including its draft ID and status.
+- Only the post author may create, read, update, attach media to, and publish
+  a content revision. Administrators cannot take over or edit content.
+- Revisions apply to all posts owned by the author, published or unpublished.
+- Revision publication preserves the post's existing `published` state.
+- Administrators use `PATCH /post/:id/publication` with `{ published }`;
+  content fields are rejected.
+- Existing `PUT /post/:id` is narrowed to the admin state-only contract.
+- `Post.version` increments for content, title, categories, and media changes,
+  but not for publication-state changes. A future moderation migration may add
+  a separate publication counter.
+- Revision publication preserves the existing slug. The unique title
+  constraint remains and conflicting titles fail publication with a clear
+  conflict.
+- Add `DraftMedia` for revision membership while preserving existing
+  `Media.postId` and `Media.commentId` columns. Existing post media remains
+  post-attached while also being referenced by the revision.
+- On creation, copy all current post media into `DraftMedia`. The editor sends
+  a complete media set; publication requires every retained media item to be
+  referenced in Markdown or selected as the cover.
+- Retain `DraftMedia` rows for archived revisions. Use configurable
+  two-stage retention: archive inactive ACTIVE revisions, then delete old
+  ARCHIVED revisions and their historical links.
+- Use bounded publication retries. After final infrastructure failure, return
+  the revision to ACTIVE with an error. Validation and stale conflicts also
+  return ACTIVE and persist `validationError`.
+- A stale revision is archived and a fresh snapshot is created automatically
+  when the author starts editing again.
+- On post deletion, archive ACTIVE revisions, reject deletion while a revision
+  is PUBLISHING, and retain the deleted source post ID in a non-FK audit field.
+- No dedicated preview endpoint; clients preview using `GET /draft/:id`.
+- Deferred full media relation refactoring is documented separately in
+  `doc/media-model-refactoring-plan.md`.
 
-- At most one active revision per post and author unless competing revisions are
-  an explicit product requirement.
-- A revision can be published only once.
-- A revision cannot switch between new-post and edit-post modes.
-- Archived revisions retain their `postId` for traceability.
+## Current-state constraints to address
 
-## API changes
+- `Draft.postId` is currently globally unique, which prevents archived
+  revisions and future edits for the same post. Replace it with a relation
+  design that permits history plus a database-enforced single-active
+  invariant, likely using a raw partial unique index for ACTIVE/PUBLISHING.
+- `Post` has no version field.
+- Draft publication always creates a new post.
+- Draft media attachment currently treats `draftId` as exclusive and clears
+  all prior draft links.
+- The worker currently uses one queue attempt and can leave a draft in
+  PUBLISHING after infrastructure failure.
+- `PUT /post/:id` currently allows administrators through the broad
+  `IsAdminOrAuthorGuard`.
+- Post deletion currently relies on foreign-key behavior and does not
+  coordinate linked revisions.
 
-Add an authenticated endpoint to begin an edit:
+## Implementation todos
 
-```text
-POST /post/:id/draft
-```
+1. **Modeling and migration**
+   - Add `Post.version`.
+   - Add immutable revision source-version metadata and deleted-source audit
+     identifier to `Draft`.
+   - Add `DraftMedia` with composite key, foreign keys, and indexes.
+   - Replace the global `Draft.postId @unique` invariant with a single-active
+     revision constraint while permitting archived history.
+   - Add migration/backfill coverage for existing drafts and media.
 
-It should authorize the caller, copy the current post into a new revision, and
-return the draft. If an active revision already exists, return it or return a
-documented conflict; choose one behavior consistently.
+2. **Revision creation and authorization**
+   - Add `POST /post/:id/draft`.
+   - Authorize only the post author.
+   - Snapshot post fields, categories, cover, source version, and media.
+   - Return existing ACTIVE revisions; conflict on PUBLISHING; archive stale
+     ACTIVE revisions and create a fresh snapshot.
 
-Reuse the existing draft endpoints for reading and updating the revision:
+3. **Draft reads, updates, and media**
+   - Extend draft responses with revision mode, linked post, source version,
+     and effective media.
+   - Keep all existing draft ownership checks.
+   - Update media synchronization to maintain `DraftMedia`, draft uploads,
+     cover selection, and complete media-set semantics.
+   - Validate retained media against Markdown references and cover selection.
 
-```text
-GET /draft/:id
-PUT /draft/:id
-POST /draft/:id/publish
-```
+4. **Transactional revision publication**
+   - Branch worker publication between new-post drafts and revisions.
+   - Validate the target post and content-only version atomically.
+   - Preserve slug and `published`.
+   - Synchronize categories and media in one transaction.
+   - Archive the revision and retain its historical `DraftMedia`.
+   - Convert title uniqueness and stale-version failures into persisted,
+     retryable ACTIVE errors.
 
-The draft response should identify whether it is a new-post draft or a revision,
-and include the linked `postId` when applicable.
+5. **Administrator state and deletion**
+   - Add `PATCH /post/:id/publication`.
+   - Narrow or replace direct `PUT /post/:id` so content fields are rejected.
+   - Coordinate deletion with linked revisions: archive ACTIVE, reject
+     PUBLISHING, preserve source ID audit data, and release media safely.
 
-Add a preview endpoint only if the existing draft read response is not suitable
-for the editor:
+6. **Worker recovery and retention**
+   - Add bounded retries and recovery from PUBLISHING to ACTIVE.
+   - Add scheduled configurable archival of inactive ACTIVE revisions.
+   - Add scheduled configurable deletion of old ARCHIVED revisions and
+     historical DraftMedia, without deleting still-referenced media.
 
-```text
-GET /draft/:id/preview
-```
+7. **Tests and documentation**
+   - Add focused repository, service, processor, controller, and e2e tests.
+   - Cover author-only content editing, admin state/delete behavior,
+     idempotent active revision creation, publishing conflicts, stale restart,
+     media synchronization, title conflicts, retry recovery, retention, and
+     unchanged public reads.
+   - Update OpenAPI metadata and editor integration documentation.
 
-Preview must use the draft content and media while never exposing the draft as
-the public post.
+## Acceptance criteria
 
-## Publication behavior
+- An author can create exactly one active revision for any owned post.
+- Creating an edit while ACTIVE returns the same revision; PUBLISHING returns a
+  structured conflict.
+- Creating or updating a revision never changes the public post.
+- Unauthorized users and administrators cannot edit post content through
+  revision or direct post-update APIs.
+- Administrators can publish, unpublish, and delete, but cannot change title,
+  excerpt, content, categories, slug, cover, or media.
+- Publishing a valid revision updates the post, categories, and effective
+  media atomically, increments `Post.version`, preserves slug and published
+  state, and archives the revision.
+- A stale source version, title collision, invalid content, or invalid media
+  leaves the post unchanged and returns the revision to ACTIVE with a useful
+  `validationError`.
+- Stale revision restart archives the old revision and snapshots current post
+  state into a new revision.
+- Removed media is detached only when no live post/comment/draft reference
+  remains; shared media is not deleted prematurely.
+- A failed publication is retryable and cannot remain indefinitely in
+  PUBLISHING after the configured retry/recovery path.
+- Inactive revision retention releases active locks and eventually removes
+  archived revision data according to configurable thresholds.
+- Existing new-post drafts continue to publish with their current behavior.
 
-The worker should branch by draft type after validation:
+## Risks and mitigations
 
-- **New-post draft:** create one complete `Post`, transfer draft media, and
-  archive the draft.
-- **Edit revision:** update the linked `Post`, synchronize categories and
-  cover/body media, and archive the revision.
-
-The revision publication transaction must:
-
-- Verify that the target post still exists.
-- Check the source version or timestamp for stale edits.
-- Prevent a second publication.
-- Keep the post and media references consistent if any operation fails.
-- Preserve the post's existing publication state unless an explicit moderation
-  or scheduling rule changes it.
-
-If the source post changed after the revision was created, reject publication
-with a conflict and keep the revision editable. Do not silently overwrite newer
-content.
-
-## Media handling
-
-Revision uploads should use the existing draft-bound media contract. New uploads
-remain attached to the revision while it is active and are moved to the post
-only after successful publication.
-
-When publishing a revision:
-
-- Media still referenced by the revision remains attached to the post.
-- Media removed from the revision is detached from the post.
-- Shared media must not be deleted while another post, comment, or draft
-  references it.
-- Detached assets remain subject to the existing retention cleanup policy.
-- The cover remains sourced from `Draft.coverMediaId` until the transaction
-  updates the post.
-
-The implementation should define whether media uploaded before revision creation
-can be selected, or whether revisions may use only newly attached media and
-media already attached to the target post.
-
-## Authorization and editorial roles
-
-- Authors may create revisions for posts they own, subject to the existing
-  author policy.
-- Administrators may create revisions for any post.
-- Direct `PUT /post/:id` remains an administrative maintenance/import path or is
-  deprecated after all editorial callers migrate.
-- Draft ownership and linked-post authorization must be checked on every read,
-  update, media attachment, and publish operation.
-
-If moderation is required later, add review states separately rather than making
-`PUBLISHING` represent both queue processing and editorial approval.
-
-## Testing plan
-
-Add focused unit and e2e coverage for:
-
-- Creating a revision from an owned post.
-- Administrator revision creation for another author's post.
-- Updating and previewing a revision without changing the live post.
-- Draft-bound media upload, cover selection, attachment, and detachment.
-- Successful revision publication and post update.
-- Validation failure with the original post unchanged.
-- Stale revision conflict after the source post changes.
-- Duplicate publish protection and worker retry behavior.
-- Shared media retention and cleanup after media synchronization.
-- New-post drafts continuing to use the existing publication behavior.
-
-## Implementation sequence
-
-1. Confirm authorization, active-revision policy, preview requirements, and
-   stale-edit behavior.
-2. Add the nullable draft-to-post relation, source-version metadata, indexes,
-   and migration.
-3. Add repository operations for revision creation, lookup, and transactional
-   publication.
-4. Add the post-to-draft endpoint and extend draft DTOs and responses.
-5. Extend worker validation/publication to update an existing post.
-6. Implement transactional category and media synchronization.
-7. Add conflict handling, retry behavior, and persisted validation errors.
-8. Add unit and e2e tests for ownership, concurrency, media, and publication.
-9. Update OpenAPI metadata and editor integration documentation.
-10. Deprecate or retain direct post updates based on migrated callers.
-
-## Risks and decisions
-
-- **Concurrent editors:** use a source version check; do not silently overwrite
-  newer changes.
-- **Multiple active revisions:** default to one active revision per post and
-  author to simplify media ownership and editor UX.
-- **Media cleanup:** synchronize references transactionally and retain detached
-  assets until the existing cleanup job removes them.
-- **Worker failure:** add retry and recovery handling so a revision cannot
-  remain indefinitely in `PUBLISHING`.
-- **Audit requirements:** retaining archived revisions provides basic
-  traceability; full revision history and rollback should be a separate scope.
-- **Publication state:** preserve the current post's published status unless
-  scheduling, moderation, or unpublish behavior is explicitly added.
+- **Partial unique index portability:** use an explicit SQL migration and
+  integration coverage for the ACTIVE/PUBLISHING invariant.
+- **Media state complexity:** centralize effective-media calculation and
+  reconcile references only inside the publication transaction.
+- **Stale drafts:** persist the conflict, archive on restart, and never force
+  overwrite newer content.
+- **Worker races:** claim states atomically, use bounded retries, and reject
+  deletion while PUBLISHING.
+- **Archived-history growth:** use configurable two-stage retention and keep
+  cleanup reference-aware.
+- **API compatibility:** document the narrowed PUT contract and migrate
+  editorial callers to revision and publication endpoints.
+- **Future moderation:** document separate publication-version migration rather
+  than adding speculative moderation state now.
