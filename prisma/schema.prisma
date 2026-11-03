@@ -54,12 +54,13 @@ model Post {
   slug       String           @unique @db.VarChar
   likesCount Int              @default(0) @map("likes_count")
   language   String           @default("english")
+  version    Int              @default(0)
   author     User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   categories PostToCategory[]
   comment    Comment[]
   PostLikes  PostLikes[]
   Media      Media[]
-  draft      Draft?
+  drafts     Draft[]
 
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Post_title_trgm_idx")
   @@index([slug])
@@ -82,7 +83,9 @@ model Draft {
   content         String      @default("")
   categoryNames   String[]    @default([]) @map("category_names")
   coverMediaId    String?     @map("cover_media_id") @db.Uuid
-  postId          Int?        @unique @map("post_id")
+  postId          Int?        @map("post_id")
+  sourceVersion   Int?        @map("source_version")
+  deletedPostId   Int?        @map("deleted_post_id")
   status          DraftStatus @default(ACTIVE)
   validationError String?     @map("validation_error")
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -92,9 +95,23 @@ model Draft {
   owner User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   post  Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
   media Media[]
+  draftMedia DraftMedia[]
 
   @@index([ownerId, status])
   @@index([updatedAt])
+  @@index([postId, status])
+}
+
+model DraftMedia {
+  draftId   String   @map("draft_id") @db.Uuid
+  mediaId   String   @map("media_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@id([draftId, mediaId])
+  @@index([mediaId])
 }
 
 model PostToCategory {
@@ -213,6 +230,7 @@ model Media {
   Post     Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   Comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   Draft    Draft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  DraftMedia DraftMedia[]
   Parent   Media?   @relation("MediaVariants", fields: [parentId], references: [id])
   Variants Media[]  @relation("MediaVariants")
 
