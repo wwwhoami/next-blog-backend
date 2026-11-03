@@ -264,45 +264,18 @@ describe('PostService', () => {
     });
   });
 
-  describe('update', () => {
-    const postData = {
-      id: 12312,
-      createdAt: new Date(),
-      title: 'Architecto iustos nesciunt.',
-      excerpt:
-        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      coverImage: 'http://loremflickr.com/1200/480/business',
-      published: true,
-      content: 'content',
-      likesCount: 0,
-    };
-    const postToUpdate = postData;
-    const authorData = {
-      name: 'author name',
-      image: 'author image',
-    };
+  describe('updatePublication', () => {
+    it('updates only publication state', async () => {
+      const updatedPost = { ...onePost, published: false };
+      postRepository.updatePublication.mockResolvedValue(updatedPost as never);
 
-    it('should update post with postData provided', async () => {
-      const postId = postData.id;
-      const updatedPostReturn = {
-        ...postData,
-        slug: 'architecto-iustos-nesciunt.',
-      };
-
-      postRepository.update.mockResolvedValue({
-        ...updatedPostReturn,
-        author: authorData,
-        updatedAt: new Date(),
-      });
-
-      const updatedPost = await service.update(postId, postToUpdate);
-
-      expect(updatedPost).toMatchObject({
-        ...updatedPostReturn,
-        id: expect.any(Number),
-        author: expect.objectContaining(authorData),
-        updatedAt: expect.any(Date),
-      });
+      await expect(service.updatePublication(onePost.id, false)).resolves.toBe(
+        updatedPost,
+      );
+      expect(postRepository.updatePublication).toHaveBeenCalledWith(
+        onePost.id,
+        false,
+      );
     });
   });
 

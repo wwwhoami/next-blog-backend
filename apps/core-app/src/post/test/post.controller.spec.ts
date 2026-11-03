@@ -1,8 +1,9 @@
 import { EntityWithAuthorService } from '@core/src/common/entity-with-author.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MockProxy, mock } from 'jest-mock-extended';
-import { Post, Prisma } from 'prisma/generated/client';
+import { Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
+import { DraftService } from '../../draft/draft.service';
 import { PostController } from '../post.controller';
 import { PostService } from '../post.service';
 
@@ -30,6 +31,7 @@ const postArray = [
     ],
     content: 'some content',
     likesCount: 0,
+    language: 'english',
   },
   {
     id: 335,
@@ -55,6 +57,7 @@ const postArray = [
     ],
     content: 'some content',
     likesCount: 0,
+    language: 'english',
   },
   {
     id: 995,
@@ -80,6 +83,7 @@ const postArray = [
     ],
     content: 'some content',
     likesCount: 0,
+    language: 'english',
   },
 ];
 const onePost = postArray[0];
@@ -87,6 +91,7 @@ const onePost = postArray[0];
 describe('PostController', () => {
   let controller: PostController;
   let postService: MockProxy<PostService>;
+  let draftService: MockProxy<DraftService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -97,6 +102,10 @@ describe('PostController', () => {
           useValue: mock<PostService>(),
         },
         {
+          provide: DraftService,
+          useValue: mock<DraftService>(),
+        },
+        {
           provide: EntityWithAuthorService,
           useExisting: PostService,
         },
@@ -105,6 +114,7 @@ describe('PostController', () => {
 
     controller = module.get<PostController>(PostController);
     postService = module.get(PostService);
+    draftService = module.get(DraftService);
   });
 
   afterEach(() => {
@@ -127,10 +137,10 @@ describe('PostController', () => {
 
   describe('getSlugsForPublished', () => {
     it('should get published posts slugs', async () => {
-      const payload = [
+      const payload: { slug: string }[] = [
         { slug: 'slug1' },
         { slug: 'slug2' },
-      ] as unknown as Prisma.Prisma__PostClient<Array<Post>>;
+      ];
       postService.getSlugsForPublished.mockResolvedValue(payload);
 
       const posts = await controller.getSlugsForPublished();
@@ -159,6 +169,7 @@ describe('PostController', () => {
       published: true,
       content: 'content',
       likesCount: 0,
+      language: 'english',
     };
     const postToCreate = {
       ...postData,
@@ -190,45 +201,30 @@ describe('PostController', () => {
     });
   });
 
-  describe('update', () => {
-    const postData = {
-      id: 12312,
-      createdAt: new Date(),
-      title: 'Architecto iustos nesciunt.',
-      excerpt:
-        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      coverImage: 'http://loremflickr.com/1200/480/business',
-      published: true,
-      content: 'content',
-      likesCount: 0,
-    };
-    const postToUpdate = postData;
-    const authorData = {
-      name: 'author name',
-      image: 'author image',
-    };
+  describe('createRevision', () => {
+    it('forwards post revision creation to the draft service', async () => {
+      const revision = { id: 'revision-id', postId: 12312 };
+      draftService.createRevision.mockResolvedValue(revision as never);
 
-    it('should update post with postData provided', async () => {
-      const postId = postData.id;
-      const updatedPostReturn = {
-        ...postData,
-        slug: 'architecto-iustos-nesciunt.',
-      };
+      await expect(controller.createRevision(12312, 'author-id')).resolves.toBe(
+        revision,
+      );
+      expect(draftService.createRevision).toHaveBeenCalledWith(
+        12312,
+        'author-id',
+      );
+    });
+  });
 
-      postService.update.mockResolvedValue({
-        ...updatedPostReturn,
-        author: authorData,
-        updatedAt: new Date(),
-      });
+  describe('updatePublication', () => {
+    it('forwards publication state changes to the post service', async () => {
+      const post = { id: 12312, published: false };
+      postService.updatePublication.mockResolvedValue(post as never);
 
-      const updatedPost = await controller.update(postId, postToUpdate);
-
-      expect(updatedPost).toMatchObject({
-        ...updatedPostReturn,
-        id: expect.any(Number),
-        author: expect.objectContaining(authorData),
-        updatedAt: expect.any(Date),
-      });
+      await expect(
+        controller.updatePublication(12312, { published: false }),
+      ).resolves.toBe(post);
+      expect(postService.updatePublication).toHaveBeenCalledWith(12312, false);
     });
   });
 

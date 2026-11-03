@@ -381,44 +381,6 @@ describe('PostRepository', () => {
     });
   });
 
-  describe('update', () => {
-    const postData = {
-      id: 12312,
-      createdAt: new Date(),
-      title: 'Architecto iustos nesciunt.',
-      slug: 'architecto-iustos-nesciunt.',
-      excerpt:
-        'Quam consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      coverImage: 'http://loremflickr.com/1200/480/business',
-      published: true,
-      content: 'content',
-      likesCount: 0,
-    };
-    const postToUpdate = { ...postData };
-
-    const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
-
-    it('should update post with postData provided', async () => {
-      const postId = postToUpdate.id;
-      prisma.post.update.mockResolvedValue({
-        ...postToUpdate,
-        id: postId,
-        authorId,
-        updatedAt: new Date(),
-        language: 'english',
-      });
-
-      const updatedPost = await repository.update(postId, postToUpdate);
-
-      expect(updatedPost).toMatchObject({
-        ...postToUpdate,
-        id: expect.any(Number),
-        authorId: expect.any(String),
-        updatedAt: expect.any(Date),
-      });
-    });
-  });
-
   describe('getLikes', () => {
     const likes = [
       {
@@ -512,6 +474,21 @@ describe('PostRepository', () => {
       const deletedPost = await repository.deleteById(1);
 
       expect(deletedPost).toEqual(onePost);
+    });
+
+    describe('updatePublication', () => {
+      it('updates publication state without changing content fields', async () => {
+        prisma.post.update.mockResolvedValue(onePost as never);
+
+        await expect(repository.updatePublication(1, false)).resolves.toEqual(
+          onePost,
+        );
+        expect(prisma.post.update).toHaveBeenCalledWith({
+          where: { id: 1 },
+          data: { published: false },
+          select: expect.any(Object),
+        });
+      });
     });
 
     it('should throw Prisma.PrismaClientKnownRequestError if no post exists', async () => {
