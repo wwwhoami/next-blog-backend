@@ -58,4 +58,3 @@ drafts without duplicating the stored file.
 - Cleanup must not delete assets while any relation remains.
 - Replacing scalar foreign keys with joins can increase query complexity.
 - API and editor behavior must remain stable during the migration.
-
