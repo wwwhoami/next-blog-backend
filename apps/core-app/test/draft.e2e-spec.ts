@@ -113,7 +113,6 @@ describe('Draft (e2e)', () => {
         );
       });
   });
-
   it('updates an owned draft', async () => {
     const draft = await createDraft();
 

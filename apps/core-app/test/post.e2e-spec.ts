@@ -1,7 +1,6 @@
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from '@core/src/category/dto/create-category.dto';
-import { UpdateCategoryDto } from '@core/src/category/dto/update-category.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { PostEntity } from '@core/src/post/entities/post.entity';
 import { PostService } from '@core/src/post/post.service';
@@ -9,9 +8,15 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
-import slugify from 'slugify';
+import fs from 'node:fs';
+import { DraftStatus, MediaTarget, MediaType } from 'prisma/generated/client';
 import request from 'supertest';
 import TestAgent from 'supertest/lib/agent';
+
+// Prisma media responses contain BigInt fields.
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 
 const postCategories = [
   {
@@ -370,14 +375,15 @@ describe('Post (e2e)', () => {
         email: 'admin@admin.com',
         password: 'password',
       };
+
       agent = request.agent(app.getHttpServer());
       adminAgent = request.agent(app.getHttpServer());
 
-      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
-        .body['accessToken'];
+      accessToken = (await agent.post('/auth/login').send(authCredentials)).body
+        .accessToken;
       adminAccessToken = (
-        await adminAgent.post(`/auth/login`).send(adminAuthCredentials)
-      ).body['accessToken'];
+        await adminAgent.post('/auth/login').send(adminAuthCredentials)
+      ).body.accessToken;
     });
 
     it('should return 403 if a non-admin user attempts direct post creation', () => {
@@ -487,174 +493,184 @@ describe('Post (e2e)', () => {
     });
   });
 
-  describe('/post (PUT)', () => {
-    const categoriesForUpdatedPost: UpdateCategoryDto[] = [
-      {
-        name: 'new category',
-        description: 'new description',
-        hexColor: '#9110ea',
-      },
-    ];
-    const postId = 1;
-    const updatedPost = {
-      title: 'Updated title.',
-      excerpt:
-        'Quamas este est iste voluptatem consectetur illo sit voluptatem est labore laborum debitis quia sint.',
-      content: 'Updated content',
-      published: true,
-      coverImage: 'http://loremflickr.com/1200/480/business',
-    };
-
-    let agent: TestAgent;
+  describe('/post/:id/draft (POST)', () => {
     let accessToken: string;
-
-    let adminAgent: TestAgent;
     let adminAccessToken: string;
 
     beforeEach(async () => {
-      const authCredentials: AuthCredentialsDto = {
-        name: 'Alice Johnson',
-        email: 'alice@prisma.io',
-        password: 'password',
-      };
-      const adminAuthCredentials: AuthCredentialsDto = {
-        name: 'Admin',
-        email: 'admin@admin.com',
-        password: 'password',
-      };
-
-      agent = request.agent(app.getHttpServer());
-      adminAgent = request.agent(app.getHttpServer());
-
-      accessToken = (await agent.post(`/auth/login`).send(authCredentials))
-        .body['accessToken'];
+      accessToken = (
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: userData[0].email, password: 'password' })
+      ).body.accessToken;
       adminAccessToken = (
-        await agent.post(`/auth/login`).send(adminAuthCredentials)
-      ).body['accessToken'];
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: 'admin@admin.com', password: 'password' })
+      ).body.accessToken;
     });
 
-    it('should replace post data with data provided if user is logged in and is author', () => {
-      const author = {
-        image: 'https://randomuser.me/api/portraits/women/12.jpg',
-        name: 'Alice Johnson',
-      };
-      const expectedRecievedCategories = categoriesForUpdatedPost.map(
-        (category) => ({
-          category: { name: category.name, hexColor: category.hexColor },
+    it('creates one active revision and keeps public content unchanged', async () => {
+      const publicPost = await request(app.getHttpServer())
+        .get('/post/article/tailwind-vs.-bootstrap')
+        .expect(HttpStatus.OK);
+      const first = await request(app.getHttpServer())
+        .post('/post/1/draft')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CREATED);
+
+      expect(first.body).toEqual(
+        expect.objectContaining({
+          postId: 1,
+          revisionMode: 'REVISION',
+          sourceVersion: expect.any(Number),
+          status: DraftStatus.ACTIVE,
         }),
       );
 
-      return agent
-        .put(`/post/${postId}`)
+      await request(app.getHttpServer())
+        .put(`/draft/${first.body.id}`)
         .auth(accessToken, { type: 'bearer' })
-        .send({
-          ...updatedPost,
-          categories: categoriesForUpdatedPost,
-        })
+        .send({ title: 'Private revision title' })
+        .expect(HttpStatus.OK);
+
+      const second = await request(app.getHttpServer())
+        .post('/post/1/draft')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CREATED);
+      expect(second.body.id).toBe(first.body.id);
+
+      await request(app.getHttpServer())
+        .get('/post/article/tailwind-vs.-bootstrap')
         .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject({
-            title: updatedPost.title,
-            slug: slugify(updatedPost.title, { lower: true }),
-            excerpt: updatedPost.excerpt,
-            content: updatedPost.content,
-            coverImage: updatedPost.coverImage,
-            author: expect.objectContaining(author),
-            categories: expect.arrayContaining(expectedRecievedCategories),
-          });
+        .expect(({ body }) => {
+          expect(body.title).toBe(publicPost.body.title);
+          expect(body.content).toBe(publicPost.body.content);
         });
     });
 
-    it('should replace post data with data provided if user is logged in and is admin', () => {
-      const author = {
-        image: 'https://randomuser.me/api/portraits/women/12.jpg',
-        name: 'Alice Johnson',
-      };
-      const expectedRecievedCategories = categoriesForUpdatedPost.map(
-        (category) => ({
-          category: { name: category.name, hexColor: category.hexColor },
-        }),
-      );
-
-      return adminAgent
-        .put(`/post/${postId}`)
+    it('rejects administrators from creating content revisions', () =>
+      request(app.getHttpServer())
+        .post('/post/1/draft')
         .auth(adminAccessToken, { type: 'bearer' })
-        .send({
-          ...updatedPost,
-          categories: categoriesForUpdatedPost,
-        })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject({
-            title: updatedPost.title,
-            slug: slugify(updatedPost.title, { lower: true }),
-            excerpt: updatedPost.excerpt,
-            content: updatedPost.content,
-            coverImage: updatedPost.coverImage,
-            author: expect.objectContaining(author),
-            categories: expect.arrayContaining(expectedRecievedCategories),
-          });
-        });
-    });
+        .expect(HttpStatus.FORBIDDEN));
 
-    it('should return 409 on unique constraint violation', () => {
-      return agent
-        .put(`/post/${postId}`)
+    it('publishes a revision into the existing post', async () => {
+      const postsResponse = await request(app.getHttpServer())
+        .get('/post')
+        .query({ content: true, take: 10 })
+        .expect(HttpStatus.OK);
+      const post = postsResponse.body.find(
+        (candidate: { id: number }) => candidate.id === 2,
+      );
+      expect(post).toEqual(expect.objectContaining({ id: 2 }));
+
+      const revision = await request(app.getHttpServer())
+        .post('/post/2/draft')
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CREATED);
+      const imageBuffer = await fs.promises.readFile(
+        './data/media/sample_png.png',
+      );
+      const media = await request(app.getHttpServer())
+        .post('/media')
+        .auth(accessToken, { type: 'bearer' })
+        .field('type', MediaType.IMAGE)
+        .field('target', MediaTarget.POST)
+        .field('draftId', revision.body.id)
+        .attach('file', imageBuffer, {
+          filename: 'revision-cover.png',
+          contentType: 'image/png',
+        })
+        .expect(HttpStatus.CREATED);
+      const content = `![Revision image](${media.body.publicUrl})`;
+
+      await request(app.getHttpServer())
+        .put(`/draft/${revision.body.id}`)
         .auth(accessToken, { type: 'bearer' })
         .send({
-          ...updatedPost,
-          title: postWithNoContent.title,
-          categories: categoriesForUpdatedPost,
+          title: `Revision title ${Date.now()}`,
+          excerpt: 'Revision excerpt',
+          content,
+          mediaIds: [media.body.id],
+          coverMediaId: media.body.id,
         })
-        .expect(HttpStatus.CONFLICT);
-    });
-
-    it('should return 404 if post with provided id does not exist', () => {
-      const postId = -12;
-
-      return agent
-        .put(`/post/${postId}`)
+        .expect(HttpStatus.OK);
+      await request(app.getHttpServer())
+        .post(`/draft/${revision.body.id}/publish`)
         .auth(accessToken, { type: 'bearer' })
-        .send({
-          ...updatedPost,
-          categories: categoriesForUpdatedPost,
-        })
-        .expect(HttpStatus.NOT_FOUND);
+        .expect(HttpStatus.CREATED);
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const draft = await request(app.getHttpServer())
+          .get(`/draft/${revision.body.id}`)
+          .auth(accessToken, { type: 'bearer' })
+          .expect(HttpStatus.OK);
+        if (draft.body.status === DraftStatus.ARCHIVED) {
+          const published = await request(app.getHttpServer())
+            .get(`/post/article/${post.slug}`)
+            .expect(HttpStatus.OK);
+          expect(published.body).toEqual(
+            expect.objectContaining({
+              id: 2,
+              slug: post.slug,
+              title: expect.stringMatching(/^Revision title /),
+              content,
+            }),
+          );
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error(
+        'Post revision publication did not complete during the test',
+      );
+    });
+  });
+
+  describe('/post/:id/publication (PATCH)', () => {
+    let authorAccessToken: string;
+    let adminAccessToken: string;
+
+    beforeEach(async () => {
+      authorAccessToken = (
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: userData[0].email, password: 'password' })
+      ).body.accessToken;
+      adminAccessToken = (
+        await request(app.getHttpServer())
+          .post('/auth/login')
+          .send({ email: 'admin@admin.com', password: 'password' })
+      ).body.accessToken;
     });
 
-    it('should return 403 if requesting user is not author', async () => {
-      const agent = request.agent(app.getHttpServer());
-      const requestingUserAuthCredentials: AuthCredentialsDto = {
-        name: 'John Doe',
-        email: 'john@prisma.io',
-        password: 'password',
-      };
-      const { accessToken } = (
-        await agent.post(`/auth/login`).send(requestingUserAuthCredentials)
-      ).body;
+    it('rejects non-administrators from changing publication state', () =>
+      request(app.getHttpServer())
+        .patch('/post/1/publication')
+        .auth(authorAccessToken, { type: 'bearer' })
+        .send({ published: false })
+        .expect(HttpStatus.FORBIDDEN));
 
-      return agent
-        .put(`/post/${postId}`)
-        .auth(accessToken, { type: 'bearer' })
-        .send({
-          ...updatedPost,
-          categories: categoriesForUpdatedPost,
-        })
-        .expect(HttpStatus.FORBIDDEN);
+    it('allows administrators to change publication state', async () => {
+      await request(app.getHttpServer())
+        .patch('/post/1/publication')
+        .auth(adminAccessToken, { type: 'bearer' })
+        .send({ published: false })
+        .expect(HttpStatus.OK);
+      await request(app.getHttpServer())
+        .patch('/post/1/publication')
+        .auth(adminAccessToken, { type: 'bearer' })
+        .send({ published: true })
+        .expect(HttpStatus.OK);
     });
 
-    it('should return 401 if user is not logged in', () => {
-      return request(app.getHttpServer())
-        .put(`/post/${postId}`)
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-
-    it('should return 400 if bad body provided', () => {
-      return agent
-        .put(`/post/${postId}`)
-        .auth(accessToken, { type: 'bearer' })
-        .expect(HttpStatus.BAD_REQUEST);
-    });
+    it('does not expose the removed direct post update endpoint', () =>
+      request(app.getHttpServer())
+        .put('/post/1')
+        .auth(adminAccessToken, { type: 'bearer' })
+        .send({ published: false })
+        .expect(HttpStatus.NOT_FOUND));
   });
 
   describe('/post (DELETE)', () => {
@@ -685,35 +701,11 @@ describe('Post (e2e)', () => {
       ).body['accessToken'];
     });
 
-    it('should delete post with provided id if user is logged in and is author, return deleted PostEntity', () => {
-      const author = {
-        image: 'https://randomuser.me/api/portraits/women/12.jpg',
-        name: 'Alice Johnson',
-      };
-      const postId = 1;
-
+    it('should return 403 if a non-admin author attempts to delete a post', () => {
       return agent
-        .delete(`/post/${postId}`)
+        .delete('/post/1')
         .auth(accessToken, { type: 'bearer' })
-        .expect(HttpStatus.OK)
-        .expect((response: request.Response) => {
-          expect(response.body).toMatchObject({
-            id: postId,
-            title: expect.any(String),
-            slug: expect.any(String),
-            excerpt: expect.any(String),
-            coverImage: expect.any(String),
-            author: expect.objectContaining(author),
-            categories: expect.arrayContaining([
-              expect.objectContaining({
-                category: expect.objectContaining({
-                  name: expect.any(String),
-                  hexColor: expect.any(String),
-                }),
-              }),
-            ]),
-          });
-        });
+        .expect(HttpStatus.FORBIDDEN);
     });
 
     it('should delete post with provided id if user is logged in and is admin, return deleted PostEntity', () => {
@@ -747,47 +739,11 @@ describe('Post (e2e)', () => {
         });
     });
 
-    it('should return 404 if post with provided id does not exist', () => {
-      const id = -12;
-      return agent
-        .put(`/post/${id}`)
-        .auth(accessToken, { type: 'bearer' })
+    it('should return 404 if the post does not exist', () => {
+      return adminAgent
+        .delete('/post/-12')
+        .auth(adminAccessToken, { type: 'bearer' })
         .expect(HttpStatus.NOT_FOUND);
-    });
-
-    it('should return 403 if requesting user is not author', async () => {
-      const agent = request.agent(app.getHttpServer());
-      const requestingUserAuthCredentials: AuthCredentialsDto = {
-        name: 'John Doe',
-        email: 'john@prisma.io',
-        password: 'password',
-      };
-      const { accessToken } = (
-        await agent.post(`/auth/login`).send(requestingUserAuthCredentials)
-      ).body;
-      const postId = 2;
-
-      return agent
-        .put(`/post/${postId}`)
-        .auth(accessToken, { type: 'bearer' })
-        .expect(HttpStatus.FORBIDDEN);
-    });
-
-    it('should return 401 if user is not logged in', () => {
-      const postId = 3;
-
-      return request(app.getHttpServer())
-        .put(`/post/${postId}`)
-        .expect(HttpStatus.UNAUTHORIZED);
-    });
-
-    it('should return 400 if post id param is not Int', () => {
-      const id = 'NotInt';
-
-      return agent
-        .put(`/post/${id}`)
-        .auth(accessToken, { type: 'bearer' })
-        .expect(HttpStatus.BAD_REQUEST);
     });
   });
 
