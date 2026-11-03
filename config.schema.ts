@@ -31,4 +31,5 @@ export const configValidationSchema = Joi.object({
   MEDIA_BASE_URL: Joi.string(),
   EXTERNAL_MEDIA_DOMAINS: Joi.string().default(''),
   MEDIA_UNATTACHED_RETENTION_DAYS: Joi.number().default(30),
+  DRAFT_REVISION_RETENTION_DAYS: Joi.number().default(30),
 });

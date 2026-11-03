@@ -1,19 +1,21 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Job } from 'bullmq';
-import { DraftStatus, MediaTarget } from 'prisma/generated/client';
+import { Job, UnrecoverableError } from 'bullmq';
+import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
 import {
   MAX_DRAFT_CONTENT_LENGTH,
   MAX_DRAFT_IMAGE_REFERENCES,
 } from './constants/draft-content.constants';
 import {
+  CLEANUP_ARCHIVED_REVISIONS_JOB,
   DRAFT_PROCESSOR_QUEUE,
   DraftPublishJobData,
   VALIDATE_AND_PUBLISH_JOB,
@@ -35,6 +37,7 @@ const imagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 @Processor(DRAFT_PROCESSOR_QUEUE)
 export class DraftProcessor extends WorkerHost {
   private readonly externalHosts: Set<string>;
+  private readonly logger = new Logger(DraftProcessor.name);
 
   /**
    * Builds the worker with persistence and the configured external image hosts.
@@ -47,7 +50,7 @@ export class DraftProcessor extends WorkerHost {
    */
   constructor(
     private readonly repo: DraftRepository,
-    configService: ConfigService,
+    private readonly configService: ConfigService,
   ) {
     super();
     this.externalHosts = new Set(
@@ -65,18 +68,56 @@ export class DraftProcessor extends WorkerHost {
    * queue with future draft-related jobs.
    *
    * @param job - The queued draft job and its draft ownership payload.
-   * @returns The created post for a publication job, or `undefined` otherwise.
+   * @returns The created or updated post for a publication job, or `undefined`
+   * otherwise.
    * @throws {NotFoundException} If the queued draft no longer exists or is not
    * owned by the job owner.
    * @throws {ConflictException} If the draft is no longer publishing.
    * @throws {UnprocessableEntityException} If draft content or media is invalid.
    */
   async process(job: Job<DraftPublishJobData>) {
-    if (job.name !== VALIDATE_AND_PUBLISH_JOB) {
-      return;
+    if (job.name === CLEANUP_ARCHIVED_REVISIONS_JOB) {
+      const retentionDays = Number(
+        this.configService.get<number>('DRAFT_REVISION_RETENTION_DAYS') ?? 30,
+      );
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+      await this.repo.archiveInactiveRevisionsBefore(cutoff);
+      return this.repo.deleteArchivedBefore(cutoff);
     }
 
-    return this.publish(job.data.draftId, job.data.ownerId);
+    if (job.name === VALIDATE_AND_PUBLISH_JOB) {
+      return this.publish(job.data.draftId, job.data.ownerId);
+    }
+
+    return;
+  }
+
+  /**
+   * Restores a draft after all queue attempts are exhausted.
+   *
+   * Validation failures are restored by `publish` immediately. This handler
+   * covers worker or infrastructure failures that occur outside validation.
+   *
+   * @param job - The failed publication job.
+   * @param error - The final worker error.
+   */
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job<DraftPublishJobData> | undefined, error: Error) {
+    if (!job) {
+      this.logger.error(
+        `Draft publication failed without a job payload: ${error.message}`,
+      );
+      return;
+    }
+    if (job.name !== VALIDATE_AND_PUBLISH_JOB) return;
+
+    const attempts = job.opts.attempts ?? 1;
+    if (job.attemptsMade < attempts) return;
+
+    await this.repo.markValidationFailed(
+      job.data.draftId,
+      error.message || 'Draft publication failed',
+    );
   }
 
   /**
@@ -84,8 +125,9 @@ export class DraftProcessor extends WorkerHost {
    *
    * The draft must still belong to the job owner and remain in the
    * `PUBLISHING` state. The repository owns the final transaction that creates
-   * the post, transfers media, and archives the draft. Any failure is recorded
-   * before the error is rethrown so BullMQ marks the job as failed.
+   * or updates the post, transfers media, and archives the draft. Validation
+   * failures are persisted and made unrecoverable; infrastructure failures
+   * are rethrown for bounded BullMQ retries and final-failure recovery.
    *
    * @param id Draft identifier from the queued job.
    * @param ownerId Expected draft owner from the queued job.
@@ -95,6 +137,7 @@ export class DraftProcessor extends WorkerHost {
    * @throws {ConflictException} If the draft is not in `PUBLISHING` state.
    * @throws {UnprocessableEntityException} If required fields, cover media, or
    * Markdown image references are invalid.
+   * @throws {UnrecoverableError} For non-retryable validation conflicts.
    */
   private async publish(id: string, ownerId: string) {
     try {
@@ -115,7 +158,9 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
-      const cover = draft.media.find(
+      const revisionMedia = draft.draftMedia?.map(({ media }) => media) ?? [];
+      const effectiveMedia = revisionMedia.length ? revisionMedia : draft.media;
+      const cover = effectiveMedia.find(
         (media) =>
           media.id === draft.coverMediaId && media.target === MediaTarget.POST,
       );
@@ -125,7 +170,32 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
-      this.validateMarkdownImages(draft.content, draft.media);
+      this.validateMarkdownImages(draft.content, effectiveMedia);
+      for (const media of effectiveMedia) {
+        if (
+          media.id !== draft.coverMediaId &&
+          !draft.content.includes(media.publicUrl)
+        ) {
+          throw new UnprocessableEntityException(
+            `Attached media is not referenced by the draft: ${media.id}`,
+          );
+        }
+      }
+
+      if (draft.postId != null) {
+        if (draft.sourceVersion === null) {
+          throw new ConflictException('Revision source version is missing');
+        }
+        return this.repo.publishRevision(draft.id, ownerId, {
+          title: draft.title,
+          excerpt: draft.excerpt,
+          content: draft.content,
+          coverImage: cover.publicUrl,
+          categoryNames: draft.categoryNames,
+          sourceVersion: draft.sourceVersion,
+          postId: draft.postId,
+        });
+      }
 
       return this.repo.publish(draft.id, ownerId, {
         title: draft.title,
@@ -136,10 +206,24 @@ export class DraftProcessor extends WorkerHost {
         categoryNames: draft.categoryNames,
       });
     } catch (error) {
-      await this.repo.markValidationFailed(
-        id,
-        error instanceof Error ? error.message : 'Draft validation failed',
-      );
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const conflict = new ConflictException(
+          'A post with this title already exists',
+        );
+        await this.repo.markValidationFailed(id, conflict.message);
+        throw new UnrecoverableError(conflict.message);
+      }
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof UnprocessableEntityException
+      ) {
+        await this.repo.markValidationFailed(id, error.message);
+        throw new UnrecoverableError(error.message);
+      }
       throw error;
     }
   }
