@@ -43,6 +43,7 @@ describe('MediaProcessor', () => {
 
   const mockJob: Partial<Job<{ mediaId: string }>> = {
     id: 'job-1',
+    name: 'generateVariants',
     data: { mediaId: 'media-id-1' },
   };
 
@@ -111,26 +112,34 @@ describe('MediaProcessor', () => {
         Buffer.from('original-image-data'),
       );
       mockStorageService.uploadBuffer.mockResolvedValue(undefined);
-      mockRepository.createMany.mockResolvedValue({ count: 3 } as any);
-      mockRepository.create.mockImplementation(
-        async (data) =>
-          ({
-            ...mockOriginalMedia,
-            id: `variant-${data.variant}`,
-            key: data.key,
-            variant: data.variant,
-            mimeType: data.mimeType,
-            sizeBytes: data.sizeBytes,
-          }) as any,
+      const variants: Awaited<ReturnType<MediaRepository['findVariants']>> = [];
+      mockRepository.findVariants.mockResolvedValue(variants);
+      mockRepository.beginVariantPut.mockImplementation(
+        async (parentId, key, bucket) => ({
+          parentId,
+          key,
+          bucket,
+          leaseUntil: new Date(),
+          token: 'attempt',
+          released: false,
+        }),
       );
-
-      // Mock prisma update for parentId
-      (mockRepository as any).prisma = {
-        media: {
-          update: jest.fn().mockResolvedValue({}),
+      mockRepository.finishVariantPut.mockImplementation(
+        async (attempt, data) => {
+          variants.push({
+            ...mockOriginalMedia,
+            ...data,
+            key: attempt.key,
+            sizeBytes: BigInt(data.sizeBytes),
+          } as (typeof variants)[number]);
         },
-      };
+      );
+      mockRepository.findByIdWithVariants.mockResolvedValue({
+        ...mockOriginalMedia,
+        Variants: variants,
+      } as never);
 
+      mockRepository.releaseVariantPut.mockResolvedValue(undefined);
       mockEventsService.publishUploadStatus.mockResolvedValue(undefined);
     });
 
@@ -144,41 +153,17 @@ describe('MediaProcessor', () => {
         mockOriginalMedia.key,
       );
 
-      // Should create 3 variants
-      expect(mockRepository.createMany).toHaveBeenCalledTimes(1);
       expect(mockStorageService.uploadBuffer).toHaveBeenCalledTimes(3);
-
-      // Check thumbnail variant
-      expect(mockRepository.createMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            variant: MediaVariant.THUMBNAIL,
-            key: expect.stringContaining('__thumb.webp'),
-            mimeType: 'image/webp',
-          }),
-        ]),
-      );
-
-      // Check medium variant
-      expect(mockRepository.createMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            variant: MediaVariant.MEDIUM,
-            key: expect.stringContaining('__medium.webp'),
-            mimeType: 'image/webp',
-          }),
-        ]),
-      );
-
-      // Check large variant
-      expect(mockRepository.createMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            variant: MediaVariant.LARGE,
-            key: expect.stringContaining('__large.webp'),
-            mimeType: 'image/webp',
-          }),
-        ]),
+      expect(mockRepository.finishVariantPut).toHaveBeenCalledTimes(3);
+      expect(mockRepository.finishVariantPut).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: expect.stringContaining('__thumb.webp'),
+          parentId: 'media-id-1',
+        }),
+        expect.objectContaining({
+          variant: MediaVariant.THUMBNAIL,
+          mimeType: 'image/webp',
+        }),
       );
 
       expect(mockEventsService.publishUploadStatus).toHaveBeenCalledWith({
@@ -231,18 +216,39 @@ describe('MediaProcessor', () => {
       expect(mockSharpInstance.webp).toHaveBeenCalledWith({ quality: 65 });
     });
 
-    it('should set parentId for created variants', async () => {
-      await processor.process(mockJob as Job<{ mediaId: string }>);
+    it.each(['PUT', 'finalization'])(
+      'repairs only the missing key after a %s failure',
+      async (step) => {
+        const error = new Error(`${step} failed`);
+        if (step === 'PUT') {
+          mockStorageService.uploadBuffer.mockRejectedValueOnce(error);
+        } else {
+          mockRepository.finishVariantPut.mockRejectedValueOnce(error);
+        }
+        await expect(
+          processor.process(mockJob as Job<{ mediaId: string }>),
+        ).rejects.toThrow(error);
+        const failedKey = mockStorageService.uploadBuffer.mock.calls[0][1];
+        expect(mockRepository.releaseVariantPut).toHaveBeenCalledWith(
+          expect.objectContaining({ key: failedKey, token: 'attempt' }),
+        );
+        mockStorageService.uploadBuffer.mockClear();
 
-      // Should create variants with parentId set
-      expect(mockRepository.createMany).toHaveBeenCalledWith(
-        expect.arrayContaining([
-          expect.objectContaining({
-            parentId: 'media-id-1',
-          }),
-        ]),
-      );
-    });
+        await expect(
+          processor.process(mockJob as Job<{ mediaId: string }>),
+        ).resolves.toMatchObject({
+          variants: [
+            expect.any(Object),
+            expect.any(Object),
+            expect.any(Object),
+          ],
+        });
+        expect(mockStorageService.uploadBuffer).toHaveBeenCalledTimes(1);
+        expect(mockStorageService.uploadBuffer.mock.calls[0][1]).toBe(
+          failedKey,
+        );
+      },
+    );
   });
 
   describe('onFailed', () => {
@@ -250,6 +256,7 @@ describe('MediaProcessor', () => {
       const mockError = new Error('Processing failed');
       const mockFailedJob = {
         id: 'job-1',
+        name: 'generateVariants',
         data: { mediaId: 'media-id-1' },
       } as Job<{ mediaId: string }>;
 

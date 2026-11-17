@@ -5,6 +5,10 @@ import { EntityWithAuthorService } from '../common/entity-with-author.service';
 import { DraftModule } from '../draft/draft.module';
 import { StorageService } from '../storage/storage.service';
 import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
+import {
+  MEDIA_CLEANUP_QUEUE,
+  MediaCleanupProcessor,
+} from './media-cleanup.processor';
 import { MediaEventsService } from './media-events.service';
 import { MediaController } from './media.controller';
 import { MediaProcessor } from './media.processor';
@@ -15,9 +19,10 @@ import { MediaService } from './media.service';
   imports: [
     PrismaModule,
     DraftModule,
-    BullModule.registerQueue({
-      name: MEDIA_PROCESSOR_QUEUE,
-    }),
+    BullModule.registerQueue(
+      { name: MEDIA_PROCESSOR_QUEUE },
+      { name: MEDIA_CLEANUP_QUEUE },
+    ),
   ],
   providers: [
     MediaService,
@@ -27,6 +32,7 @@ import { MediaService } from './media.service';
       useExisting: MediaService,
     },
     MediaProcessor,
+    MediaCleanupProcessor,
     MediaEventsService,
     StorageService,
   ],

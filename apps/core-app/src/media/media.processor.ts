@@ -1,6 +1,5 @@
 import { OnQueueEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';
@@ -15,7 +14,6 @@ import { ProcessingError } from './errors/processing.error';
 import { ValidationError } from './errors/validation.error';
 import { MediaEventsService } from './media-events.service';
 import { MediaRepository } from './media.repository';
-import { MediaCreate } from './types/media-create.type';
 import { MediaProcessorJobData } from './types/media-job.type';
 
 @Injectable()
@@ -25,7 +23,6 @@ export class MediaProcessor extends WorkerHost {
     private readonly repo: MediaRepository,
     private readonly storageService: StorageService,
     private readonly events: MediaEventsService,
-    private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
     super();
@@ -72,18 +69,16 @@ export class MediaProcessor extends WorkerHost {
   }
 
   /**
-   * Processes a media job by creating image variants.
-   * Cleanup jobs for unattached media are also handled here.
-   * Downloads the original image, generates variants with different sizes and qualities,
-   * uploads them to storage, and publishes status updates.
-   * @param job - The BullMQ job containing media processing data
-   * @returns An object containing the media ID and created variants
-   * @throws {ProcessingError} If variant creation fails
+   * Generates missing variants, preserving completed variants across retries.
+   * Reports completion with the full configured variant set.
+   *
+   * @param job - BullMQ job containing the original media ID.
+   * @returns The original ID and full variant set when processing completes.
+   * @throws {ValidationError} If the source format or size is unsupported.
+   * @throws {ProcessingError} If the original exists but the variant set is incomplete after processing.
    */
   async process(job: Job<MediaProcessorJobData>) {
-    if (job.name === 'cleanupUnattached') {
-      return this.cleanupUnattached();
-    }
+    if (job.name !== 'generateVariants') return;
 
     this.logger.info(
       `Processing job ${job.id} for mediaId: ${job.data.mediaId}`,
@@ -97,71 +92,71 @@ export class MediaProcessor extends WorkerHost {
     }
 
     try {
-      const buffer = await this.validateAndGetBuffer(
-        mediaId,
-        original.key,
-        original.mimeType,
+      const existing = await this.repo.findVariants(mediaId);
+      const missing = VARIANT_CONFIGS.filter(
+        ({ variant }) => !existing.some((row) => row.variant === variant),
       );
-
-      const variantsToCreate: MediaCreate[] = [];
-
-      const variantPromises = VARIANT_CONFIGS.map(async (cfg) => {
-        try {
-          const outBuffer = await sharp(buffer)
-            .resize({ width: cfg.width, withoutEnlargement: true })
-            .webp({ quality: cfg.quality })
-            .toBuffer();
-
-          const variantKey = `${original.key}__${cfg.suffix}.webp`;
-
-          await this.storageService.uploadBuffer(
-            outBuffer,
-            variantKey,
-            'image/webp',
-            true,
-          );
-
-          const publicUrl = this.storageService.buildPublicUrl(variantKey);
-
-          variantsToCreate.push({
-            key: variantKey,
-            publicUrl,
-            bucket: this.storageService.bucket,
-            ownerId: original.ownerId,
-            parentId: original.id,
-            postId: original.postId ?? undefined,
-            commentId: original.commentId ?? undefined,
-            draftId: original.draftId ?? undefined,
-            type: original.type,
-            target: original.target,
-            variant: cfg.variant,
-            mimeType: 'image/webp',
-            sizeBytes: outBuffer.length,
-            hash: null,
-          });
-        } catch (variantErr) {
-          this.logger.error(
-            `Failed to create ${cfg.variant} variant for mediaId: ${mediaId}`,
-            variantErr,
-          );
-
-          throw variantErr;
-        }
-      });
-
-      await Promise.all(variantPromises);
-
-      const created = await this.repo.createMany(variantsToCreate);
-      if (created.count === 0) {
-        throw new ProcessingError(
-          `Failed to create any variants in DB for mediaId: ${mediaId}`,
+      if (missing.length) {
+        const buffer = await this.validateAndGetBuffer(
+          mediaId,
+          original.key,
+          original.mimeType,
         );
+        const results = await Promise.allSettled(
+          missing.map(async (cfg) => {
+            const rendered = await sharp(buffer)
+              .resize({ width: cfg.width, withoutEnlargement: true })
+              .webp({ quality: cfg.quality })
+              .toBuffer();
+
+            const key = `${original.key}__${cfg.suffix}.webp`;
+            const attempt = await this.repo.beginVariantPut(
+              mediaId,
+              key,
+              this.storageService.bucket,
+              cfg.variant,
+            );
+            if (!attempt) return;
+            try {
+              await this.storageService.uploadBuffer(
+                rendered,
+                key,
+                'image/webp',
+                true,
+              );
+              await this.repo.finishVariantPut(attempt, {
+                publicUrl: this.storageService.buildPublicUrl(key),
+                variant: cfg.variant,
+                mimeType: 'image/webp',
+                sizeBytes: rendered.length,
+              });
+            } catch (error) {
+              await this.repo
+                .releaseVariantPut(attempt)
+                .catch((releaseError: unknown) => {
+                  this.logger.warn(
+                    { err: releaseError, key },
+                    'Failed to release variant PUT lease',
+                  );
+                });
+              throw error;
+            }
+          }),
+        );
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure) throw failure.reason;
       }
 
-      const createdVariants = variantsToCreate.map((v) => ({
-        key: v.key,
-        publicUrl: v.publicUrl,
-      }));
+      const current = await this.repo.findByIdWithVariants(mediaId);
+      if (!current) return;
+      const createdVariants = VARIANT_CONFIGS.map(({ variant }) => {
+        const row = current.Variants.find((row) => row.variant === variant);
+        if (!row)
+          throw new ProcessingError(
+            `Missing ${variant} variant for mediaId: ${mediaId}`,
+          );
+        return { key: row.key, publicUrl: row.publicUrl };
+      });
 
       await this.events.publishUploadStatus({
         status: 'completed',
@@ -194,39 +189,6 @@ export class MediaProcessor extends WorkerHost {
       );
       throw err;
     }
-  }
-
-  /**
-   * Removes media that has remained unattached beyond the retention period.
-   *
-   * Each original and its variants is deleted from storage before the database
-   * record is removed.
-   *
-   * @returns The number of original media records removed.
-   */
-  private async cleanupUnattached() {
-    const retentionDays = Number(
-      this.configService.get<number>('MEDIA_UNATTACHED_RETENTION_DAYS') ?? 30,
-    );
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-    const mediaRecords = await this.repo.findUnattachedBefore(cutoff);
-
-    for (const media of mediaRecords) {
-      const objects = [media, ...media.Variants];
-      for (const object of objects) {
-        try {
-          await this.storageService.deleteObject(object.key, object.bucket);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to delete (due to unused) media object ${object.key}`,
-            error,
-          );
-        }
-      }
-      await this.repo.delete(media.id);
-    }
-
-    return { deleted: mediaRecords.length };
   }
 
   /**

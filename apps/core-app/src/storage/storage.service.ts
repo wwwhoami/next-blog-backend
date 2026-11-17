@@ -83,6 +83,7 @@ export class StorageService {
         ContentType: mimeType,
         ACL: makePublic ? 'public-read' : 'private',
       }),
+      { abortSignal: AbortSignal.timeout(10_000) },
     );
   }
 
@@ -104,6 +105,13 @@ export class StorageService {
 
   // delete storage (used rarely because we usually gate via refCount)
   async deleteObject(key: string, bucket: string) {
-    return this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    try {
+      return await this.s3.send(
+        new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+        { abortSignal: AbortSignal.timeout(10_000) },
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || error.name !== 'NoSuchKey') throw error;
+    }
   }
 }

@@ -17,6 +17,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
     super({
       adapter,
+      omit: { media: { retentionRefreshedAt: true } },
       log: [
         {
           emit: 'event',

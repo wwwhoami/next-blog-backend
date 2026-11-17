@@ -92,9 +92,9 @@ model Draft {
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   archivedAt      DateTime?   @map("archived_at") @db.Timestamptz(6)
 
-  owner User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  post  Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
-  media Media[]
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  post       Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
+  media      Media[]
   draftMedia DraftMedia[]
 
   @@index([ownerId, status])
@@ -225,16 +225,17 @@ model Media {
   refCount  Int          @default(1) @map("ref_count")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  retentionRefreshedAt DateTime? @map("retention_refreshed_at") @db.Timestamptz(6)
 
-  User     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  Post     Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  Comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  Draft    Draft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  User       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Post       Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  Comment    Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  Draft      Draft?       @relation(fields: [draftId], references: [id], onDelete: SetNull)
   DraftMedia DraftMedia[]
-  Parent   Media?   @relation("MediaVariants", fields: [parentId], references: [id])
-  Variants Media[]  @relation("MediaVariants")
+  Parent     Media?       @relation("MediaVariants", fields: [parentId], references: [id])
+  Variants   Media[]      @relation("MediaVariants")
 
-  @@unique([hash, type])
+  @@index([ownerId, hash, type, target])
   @@index([key])
   @@index([ownerId])
   @@index([postId])
@@ -242,23 +243,33 @@ model Media {
   @@index([draftId])
 }
 
-// TODO: remove these many-to-many join tables if we don't need them, since we already have postId and commentId in the Media table
-// model MediaToPost {
-//   mediaId String @map("media_id") @db.Uuid
-//   postId  Int    @map("post_id")
-//
-//   media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
-//   post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
-//
-//   @@id([mediaId, postId])
-// }
-//
-// model MediaToComment {
-//   mediaId   String @map("media_id") @db.Uuid
-//   commentId Int    @map("comment_id")
-//
-//   media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
-//   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-//
-//   @@id([mediaId, commentId])
-// }
+model MediaStorageDeletion {
+  id            BigInt   @id @default(autoincrement())
+  bucket        String   @db.VarChar
+  key           String
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([bucket, key])
+  @@index([nextAttemptAt])
+}
+
+model MediaUploadReservation {
+  scope     String   @id
+  key       String   @unique
+  bucket    String
+  expiresAt DateTime @db.Timestamptz(6)
+
+  @@index([expiresAt])
+}
+
+// Intents survive deletion of their parent until storage cleanup is recorded.
+model MediaVariantPutIntent {
+  key        String   @id
+  bucket     String   @db.VarChar
+  parentId   String   @db.Uuid
+  token      String   @db.Uuid
+  leaseUntil DateTime @db.Timestamptz(6)
+  released   Boolean  @default(false)
+
+  @@index([parentId])
+}

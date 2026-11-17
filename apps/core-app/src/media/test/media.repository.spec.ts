@@ -92,21 +92,61 @@ describe('MediaRepository', () => {
     it('should list owned media with attachment filtering', async () => {
       mockPrismaClient.media.findMany.mockResolvedValue([]);
 
-      await repository.findOwnedMedia('user-1', true);
+      mockPrismaClient.$queryRaw.mockResolvedValue([
+        { id: 'legacy-cover-parent' },
+      ]);
+      (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
+        (callback) => callback(mockPrismaClient),
+      );
 
-      expect(mockPrismaClient.media.findMany).toHaveBeenCalledWith({
-        where: {
-          ownerId: 'user-1',
-          OR: [
-            { draftId: { not: null } },
-            { postId: { not: null } },
-            { commentId: { not: null } },
-          ],
-        },
-        include: { Variants: true },
-        orderBy: { createdAt: 'desc' },
+      await repository.findOwnedMedia('user-1', true);
+      await repository.findOwnedMedia('user-1', false);
+
+      const attached =
+        mockPrismaClient.media.findMany.mock.calls[0][0]?.where?.OR;
+      expect(attached).toEqual(
+        expect.arrayContaining([
+          { id: { in: ['legacy-cover-parent'] } },
+          expect.objectContaining({
+            OR: expect.arrayContaining([
+              { Variants: { some: expect.any(Object) } },
+            ]),
+          }),
+        ]),
+      );
+      expect(
+        mockPrismaClient.media.findMany.mock.calls[1][0]?.where,
+      ).toMatchObject({
+        ownerId: 'user-1',
+        parentId: null,
+        variant: MediaVariant.ORIGINAL,
+        NOT: { OR: attached },
       });
     });
+  });
+
+  it('protects a family whose only draft reference is its original cover', async () => {
+    const media = {
+      ...mockMediaRecord,
+      Variants: [],
+      _count: { DraftMedia: 0 },
+    } as any;
+    (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
+      (callback) => callback(mockPrismaClient),
+    );
+    mockPrismaClient.media.findFirst.mockResolvedValue(media);
+    mockPrismaClient.media.findUniqueOrThrow.mockResolvedValue(media);
+    mockPrismaClient.$queryRaw.mockResolvedValue([{ id: media.id }]);
+
+    await expect(
+      repository.deleteUnattachedBefore(media.id, new Date()),
+    ).resolves.toBe(false);
+    await expect(repository.removeReference(media.id)).rejects.toThrow(
+      'Media is attached to a draft',
+    );
+    expect(
+      mockPrismaClient.mediaStorageDeletion.createMany,
+    ).not.toHaveBeenCalled();
   });
 
   describe('findByKey', () => {
@@ -144,24 +184,45 @@ describe('MediaRepository', () => {
     });
   });
 
-  describe('findByHashAndType', () => {
-    it('should find media by hash and type', async () => {
-      mockPrismaClient.media.findUnique.mockResolvedValue(
+  describe('reuseOrCreateUpload', () => {
+    it('should find unattached original media in the same ownership context', async () => {
+      mockPrismaClient.media.findFirst.mockResolvedValue(
         mockMediaRecord as any,
       );
 
-      const result = await repository.findByHashAndType(
+      (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
+        (callback) => callback(mockPrismaClient),
+      );
+      const upload = jest.fn();
+      const result = await repository.reuseOrCreateUpload(
+        'user-1',
         'abcd1234',
         MediaType.IMAGE,
+        MediaTarget.POST,
+        undefined,
+        { key: 'unused', bucket: 'test-bucket' },
+        upload,
       );
+      expect(mockPrismaClient.media.findFirst).toHaveBeenLastCalledWith({
+        where: expect.objectContaining({ id: mockMediaRecord.id }),
+      });
+      expect(mockPrismaClient.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.$executeRaw).toHaveBeenCalledTimes(3);
+      expect(upload).not.toHaveBeenCalled();
 
       expect(result).toEqual(mockMediaRecord);
-      expect(mockPrismaClient.media.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaClient.media.findFirst).toHaveBeenCalledWith({
         where: {
-          hash_type: {
-            hash: 'abcd1234',
-            type: MediaType.IMAGE,
-          },
+          ownerId: 'user-1',
+          hash: 'abcd1234',
+          type: MediaType.IMAGE,
+          target: MediaTarget.POST,
+          parentId: null,
+          variant: MediaVariant.ORIGINAL,
+          draftId: null,
+          postId: null,
+          commentId: null,
+          DraftMedia: { none: {} },
         },
       });
     });

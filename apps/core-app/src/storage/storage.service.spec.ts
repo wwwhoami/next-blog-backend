@@ -158,6 +158,7 @@ describe('StorageService', () => {
       expect(mockS3Client.send).toHaveBeenCalledTimes(1);
       expect(mockS3Client.send).toHaveBeenCalledWith(
         expect.any(PutObjectCommand),
+        { abortSignal: expect.any(AbortSignal) },
       );
     });
 
@@ -170,6 +171,7 @@ describe('StorageService', () => {
       expect(mockS3Client.send).toHaveBeenCalledTimes(1);
       expect(mockS3Client.send).toHaveBeenCalledWith(
         expect.any(PutObjectCommand),
+        { abortSignal: expect.any(AbortSignal) },
       );
     });
 
@@ -232,6 +234,7 @@ describe('StorageService', () => {
       expect(mockS3Client.send).toHaveBeenCalledTimes(1);
       expect(mockS3Client.send).toHaveBeenCalledWith(
         expect.any(DeleteObjectCommand),
+        { abortSignal: expect.any(AbortSignal) },
       );
     });
 
@@ -242,6 +245,16 @@ describe('StorageService', () => {
       await expect(
         service.deleteObject('test-key', 'test-bucket'),
       ).rejects.toThrow('Delete failed');
+    });
+
+    it('treats an already absent key as deleted', async () => {
+      mockS3Client.send.mockImplementationOnce(() => {
+        throw Object.assign(new Error('Key is absent'), { name: 'NoSuchKey' });
+      });
+
+      await expect(
+        service.deleteObject('missing', 'test-bucket'),
+      ).resolves.toBeUndefined();
     });
   });
 });

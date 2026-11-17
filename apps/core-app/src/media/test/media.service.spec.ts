@@ -133,6 +133,8 @@ describe('MediaService', () => {
       return config[key];
     });
 
+    mockRepository.findVariants.mockResolvedValue([]);
+
     // Setup storage service mocks
     mockStorageService.buildPublicUrl.mockImplementation(
       (key: string) => `https://example.com/media/test-bucket/${key}`,
@@ -173,31 +175,95 @@ describe('MediaService', () => {
       ).rejects.toThrow(UnprocessableEntityError);
     });
 
-    it('should return existing media if hash already exists', async () => {
-      mockRepository.findByHashAndType.mockResolvedValue(mockMediaRecord);
-      mockRepository.incrementRefCount.mockResolvedValue(mockMediaRecord);
+    it('should return existing media only in the same ownership context', async () => {
+      mockRepository.reuseOrCreateUpload.mockResolvedValue(mockMediaRecord);
 
       const result = await service.upload(mockFile, 'user-1', mockMediaDto);
 
       expect(result).toEqual(mockMediaRecord);
-      expect(mockRepository.findByHashAndType).toHaveBeenCalledWith(
+      expect(mockRepository.reuseOrCreateUpload).toHaveBeenCalledWith(
+        expect.any(String),
         expect.any(String),
         MediaType.IMAGE,
+        MediaTarget.POST,
+        undefined,
+        expect.objectContaining({ key: expect.any(String) }),
+        expect.any(Function),
       );
-      expect(mockRepository.incrementRefCount).toHaveBeenCalledWith(
-        mockMediaRecord.id,
+      expect(mockStorageService.uploadBuffer).not.toHaveBeenCalled();
+      expect(mockQueue.add).toHaveBeenCalledWith(
+        'generateVariants',
+        { mediaId: mockMediaRecord.id },
+        expect.objectContaining({ jobId: mockMediaRecord.id }),
       );
+      expect(mockRepository.incrementRefCount).not.toHaveBeenCalled();
+    });
+
+    it('retries enqueue with the original ID after a queue failure', async () => {
+      mockRepository.reuseOrCreateUpload.mockResolvedValue(mockMediaRecord);
+      mockQueue.add.mockRejectedValueOnce(new Error('Queue unavailable'));
+
+      await expect(
+        service.upload(mockFile, 'user-1', mockMediaDto),
+      ).rejects.toThrow('Queue unavailable');
+      await expect(
+        service.upload(mockFile, 'user-1', mockMediaDto),
+      ).resolves.toEqual(mockMediaRecord);
+      expect(
+        mockQueue.add.mock.calls.map(([, , options]) => options?.jobId),
+      ).toEqual([mockMediaRecord.id, mockMediaRecord.id]);
+      expect(mockStorageService.uploadBuffer).not.toHaveBeenCalled();
+    });
+
+    it.each(['failed', 'completed'] as const)(
+      'requeues a retained %s job with missing variants',
+      async (state) => {
+        mockRepository.reuseOrCreateUpload.mockResolvedValue(mockMediaRecord);
+        const job = {
+          getState: jest.fn().mockResolvedValue(state),
+          retry: jest.fn().mockResolvedValue(undefined),
+        };
+        mockQueue.getJob.mockResolvedValue(job as never);
+        await expect(
+          service.upload(mockFile, 'user-1', mockMediaDto),
+        ).resolves.toEqual(mockMediaRecord);
+        expect(mockQueue.getJob).toHaveBeenCalledWith(mockMediaRecord.id);
+        expect(job.retry).toHaveBeenCalledWith(state, {
+          resetAttemptsMade: true,
+          resetAttemptsStarted: true,
+        });
+      },
+    );
+
+    it('accepts a concurrent replay of the same media job', async () => {
+      mockRepository.reuseOrCreateUpload.mockResolvedValue(mockMediaRecord);
+      const job = {
+        getState: jest
+          .fn()
+          .mockResolvedValueOnce('failed')
+          .mockResolvedValueOnce('active'),
+        retry: jest.fn().mockRejectedValue(new Error('Job already moved')),
+      };
+      mockQueue.getJob.mockResolvedValue(job as never);
+      await expect(
+        service.upload(mockFile, 'user-1', mockMediaDto),
+      ).resolves.toEqual(mockMediaRecord);
     });
 
     it('should create new media record and enqueue processing job', async () => {
-      mockRepository.findByHashAndType.mockResolvedValue(null);
-      mockRepository.create.mockResolvedValue(mockMediaRecord);
+      const persist = jest.fn();
+      mockRepository.reuseOrCreateUpload.mockImplementation(
+        async (_owner, _hash, _type, _target, _draft, _object, upload) => {
+          persist(await upload());
+          return mockMediaRecord;
+        },
+      );
       mockQueue.add.mockResolvedValue({} as any);
 
       const result = await service.upload(mockFile, 'user-1', mockMediaDto);
 
       expect(result).toEqual(mockMediaRecord);
-      expect(mockRepository.create).toHaveBeenCalledWith(
+      expect(persist).toHaveBeenCalledWith(
         expect.objectContaining({
           ownerId: 'user-1',
           type: MediaType.IMAGE,
@@ -319,107 +385,83 @@ describe('MediaService', () => {
   });
 
   describe('removeReference', () => {
-    it('should remove media reference and delete when refCount reaches 0', async () => {
-      const mediaToDelete = {
-        ...mockMediaRecord,
-        refCount: 1,
-        Variants: [
-          {
-            key: 'uploads/image/user-1/test__thumb.webp',
-            bucket: 'test-bucket',
-          },
-        ],
-      };
-      mockRepository.findByIdWithVariants.mockResolvedValue(
-        mediaToDelete as any,
+    it('drains the committed deletion records and acknowledges each object', async () => {
+      const objects = [
+        { key: mockMediaRecord.key, bucket: mockMediaRecord.bucket },
+        { key: 'variant.webp', bucket: mockMediaRecord.bucket },
+      ];
+      mockRepository.findById.mockResolvedValue(mockMediaRecord);
+      mockRepository.removeReference.mockResolvedValue({
+        media: mockMediaRecord,
+        objects,
+      });
+      mockRepository.findPendingStorageDeletions.mockResolvedValue(
+        objects.map((object, i) => ({
+          ...object,
+          id: BigInt(i + 1),
+          nextAttemptAt: new Date(0),
+        })),
       );
-      mockRepository.delete.mockResolvedValue(mediaToDelete);
 
-      await service.removeReference('media-id-1');
-
-      expect(mockRepository.findByIdWithVariants).toHaveBeenCalledWith(
-        'media-id-1',
+      await expect(
+        service.removeReference(mockMediaRecord.id),
+      ).resolves.toEqual(mockMediaRecord);
+      expect(mockRepository.findPendingStorageDeletions).toHaveBeenCalledWith(
+        objects,
       );
       expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
-        'uploads/image/user-1/test.webp',
-        'test-bucket',
+        objects[1].key,
+        objects[1].bucket,
       );
-      expect(mockStorageService.deleteObject).toHaveBeenCalledWith(
-        'uploads/image/user-1/test__thumb.webp',
-        'test-bucket',
+      expect(mockRepository.acknowledgeStorageDeletion).toHaveBeenCalledTimes(
+        2,
       );
-      expect(mockRepository.delete).toHaveBeenCalledWith('media-id-1');
     });
 
-    it('should decrement refCount when still referenced', async () => {
-      const mediaWithRefs = { ...mockMediaRecord, refCount: 2 };
-      mockRepository.findByIdWithVariants.mockResolvedValue(mediaWithRefs);
-      mockRepository.update.mockResolvedValue({
-        ...mediaWithRefs,
-        refCount: 1,
-      });
-
-      await service.removeReference('media-id-1');
-
-      expect(mockRepository.findByIdWithVariants).toHaveBeenCalledWith(
-        'media-id-1',
-      );
-      expect(mockRepository.update).toHaveBeenCalledWith('media-id-1', {
-        refCount: 1,
-      });
-      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
-    });
-
-    it('detaches post media while retaining it when references remain', async () => {
-      const attachedMedia = {
+    it('returns media retained by the reference update without calling storage', async () => {
+      mockRepository.findById.mockResolvedValue({
         ...mockMediaRecord,
         postId: 42,
         refCount: 2,
-      };
-      mockRepository.findByIdWithVariants.mockResolvedValue(attachedMedia);
-      mockRepository.update.mockResolvedValue(attachedMedia);
-
-      await service.removeReference('media-id-1');
-
-      expect(mockRepository.update).toHaveBeenCalledWith('media-id-1', {
-        refCount: 1,
-        postId: null,
       });
+      mockRepository.removeReference.mockResolvedValue({
+        media: mockMediaRecord,
+        objects: [],
+      });
+
+      await expect(
+        service.removeReference(mockMediaRecord.id),
+      ).resolves.toEqual(mockMediaRecord);
+      expect(mockRepository.removeReference).toHaveBeenCalledWith(
+        mockMediaRecord.id,
+      );
+      expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
     });
   });
 
   describe('getProcessingResult', () => {
-    it('should return completed status if variants exist', async () => {
-      const mediaWithVariants = {
+    it('reports completion when the full variant set exists', async () => {
+      const variants = [
+        MediaVariant.THUMBNAIL,
+        MediaVariant.MEDIUM,
+        MediaVariant.LARGE,
+      ].map((variant) => ({
+        variant,
+        key: variant + '.webp',
+        publicUrl: 'https://example.com/' + variant + '.webp',
+      }));
+      mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockMediaRecord,
-        Variants: [
-          {
-            id: 'variant-1',
-            key: 'test__thumb.webp',
-            publicUrl: 'https://example.com/test__thumb.webp',
-            variant: MediaVariant.THUMBNAIL,
-          },
-        ],
-      };
-
-      mockRepository.findByIdWithVariants.mockResolvedValue(
-        mediaWithVariants as any,
-      );
-
-      const result = await service.getProcessingResult('media-id-1');
-
-      expect(result).toEqual({
+        Variants: variants,
+      } as never);
+      await expect(
+        service.getProcessingResult(mockMediaRecord.id),
+      ).resolves.toEqual({
         status: 'completed',
         payload: {
           mediaId: mockMediaRecord.id,
           ownerId: mockMediaRecord.ownerId,
-          variants: [
-            {
-              key: 'test__thumb.webp',
-              publicUrl: 'https://example.com/test__thumb.webp',
-              variant: MediaVariant.THUMBNAIL,
-            },
-          ],
+          variants,
         },
       });
     });

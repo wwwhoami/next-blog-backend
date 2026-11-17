@@ -1,7 +1,34 @@
 import { PrismaService } from '@app/prisma';
-import { Injectable } from '@nestjs/common';
-import { MediaType } from 'prisma/generated/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
+import {
+  DraftStatus,
+  MediaTarget,
+  MediaType,
+  MediaVariant,
+  MediaVariantPutIntent,
+  Prisma,
+} from 'prisma/generated/client';
 import { MediaCreate } from './types/media-create.type';
+
+const attachmentLinks: Prisma.MediaWhereInput = {
+  OR: [
+    { draftId: { not: null } },
+    { postId: { not: null } },
+    { commentId: { not: null } },
+    { DraftMedia: { some: {} } },
+  ],
+};
+const familyAttachments: Prisma.MediaWhereInput = {
+  OR: [attachmentLinks, { Variants: { some: attachmentLinks } }],
+};
+const retainedTargets: MediaTarget[] = [MediaTarget.POST, MediaTarget.COMMENT];
 
 @Injectable()
 export class MediaRepository {
@@ -39,24 +66,34 @@ export class MediaRepository {
    * @returns Media records with their variants, newest first.
    */
   async findOwnedMedia(ownerId: string, attached?: boolean) {
-    return this.prisma.media.findMany({
-      where: {
-        ownerId,
-        ...(attached === undefined
-          ? {}
-          : attached
-            ? {
-                OR: [
-                  { draftId: { not: null } },
-                  { postId: { not: null } },
-                  { commentId: { not: null } },
-                ],
-              }
-            : { draftId: null, postId: null, commentId: null }),
+    const list = (
+      tx: Prisma.TransactionClient,
+      filter: Prisma.MediaWhereInput = {},
+    ) =>
+      tx.media.findMany({
+        where: {
+          ownerId,
+          parentId: null,
+          variant: MediaVariant.ORIGINAL,
+          ...filter,
+        },
+        include: { Variants: true },
+        orderBy: { createdAt: 'desc' },
+      });
+    if (attached === undefined) return list(this.prisma);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const covers = await this.findCoverFamilies(
+          tx,
+          Prisma.sql`original."owner_id" = ${ownerId}::uuid`,
+        );
+        const filter = {
+          OR: [familyAttachments, { id: { in: covers.map(({ id }) => id) } }],
+        };
+        return list(tx, attached ? filter : { NOT: filter });
       },
-      include: { Variants: true },
-      orderBy: { createdAt: 'desc' },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   /**
@@ -93,19 +130,268 @@ export class MediaRepository {
   }
 
   /**
-   * Finds a media record by its hash and type.
-   * @param hash - The media file hash
-   * @param type - The media type
-   * @returns The media record or null if not found
+   * Reuses media within the upload scope or reserves a key before writing to
+   * storage outside the transaction.
+   *
+   * @param ownerId - Media owner.
+   * @param hash - Content hash used for deduplication.
+   * @param type - Media type in the upload scope.
+   * @param target - Intended use in the upload scope.
+   * @param draftId - Draft attachment scope, if supplied.
+   * @param object - Storage bucket and key to reserve for a new upload.
+   * @param upload - Writes the object and returns the metadata to persist.
+   * @returns The reused or newly created original.
+   * @throws {NotFoundException} If the supplied draft is missing, inactive, or owned by someone else.
+   * @throws {ServiceUnavailableException} If the reservation cannot be acquired or is lost.
    */
-  async findByHashAndType(hash: string, type: MediaType) {
-    return this.prisma.media.findUnique({
-      where: {
-        hash_type: {
-          hash,
-          type,
+  async reuseOrCreateUpload(
+    ownerId: string,
+    hash: string,
+    type: MediaType,
+    target: MediaTarget,
+    draftId: string | undefined,
+    object: { key: string; bucket: string },
+    upload: () => Promise<MediaCreate>,
+  ) {
+    const scope = JSON.stringify([
+      ownerId.toLowerCase(),
+      hash,
+      type,
+      target,
+      draftId?.toLowerCase() ?? null,
+    ]);
+    const where: Prisma.MediaWhereInput = {
+      ownerId,
+      hash,
+      type,
+      target,
+      parentId: null,
+      variant: MediaVariant.ORIGINAL,
+      draftId: draftId ?? null,
+      postId: null,
+      commentId: null,
+      ...(draftId ? {} : { DraftMedia: { none: {} } }),
+    };
+    const deadline = Date.now() + 40_000;
+    do {
+      const claim = await this.withUploadLock(scope, async (tx) => {
+        await this.checkUploadDraft(tx, ownerId, draftId);
+        const existing = await this.findReusableUpload(
+          tx,
+          where,
+          !draftId && retainedTargets.includes(target),
+        );
+        if (existing) return { existing };
+        const current = await this.lockReservation(tx, scope);
+        if (current && current.expiresAt > current.now) return {};
+        if (current) await this.abandonUpload(tx, current);
+        const [{ now }] = await tx.$queryRaw<
+          { now: Date }[]
+        >`SELECT clock_timestamp() AS "now"`;
+        await tx.mediaUploadReservation.create({
+          data: {
+            scope,
+            ...object,
+            expiresAt: new Date(now.getTime() + 30_000),
+          },
+        });
+        return { claimed: true };
+      });
+      if (claim.existing) return claim.existing;
+      if (claim.claimed) {
+        // Leave the reservation for expiry if storage fails or the commit result is unknown.
+        const data = await upload();
+        const media = await this.withUploadLock(scope, async (tx) => {
+          await this.checkUploadDraft(tx, ownerId, draftId);
+          const current = await this.lockReservation(tx, scope);
+          if (
+            !current ||
+            current.key !== object.key ||
+            current.expiresAt <= current.now
+          )
+            return null;
+          const existing = await this.findReusableUpload(
+            tx,
+            where,
+            !draftId && retainedTargets.includes(target),
+          );
+          if (existing) {
+            await this.abandonUpload(tx, current);
+            return existing;
+          }
+          const created = await tx.media.create({ data });
+          await tx.mediaUploadReservation.delete({ where: { scope } });
+          return created;
+        });
+        if (media) return media;
+        break;
+      }
+      await delay(
+        Math.min(100 + Math.random() * 200, Math.max(0, deadline - Date.now())),
+      );
+    } while (Date.now() < deadline);
+    throw new ServiceUnavailableException(
+      'Media upload is busy. Retry the upload.',
+    );
+  }
+
+  /**
+   * Rechecks reusable post or comment media under the cleanup lock before
+   * refreshing retention.
+   *
+   * @param tx - Current upload transaction.
+   * @param where - Scope and attachment criteria for reuse.
+   * @param refreshRetention - Whether to lock and renew the candidate before returning it.
+   * @returns The reusable original, or null if none qualifies.
+   */
+  private async findReusableUpload(
+    tx: Prisma.TransactionClient,
+    where: Prisma.MediaWhereInput,
+    refreshRetention: boolean,
+  ) {
+    const existing = await tx.media.findFirst({ where });
+    if (!existing || !refreshRetention) return existing;
+
+    await this.lockMedia(tx, existing.id);
+    const current = await tx.media.findFirst({
+      where: { ...where, id: existing.id },
+    });
+    if (!current) return null;
+    await tx.$executeRaw`
+      UPDATE "Media" SET "retention_refreshed_at" = clock_timestamp()
+      WHERE "id" = ${current.id}::uuid
+    `;
+    return current;
+  }
+
+  /**
+   * Serializes reservation changes within an upload scope using a
+   * transaction-scoped advisory lock.
+   *
+   * @param scope - Serialized deduplication scope used as the lock key.
+   * @param run - Work to execute while the advisory lock is held.
+   * @returns The callback result after the transaction commits.
+   * @throws {ServiceUnavailableException} If transaction acquisition or locking times out.
+   */
+  private async withUploadLock<T>(
+    scope: string,
+    run: (tx: Prisma.TransactionClient) => Promise<T>,
+  ) {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SET LOCAL lock_timeout = '1s'`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))`;
+          return run(tx);
         },
+        { maxWait: 1_000, timeout: 3_000 },
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (['P2024', 'P2028'].includes(error.code) ||
+          (error.code === 'P2010' && error.meta?.code === '55P03'))
+      ) {
+        throw new ServiceUnavailableException(
+          'Media upload is busy. Retry the upload.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Locks the target draft and verifies that it can accept the upload.
+   *
+   * @param tx - Upload transaction that holds the draft lock.
+   * @param ownerId - Expected draft owner.
+   * @param draftId - Target draft ID. Omit for a draftless upload.
+   * @throws {NotFoundException} If the draft is missing, inactive, or owned by someone else.
+   */
+  private async checkUploadDraft(
+    tx: Prisma.TransactionClient,
+    ownerId: string,
+    draftId?: string,
+  ) {
+    if (!draftId) return;
+    const [draft] = await tx.$queryRaw<
+      { ownerId: string; status: DraftStatus }[]
+    >`
+      SELECT "owner_id" AS "ownerId", "status" FROM "Draft" WHERE "id" = ${draftId}::uuid FOR UPDATE
+    `;
+    if (
+      draft?.ownerId !== ownerId.toLowerCase() ||
+      draft.status !== DraftStatus.ACTIVE
+    ) {
+      throw new NotFoundException('Draft not found');
+    }
+  }
+
+  /**
+   * Locks the reservation row until the transaction ends.
+   *
+   * @param tx - Upload transaction acquiring the lock.
+   * @param scope - Serialized upload deduplication scope.
+   * @returns The reservation with the database time for checking expiry, or undefined if absent.
+   */
+  private async lockReservation(tx: Prisma.TransactionClient, scope: string) {
+    const [reservation] = await tx.$queryRaw<
+      {
+        scope: string;
+        key: string;
+        bucket: string;
+        expiresAt: Date;
+        now: Date;
+      }[]
+    >`
+      SELECT *, clock_timestamp() AS "now" FROM "MediaUploadReservation"
+      WHERE "scope" = ${scope} FOR UPDATE
+    `;
+    return reservation;
+  }
+
+  /**
+   * Queues delayed object cleanup and removes the reservation in the
+   * same transaction.
+   *
+   * @param tx - Transaction that owns the reservation lock.
+   * @param reservation - Reservation scope, object location, and expiration.
+   */
+  private async abandonUpload(
+    tx: Prisma.TransactionClient,
+    {
+      scope,
+      key,
+      bucket,
+      expiresAt,
+    }: { scope: string; key: string; bucket: string; expiresAt: Date },
+  ) {
+    await tx.mediaStorageDeletion.createMany({
+      data: {
+        key,
+        bucket,
+        nextAttemptAt: new Date(expiresAt.getTime() + 60_000),
       },
+      skipDuplicates: true,
+    });
+    await tx.mediaUploadReservation.delete({ where: { scope } });
+  }
+
+  /**
+   * Removes up to 20 expired upload reservations in expiration order, skipping
+   * rows locked by another transaction. Records storage cleanup in the same
+   * transaction, with new deletion entries due one minute after expiration.
+   */
+  async expireUploadReservations() {
+    await this.prisma.$transaction(async (tx) => {
+      const expired = await tx.$queryRaw<
+        { scope: string; key: string; bucket: string; expiresAt: Date }[]
+      >`
+        SELECT * FROM "MediaUploadReservation" WHERE "expiresAt" <= clock_timestamp()
+        ORDER BY "expiresAt" LIMIT 20 FOR UPDATE SKIP LOCKED
+      `;
+      for (const reservation of expired)
+        await this.abandonUpload(tx, reservation);
     });
   }
 
@@ -121,25 +407,382 @@ export class MediaRepository {
   }
 
   /**
-   * Finds old, unattached post and comment media eligible for cleanup.
+   * Claims a missing variant and records its cleanup intent before the
+   * storage PUT.
    *
-   * Media linked to drafts, posts, or comments is excluded. Avatar media is
-   * also excluded because user avatar ownership is represented by `User.image`
-   * rather than a media relation.
-   *
-   * @param cutoff Media must have been created before this timestamp.
-   * @returns Original media records with their stored variants.
+   * @param parentId - Original media ID.
+   * @param key - Deterministic object key for the variant.
+   * @param bucket - Destination storage bucket.
+   * @param variant - Variant type to generate.
+   * @returns The leased intent, or null if the original is missing or the variant exists.
+   * @throws {ConflictException} If another attempt holds an active lease.
    */
-  async findUnattachedBefore(cutoff: Date) {
+  async beginVariantPut(
+    parentId: string,
+    key: string,
+    bucket: string,
+    variant: MediaVariant,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockMedia(tx, parentId);
+      const parent = await tx.media.findUnique({
+        where: { id: parentId, parentId: null, variant: MediaVariant.ORIGINAL },
+        select: { Variants: { where: { variant }, select: { id: true } } },
+      });
+      if (!parent || parent.Variants.length) return null;
+      const previous = await tx.mediaVariantPutIntent.findUnique({
+        where: { key },
+      });
+      const [{ now }] = await tx.$queryRaw<
+        { now: Date }[]
+      >`SELECT clock_timestamp() AS "now"`;
+      if (previous && !previous.released && previous.leaseUntil > now) {
+        throw new ConflictException('A variant upload is already in progress');
+      }
+      const attempt = {
+        parentId,
+        key,
+        bucket,
+        token: randomUUID(),
+        leaseUntil: new Date(now.getTime() + 30_000),
+        released: false,
+      };
+      return tx.mediaVariantPutIntent.upsert({
+        where: { key },
+        create: attempt,
+        update: attempt,
+      });
+    });
+  }
+
+  /**
+   * Lets a failed attempt retry while preserving its cleanup deadline and
+   * any replacement lease.
+   *
+   * @param attempt - Object key and token of the failed attempt.
+   */
+  async releaseVariantPut({
+    key,
+    token,
+  }: Pick<MediaVariantPutIntent, 'key' | 'token'>) {
+    await this.prisma.mediaVariantPutIntent.updateMany({
+      where: { key, token },
+      data: { released: true },
+    });
+  }
+
+  /**
+   * Finalizes the matching attempt with the parent’s current links or queues
+   * cleanup if the parent is gone.
+   *
+   * @param attempt - Intent for the successful PUT.
+   * @param data - Metadata for the stored variant.
+   * @throws {ConflictException} If the original still exists but the attempt token no longer matches.
+   */
+  async finishVariantPut(
+    attempt: MediaVariantPutIntent,
+    data: Pick<MediaCreate, 'publicUrl' | 'mimeType' | 'sizeBytes' | 'variant'>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockMedia(tx, attempt.parentId);
+      const parent = await tx.media.findUnique({
+        where: { id: attempt.parentId },
+      });
+      if (!parent) {
+        await tx.mediaVariantPutIntent.deleteMany({
+          where: { key: attempt.key, token: attempt.token },
+        });
+        await this.deferVariantDeletion(tx, attempt, Date.now() + 60_000);
+        return;
+      }
+
+      const current = await tx.mediaVariantPutIntent.findUnique({
+        where: { key: attempt.key },
+      });
+      if (current?.token !== attempt.token) {
+        throw new ConflictException('The variant upload lease was replaced');
+      }
+      await tx.media.create({
+        data: {
+          ...data,
+          key: attempt.key,
+          bucket: attempt.bucket,
+          parentId: parent.id,
+          postId: parent.postId,
+          commentId: parent.commentId,
+          type: parent.type,
+          target: parent.target,
+          ownerId: parent.ownerId,
+        },
+      });
+      await tx.mediaVariantPutIntent.delete({ where: { key: attempt.key } });
+    });
+  }
+
+  /**
+   * Moves intents whose originals were deleted elsewhere into the storage
+   * deletion outbox.
+   */
+  async recoverOrphanedVariantPuts() {
+    await this.prisma.$transaction(async (tx) => {
+      const orphaned = await tx.$queryRaw<MediaVariantPutIntent[]>`
+        SELECT intent.* FROM "MediaVariantPutIntent" intent
+        WHERE NOT EXISTS (SELECT 1 FROM "Media" parent WHERE parent."id" = intent."parentId")
+        ORDER BY intent."key" LIMIT 20 FOR UPDATE SKIP LOCKED
+      `;
+      for (const attempt of orphaned) {
+        await this.deferVariantDeletion(tx, attempt);
+        await tx.mediaVariantPutIntent.delete({ where: { key: attempt.key } });
+      }
+    });
+  }
+
+  /**
+   * Queues deletion after the lease grace period and preserves any later
+   * deadline.
+   *
+   * @param tx - Transaction recording the deletion.
+   * @param intent - Object location and lease deadline.
+   * @param minimumTime - Earliest allowed retry time in epoch milliseconds.
+   */
+  private async deferVariantDeletion(
+    tx: Prisma.TransactionClient,
+    { key, bucket, leaseUntil }: MediaVariantPutIntent,
+    minimumTime = 0,
+  ) {
+    const nextAttemptAt = new Date(
+      Math.max(leaseUntil.getTime() + 60_000, minimumTime),
+    );
+    await tx.$executeRaw`
+      INSERT INTO "MediaStorageDeletion" ("key", "bucket", "nextAttemptAt")
+      VALUES (${key}, ${bucket}, ${nextAttemptAt})
+      ON CONFLICT ("bucket", "key") DO UPDATE
+      SET "nextAttemptAt" = GREATEST("MediaStorageDeletion"."nextAttemptAt", EXCLUDED."nextAttemptAt")
+    `;
+  }
+
+  private findCoverFamilies(tx: Prisma.TransactionClient, scope: Prisma.Sql) {
+    return tx.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT original."id"
+      FROM "Draft" AS draft
+      JOIN "Media" AS cover ON cover."id" = draft."cover_media_id"
+      JOIN "Media" AS original ON original."id" = COALESCE(cover."parentId", cover."id")
+      WHERE ${scope}
+    `;
+  }
+
+  private async hasFamilyCover(tx: Prisma.TransactionClient, id: string) {
+    const covers = await this.findCoverFamilies(
+      tx,
+      Prisma.sql`original."id" = ${id}::uuid`,
+    );
+    return covers.length > 0;
+  }
+
+  private unattachedBefore(cutoff: Date): Prisma.MediaWhereInput {
+    return {
+      parentId: null,
+      variant: MediaVariant.ORIGINAL,
+      NOT: familyAttachments,
+      target: { in: retainedTargets },
+      createdAt: { lt: cutoff },
+      OR: [
+        { retentionRefreshedAt: null },
+        { retentionRefreshedAt: { lt: cutoff } },
+      ],
+    };
+  }
+
+  findUnattachedBefore(cutoff: Date) {
     return this.prisma.media.findMany({
+      where: this.unattachedBefore(cutoff),
+      select: { id: true },
+    });
+  }
+
+  /**
+   * Rechecks retention and attachment claims under the original lock before
+   * deleting the family.
+   *
+   * @param id - Original media ID selected for cleanup.
+   * @param cutoff - Retention threshold for creation and refresh timestamps.
+   * @returns Whether the family was deleted and its objects queued for cleanup.
+   */
+  async deleteUnattachedBefore(id: string, cutoff: Date) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockMedia(tx, id);
+      const media = await tx.media.findFirst({
+        where: { id, ...this.unattachedBefore(cutoff) },
+        include: { Variants: true },
+      });
+      if (!media || (await this.hasFamilyCover(tx, id))) return false;
+
+      await this.recordStorageDeletion(tx, media, media.Variants);
+      return true;
+    });
+  }
+
+  /**
+   * Removes a reference or queues storage cleanup and deletes the family
+   * when the final reference is removed.
+   *
+   * @param id - Original media ID.
+   * @returns The updated or deleted original and any object locations queued for cleanup.
+   * @throws {ConflictException} If the ID is a variant or the family has protected attachment claims.
+   * @throws {Prisma.PrismaClientKnownRequestError} If the original no longer exists.
+   */
+  async removeReference(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockMedia(tx, id);
+      const media = await tx.media.findUniqueOrThrow({
+        where: { id },
+        include: {
+          Variants: { include: { _count: { select: { DraftMedia: true } } } },
+          _count: { select: { DraftMedia: true } },
+        },
+      });
+      if (media.parentId || media.variant !== MediaVariant.ORIGINAL) {
+        throw new ConflictException(
+          'Remove generated variants through their original',
+        );
+      }
+      if (
+        media.draftId ||
+        media._count.DraftMedia ||
+        (await this.hasFamilyCover(tx, id))
+      ) {
+        throw new ConflictException('Media is attached to a draft');
+      }
+
+      if (
+        media.Variants.some(
+          (variant) =>
+            variant.draftId ||
+            variant._count.DraftMedia ||
+            (variant.postId != null && variant.postId !== media.postId) ||
+            (variant.commentId != null &&
+              variant.commentId !== media.commentId),
+        )
+      ) {
+        throw new ConflictException(
+          'Media has an unresolved variant attachment',
+        );
+      }
+
+      if (media.refCount <= 1) {
+        const { deleted, objects } = await this.recordStorageDeletion(
+          tx,
+          media,
+          media.Variants,
+        );
+        return { media: deleted, objects };
+      }
+      await tx.media.updateMany({
+        where: { parentId: id },
+        data: { postId: null, commentId: null },
+      });
+      const updated = await tx.media.update({
+        where: { id },
+        data: {
+          refCount: { decrement: 1 },
+          postId: null,
+          commentId: null,
+        },
+      });
+      return { media: updated, objects: [] };
+    });
+  }
+
+  private async lockMedia(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`
+      SELECT "id" FROM "Media" WHERE "id" = ${id}::uuid FOR UPDATE
+    `;
+  }
+
+  /**
+   * Records cleanup for stored objects and in-flight variant keys before
+   * removing the media rows.
+   *
+   * @param tx - Transaction holding the original row lock.
+   * @param media - Original ID and object location.
+   * @param variants - Existing variant object locations.
+   * @returns The deleted original and all object locations recorded for cleanup.
+   */
+  private async recordStorageDeletion(
+    tx: Prisma.TransactionClient,
+    media: { id: string; key: string; bucket: string },
+    variants: { key: string; bucket: string }[],
+  ) {
+    const objects = [media, ...variants].map(({ key, bucket }) => ({
+      key,
+      bucket,
+    }));
+    await tx.mediaStorageDeletion.createMany({
+      data: objects,
+      skipDuplicates: true,
+    });
+    const attempts = await tx.mediaVariantPutIntent.findMany({
+      where: { parentId: media.id },
+      orderBy: { key: 'asc' },
+    });
+    for (const attempt of attempts) {
+      await this.deferVariantDeletion(tx, attempt);
+      objects.push({ key: attempt.key, bucket: attempt.bucket });
+    }
+    await tx.mediaVariantPutIntent.deleteMany({
+      where: { parentId: media.id },
+    });
+    await tx.media.deleteMany({ where: { parentId: media.id } });
+    const deleted = await tx.media.delete({ where: { id: media.id } });
+    return { deleted, objects };
+  }
+
+  /**
+   * Returns due deletions for the supplied objects or the next 20 due outbox
+   * entries.
+   *
+   * @param objects - Optional bucket and key pairs to limit the lookup.
+   * @returns Due entries in outbox ID order.
+   */
+  findPendingStorageDeletions(objects?: { key: string; bucket: string }[]) {
+    return this.prisma.mediaStorageDeletion.findMany({
       where: {
-        draftId: null,
-        postId: null,
-        commentId: null,
-        target: { in: ['POST', 'COMMENT'] },
-        createdAt: { lt: cutoff },
+        nextAttemptAt: { lte: new Date() },
+        ...(objects ? { OR: objects } : {}),
       },
-      include: { Variants: true },
+      take: objects ? undefined : 20,
+      orderBy: { id: 'asc' },
+    });
+  }
+
+  /**
+   * Reschedules a failed storage deletion for one hour from now. The update
+   * preserves any later schedule recorded after the caller read the entry.
+   * The comparison includes the full observed millisecond because PostgreSQL
+   * stores finer timestamp precision than JavaScript Date can represent.
+   *
+   * @param id - Identifier of the deletion outbox entry.
+   * @param scheduledAt - The next attempt time observed before deletion.
+   */
+  async deferStorageDeletion(id: bigint, scheduledAt: Date) {
+    await this.prisma.mediaStorageDeletion.updateMany({
+      where: { id, nextAttemptAt: { lt: new Date(scheduledAt.getTime() + 1) } },
+      data: { nextAttemptAt: new Date(Date.now() + 3_600_000) },
+    });
+  }
+
+  /**
+   * Removes the outbox entry after its object has been deleted, preserving any
+   * newer schedule recorded since the caller read the entry. The comparison
+   * includes the full observed millisecond to account for PostgreSQL timestamp
+   * precision beyond what JavaScript Date can represent.
+   *
+   * @param id - Identifier of the deletion outbox entry.
+   * @param scheduledAt - The next attempt time observed before deletion.
+   */
+  async acknowledgeStorageDeletion(id: bigint, scheduledAt: Date) {
+    await this.prisma.mediaStorageDeletion.deleteMany({
+      where: { id, nextAttemptAt: { lt: new Date(scheduledAt.getTime() + 1) } },
     });
   }
 

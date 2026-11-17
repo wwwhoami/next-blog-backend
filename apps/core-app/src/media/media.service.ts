@@ -1,6 +1,7 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
 import {
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -24,11 +25,21 @@ import {
   MEDIA_POLICIES,
   MediaPolicyKey,
 } from './constants/media-policies.constants';
-import { MEDIA_PROCESSOR_QUEUE } from './constants/media-processor.constants';
+import {
+  MEDIA_PROCESSOR_QUEUE,
+  VARIANT_CONFIGS,
+} from './constants/media-processor.constants';
 import { QUEUE_JOB_CONFIG } from './constants/queue-config.constants';
+import { drainStorageDeletions } from './drain-storage-deletions';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import { MediaVariantsStatusMsg } from './media-events.service';
 import { MediaRepository } from './media.repository';
+
+function hasCompleteVariantSet(rows: { variant: MediaVariant }[]) {
+  return VARIANT_CONFIGS.every(({ variant }) =>
+    rows.some((row) => row.variant === variant),
+  );
+}
 
 @Injectable()
 export class MediaService implements EntityWithAuthorService {
@@ -44,19 +55,6 @@ export class MediaService implements EntityWithAuthorService {
   ) {
     this.bucket = configService.getOrThrow<string>('MINIO_MEDIA_BUCKET');
     this.logger.setContext(MediaService.name);
-  }
-
-  async onModuleInit() {
-    await this.mediaQueue.add(
-      'cleanupUnattached',
-      {},
-      {
-        jobId: 'cleanup-unattached-media',
-        repeat: { every: 24 * 60 * 60 * 1000 }, // run once per day
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
   }
 
   /**
@@ -120,7 +118,7 @@ export class MediaService implements EntityWithAuthorService {
       );
       if (
         !draft ||
-        draft.ownerId !== userId ||
+        draft.ownerId !== userId.toLowerCase() ||
         draft.status !== DraftStatus.ACTIVE
       ) {
         throw new NotFoundException('Draft not found');
@@ -169,47 +167,49 @@ export class MediaService implements EntityWithAuthorService {
 
     const hash = this.computeHash(processed.data);
 
-    const existing = await this.repo.findByHashAndType(hash, mediaMeta.type);
-    if (existing) {
-      await this.repo.incrementRefCount(existing.id);
-      if (mediaMeta.draftId) {
-        await this.repo.update(existing.id, { draftId: mediaMeta.draftId });
-      }
-      return existing;
-    }
-
     const key = `${mediaMeta.type.toLowerCase()}/${userId}/${randomUUID()}.${policy.formats[0]}`;
-    const publicUrl = this.storageService.buildPublicUrl(key);
-
-    try {
-      await this.storageService.uploadBuffer(
-        processed.data,
-        key,
-        `image/${formatToConvertTo}`,
-        true,
-      );
-    } catch (error) {
-      this.logger.error('Error uploading media buffer:', error);
-
-      throw new InternalServerErrorException('Failed to upload media');
-    }
-
-    // Create a DB record
-    const media = await this.repo.create({
-      key,
-      bucket: this.bucket,
-      ownerId: userId,
-      type: mediaMeta.type,
-      target: mediaMeta.target,
-      draftId: mediaMeta.draftId,
-      variant: MediaVariant.ORIGINAL,
-      mimeType: `image/${formatToConvertTo}`,
-      sizeBytes: processed.data.length,
-      publicUrl,
+    const media = await this.repo.reuseOrCreateUpload(
+      userId,
       hash,
-    });
+      mediaMeta.type,
+      mediaMeta.target,
+      mediaMeta.draftId,
+      { key, bucket: this.bucket },
+      async () => {
+        const publicUrl = this.storageService.buildPublicUrl(key);
+        const mimeType = `image/${formatToConvertTo}`;
 
-    // Enqueue variants job with retry/backoff
+        try {
+          await this.storageService.uploadBuffer(
+            processed.data,
+            key,
+            mimeType,
+            true,
+          );
+        } catch (error) {
+          this.logger.error('Error uploading media buffer:', error);
+          throw new InternalServerErrorException('Failed to upload media');
+        }
+
+        return {
+          key,
+          bucket: this.bucket,
+          ownerId: userId,
+          type: mediaMeta.type,
+          target: mediaMeta.target,
+          draftId: mediaMeta.draftId,
+          variant: MediaVariant.ORIGINAL,
+          mimeType,
+          sizeBytes: processed.data.length,
+          publicUrl,
+          hash,
+        };
+      },
+    );
+
+    if (hasCompleteVariantSet(await this.repo.findVariants(media.id)))
+      return media;
+
     await this.mediaQueue.add(
       'generateVariants',
       { mediaId: media.id },
@@ -224,6 +224,31 @@ export class MediaService implements EntityWithAuthorService {
         removeOnFail: false,
       },
     );
+
+    const job = await this.mediaQueue.getJob(media.id);
+    const state = await job?.getState();
+    if (
+      job &&
+      (state === 'failed' || state === 'completed') &&
+      !hasCompleteVariantSet(await this.repo.findVariants(media.id))
+    ) {
+      try {
+        await job.retry(state, {
+          resetAttemptsMade: true,
+          resetAttemptsStarted: true,
+        });
+      } catch (error) {
+        const current = await job.getState();
+        if (['waiting', 'delayed', 'active', 'prioritized'].includes(current))
+          return media;
+        if (
+          current === 'completed' &&
+          hasCompleteVariantSet(await this.repo.findVariants(media.id))
+        )
+          return media;
+        throw error;
+      }
+    }
 
     return media;
   }
@@ -312,41 +337,37 @@ export class MediaService implements EntityWithAuthorService {
    * Draft media is detached without changing its stored asset. Post and
    * comment references are detached while shared references remain. When the
    * count reaches zero, the original and all generated variants are removed
-   * from storage before the database record is deleted.
+   * from storage after the database transaction commits.
    *
    * @param id - The UUID of the media record
    * @returns The updated or deleted media record
    * @throws {NotFoundError} If the media record is not found
    */
   async removeReference(id: string) {
-    const media = await this.repo.findByIdWithVariants(id);
+    const media = await this.repo.findById(id);
 
     if (!media) throw new NotFoundError('Media not found');
+    if (media.parentId || media.variant !== MediaVariant.ORIGINAL) {
+      throw new ConflictException(
+        'Remove generated variants through their original',
+      );
+    }
 
     if (media.draftId) {
-      return this.repo.update(id, { draftId: null });
+      await this.draftRepo.detachMedia(media.draftId, id);
+      return this.repo.findById(id);
     }
 
-    const newCount = media.refCount - 1;
-    if (newCount <= 0) {
-      for (const object of [media, ...media.Variants]) {
-        try {
-          await this.storageService.deleteObject(object.key, object.bucket);
-        } catch (err) {
-          this.logger.warn(
-            `Failed to delete object ${object.key} in bucket ${object.bucket}: `,
-            err,
-          );
-        }
-      }
-      return this.repo.delete(id);
-    } else {
-      return this.repo.update(id, {
-        refCount: newCount,
-        ...(media.postId ? { postId: null } : {}),
-        ...(media.commentId ? { commentId: null } : {}),
-      });
+    const result = await this.repo.removeReference(id);
+    if (result.objects.length) {
+      await drainStorageDeletions(
+        this.repo,
+        this.storageService,
+        this.logger,
+        result.objects,
+      );
     }
+    return result.media;
   }
 
   /**
@@ -370,8 +391,7 @@ export class MediaService implements EntityWithAuthorService {
       throw new NotFoundError('Media not found');
     }
 
-    // If variants exist, return them immediately
-    if (media.Variants && media.Variants.length > 0) {
+    if (hasCompleteVariantSet(media.Variants)) {
       return {
         status: 'completed',
         payload: {
