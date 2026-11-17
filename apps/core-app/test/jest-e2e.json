@@ -15,6 +15,7 @@
     "generate-metadata.ts",
     "metadata.ts"
   ],
+  "transformIgnorePatterns": [],
   "transform": {
     "^.+\\.(t|j)s$": [
       "@swc/jest",

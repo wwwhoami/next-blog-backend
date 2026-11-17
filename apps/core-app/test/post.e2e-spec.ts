@@ -76,7 +76,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -93,8 +96,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
 
@@ -148,7 +151,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -166,8 +172,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
 
@@ -180,7 +186,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -197,8 +206,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
 
@@ -211,7 +220,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -229,8 +241,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
 
@@ -243,7 +255,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -260,8 +275,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
 
@@ -274,7 +289,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(response.body).toBeInstanceOf(Array);
-          expect(response.body[0]).toEqual({
+          const seeded = response.body.find(
+            ({ slug }: { slug: string }) => slug === postWithNoContent.slug,
+          );
+          expect(seeded).toEqual({
             id: expect.any(Number),
             createdAt: expect.any(String),
             updatedAt: expect.any(String),
@@ -298,8 +316,8 @@ describe('Post (e2e)', () => {
             likesCount: expect.any(Number),
           });
           // check that createdAt and updatedAt are correct Dates
-          expect(new Date(response.body[0].createdAt).getTime).not.toBe(NaN);
-          expect(new Date(response.body[0].updatedAt).getTime).not.toBe(NaN);
+          expect(new Date(seeded.createdAt).getTime()).not.toBeNaN();
+          expect(new Date(seeded.updatedAt).getTime()).not.toBeNaN();
         });
     });
   });
@@ -351,9 +369,12 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.OK)
         .expect((response: request.Response) => {
           expect(Array.isArray(response.body)).toBe(true);
-          expect(response.body[0]).toEqual({
-            slug: expect.any(String),
+          expect(response.body).toContainEqual({
+            slug: postWithNoContent.slug,
           });
+          expect(response.body).toEqual(
+            response.body.map(({ slug }: { slug: string }) => ({ slug })),
+          );
         });
     });
   });

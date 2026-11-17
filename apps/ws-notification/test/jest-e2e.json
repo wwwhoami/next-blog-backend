@@ -7,6 +7,7 @@
   "testMatch": ["**/apps/ws-notification/**/*.e2e-spec.ts*"],
   "collectCoverageFrom": ["<rootDir>/apps/ws-notification/**/*.ts"],
   "coveragePathIgnorePatterns": [".module.ts", ".spec.ts", "main.ts"],
+  "transformIgnorePatterns": [],
   "transform": {
     "^.+\\.(t|j)s$": [
       "@swc/jest",
