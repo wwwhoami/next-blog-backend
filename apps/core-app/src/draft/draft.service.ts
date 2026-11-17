@@ -1,6 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -15,6 +14,7 @@ import {
 import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
+import { effectiveMedia } from './effective-media';
 
 /**
  * Coordinates draft access, editing, media ownership, and async publication.
@@ -44,21 +44,18 @@ export class DraftService {
    * @param draft Draft record returned by the repository.
    * @returns The draft with normalized `revisionMode` and `effectiveMedia`.
    */
-  private present<T extends { postId?: number | null; draftMedia?: unknown[] }>(
-    draft: T,
-  ) {
-    const revisionMedia = (draft.draftMedia ?? []).map((link) =>
-      typeof link === 'object' && link !== null && 'media' in link
-        ? (link as { media: unknown }).media
-        : link,
-    );
-
+  private present<
+    M extends { id: string; parentId?: string | null },
+    T extends {
+      postId?: number | null;
+      media?: M[];
+      draftMedia?: { media: M }[];
+    },
+  >(draft: T) {
     return {
       ...draft,
       revisionMode: draft.postId ? 'REVISION' : 'NEW',
-      effectiveMedia: revisionMedia.length
-        ? revisionMedia
-        : ((draft as T & { media?: unknown[] }).media ?? []),
+      effectiveMedia: effectiveMedia(draft),
     };
   }
 
@@ -155,17 +152,17 @@ export class DraftService {
     if (draft.status !== DraftStatus.ACTIVE) {
       throw new ConflictException('Draft is not editable while publishing');
     }
-    const { mediaIds, ...draftData } = dto;
+    const { mediaIds, coverMediaId, ...draftData } = dto;
 
-    if (mediaIds) {
-      await this.syncMedia(id, ownerId, mediaIds);
-    }
-
-    if (dto.coverMediaId !== undefined) {
-      await this.setCoverMedia(id, ownerId, dto.coverMediaId);
-    }
-
-    return this.present(await this.repo.update(draft.id, draftData));
+    return this.present(
+      await this.repo.attachMedia(
+        id,
+        ownerId,
+        mediaIds,
+        draftData,
+        coverMediaId,
+      ),
+    );
   }
 
   /**
@@ -228,51 +225,5 @@ export class DraftService {
         removeOnFail: false,
       },
     );
-  }
-
-  /**
-   * Validates ownership before replacing the draft's media attachments.
-   *
-   * @param id Draft identifier.
-   * @param ownerId Authenticated owner identifier.
-   * @param mediaIds Media identifiers to attach.
-   * @throws {BadRequestException} If any media is invalid or not attachable.
-   */
-  private async syncMedia(id: string, ownerId: string, mediaIds: string[]) {
-    const media = await this.repo.findAttachableMedia(ownerId, mediaIds);
-    if (media.length !== mediaIds.length) {
-      throw new BadRequestException('One or more media assets are invalid');
-    }
-
-    await this.repo.attachMedia(id, mediaIds);
-  }
-
-  /**
-   * Sets or clears `coverMediaId` after confirming the media is attached.
-   *
-   * @param id Draft identifier.
-   * @param ownerId Authenticated owner identifier.
-   * @param coverMediaId Attached media identifier, or `null` to clear it.
-   * @throws {BadRequestException} If the cover media is not attached to the
-   * draft or is not owned by the requested user.
-   */
-  private async setCoverMedia(
-    id: string,
-    ownerId: string,
-    coverMediaId: string | null,
-  ) {
-    if (!coverMediaId) {
-      await this.repo.clearCoverMedia(id);
-      return;
-    }
-
-    const media = await this.repo.findCoverCandidate(id, ownerId, coverMediaId);
-    if (!media) {
-      throw new BadRequestException(
-        'Cover media must be attached to the draft',
-      );
-    }
-
-    await this.repo.setCoverMedia(id, coverMediaId);
   }
 }

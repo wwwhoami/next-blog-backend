@@ -1,7 +1,7 @@
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
+import { DraftStatus, MediaVariant, Prisma } from 'prisma/generated/client';
 import { DraftRepository } from '../draft.repository';
 
 describe('DraftRepository', () => {
@@ -41,43 +41,15 @@ describe('DraftRepository', () => {
     expect(repository).toBeDefined();
   });
 
-  it('finds only post media owned by the user', async () => {
-    prisma.media.findMany.mockResolvedValue([]);
-
-    await repository.findAttachableMedia('owner-id', ['media-id']);
-
-    expect(prisma.media.findMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ['media-id'] },
-        ownerId: 'owner-id',
-        target: MediaTarget.POST,
-      },
-    });
-  });
-
-  it('attaches media in a transaction after clearing existing draft media', async () => {
-    prisma.media.updateMany.mockReturnValue({} as never);
-    prisma.$transaction.mockResolvedValue([] as never);
-
-    await repository.attachMedia('draft-id', ['media-id']);
-
-    expect(prisma.$transaction).toHaveBeenCalledWith([
-      expect.anything(),
-      expect.anything(),
-    ]);
-    expect(prisma.media.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { draftId: 'draft-id' },
-      data: { draftId: null },
-    });
-    expect(prisma.media.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: { in: ['media-id'] } },
-      data: { draftId: 'draft-id' },
-    });
-  });
-
   it('moves draft media to the created post and archives the draft atomically', async () => {
     const post = { id: 42 };
     const tx = mockDeep<PrismaService>();
+    tx.draft.findFirst.mockResolvedValueOnce({
+      coverMediaId: 'media-id',
+    } as never);
+    tx.media.findMany.mockResolvedValue([
+      { id: 'media-id', ownerId: 'owner-id', Variants: [], DraftMedia: [] },
+    ] as never);
     tx.post.create.mockResolvedValue(post as never);
     tx.media.updateMany.mockResolvedValue({ count: 1 });
     tx.draft.update.mockResolvedValue({
@@ -94,12 +66,23 @@ describe('DraftRepository', () => {
       excerpt: 'Excerpt',
       content: 'Content',
       coverImage: 'https://cdn.test/cover.webp',
+      mediaIds: ['media-id'],
+      coverMediaId: 'media-id',
       categoryNames: [],
     });
 
     expect(tx.media.updateMany).toHaveBeenCalledWith({
-      where: { draftId: 'draft-id' },
-      data: { draftId: null, postId: post.id },
+      where: {
+        id: { in: ['media-id'] },
+        draftId: 'draft-id',
+      },
+      data: { draftId: null },
+    });
+    expect(tx.media.updateMany).toHaveBeenCalledWith({
+      where: {
+        OR: [{ id: { in: ['media-id'] } }, { parentId: { in: ['media-id'] } }],
+      },
+      data: { postId: post.id },
     });
     expect(tx.draft.update).toHaveBeenCalledWith({
       where: { id: 'draft-id' },
@@ -108,17 +91,6 @@ describe('DraftRepository', () => {
         postId: post.id,
         archivedAt: expect.any(Date),
       },
-    });
-  });
-
-  it('promotes one attached media asset to cover media', async () => {
-    prisma.draft.update.mockResolvedValue({} as never);
-
-    await repository.setCoverMedia('draft-id', 'media-id');
-
-    expect(prisma.draft.update).toHaveBeenCalledWith({
-      where: { id: 'draft-id' },
-      data: { coverMediaId: 'media-id' },
     });
   });
 
@@ -225,7 +197,6 @@ describe('DraftRepository', () => {
     expect(prisma.draft.deleteMany).toHaveBeenCalledWith({
       where: {
         status: DraftStatus.ARCHIVED,
-        sourceVersion: { not: null },
         archivedAt: { lt: cutoff },
       },
     });
@@ -240,8 +211,11 @@ describe('DraftRepository', () => {
       where: { id: 'draft-id' },
       data: { title: 'Updated title' },
       include: {
-        media: true,
-        draftMedia: { include: { media: true } },
+        media: { where: { parentId: null, variant: MediaVariant.ORIGINAL } },
+        draftMedia: {
+          where: { media: { parentId: null, variant: MediaVariant.ORIGINAL } },
+          include: { media: true },
+        },
         post: true,
       },
     });

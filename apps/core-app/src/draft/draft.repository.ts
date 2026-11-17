@@ -1,6 +1,21 @@
 import { PrismaService } from '@app/prisma';
-import { ConflictException, Injectable } from '@nestjs/common';
-import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  DraftStatus,
+  MediaTarget,
+  MediaVariant,
+  Prisma,
+} from 'prisma/generated/client';
+
+const originalMedia = {
+  parentId: null,
+  variant: MediaVariant.ORIGINAL,
+} as const;
 
 @Injectable()
 export class DraftRepository {
@@ -18,7 +33,7 @@ export class DraftRepository {
   create(ownerId: string, data: Record<string, unknown>) {
     return this.prisma.draft.create({
       data: { ...data, ownerId },
-      include: { media: true },
+      include: { media: { where: originalMedia } },
     });
   }
 
@@ -26,8 +41,11 @@ export class DraftRepository {
     return this.prisma.draft.findMany({
       where: { ownerId, status: DraftStatus.ACTIVE },
       include: {
-        media: true,
-        draftMedia: { include: { media: true } },
+        media: { where: originalMedia },
+        draftMedia: {
+          where: { media: originalMedia },
+          include: { media: true },
+        },
         post: true,
       },
       orderBy: { updatedAt: 'desc' },
@@ -38,22 +56,38 @@ export class DraftRepository {
     return this.prisma.draft.findUnique({
       where: { id },
       include: {
-        media: true,
-        draftMedia: { include: { media: true } },
+        media: { where: originalMedia },
+        draftMedia: {
+          where: { media: originalMedia },
+          include: { media: true },
+        },
         post: true,
       },
     });
   }
 
-  async findActiveRevision(postId: number) {
-    return this.prisma.draft.findFirst({
+  findVariantUrls(originalIds: string[]) {
+    return this.prisma.media.findMany({
+      where: { parentId: { in: originalIds } },
+      select: { parentId: true, publicUrl: true },
+    });
+  }
+
+  async findActiveRevision(
+    postId: number,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    return tx.draft.findFirst({
       where: {
         postId,
         status: { in: [DraftStatus.ACTIVE, DraftStatus.PUBLISHING] },
       },
       include: {
-        media: true,
-        draftMedia: { include: { media: true } },
+        media: { where: originalMedia },
+        draftMedia: {
+          where: { media: originalMedia },
+          include: { media: true },
+        },
         post: true,
       },
     });
@@ -81,29 +115,40 @@ export class DraftRepository {
           where: { id: postId },
           include: {
             categories: true,
-            Media: true,
+            Media: {
+              where: originalMedia,
+              include: { Variants: { select: { publicUrl: true } } },
+            },
           },
         });
         if (!post || post.authorId !== ownerId) return null;
 
-        const active = await tx.draft.findFirst({
-          where: {
-            postId,
-            status: { in: [DraftStatus.ACTIVE, DraftStatus.PUBLISHING] },
-          },
-          include: {
-            media: true,
-            draftMedia: { include: { media: true } },
-            post: true,
-          },
-        });
+        const active = await this.findActiveRevision(postId, tx);
         if (active?.status === DraftStatus.PUBLISHING) return active;
         if (active && active.sourceVersion === post.version) return active;
         if (active) {
-          await tx.draft.update({
-            where: { id: active.id },
+          const archived = await tx.draft.updateMany({
+            where: { id: active.id, status: DraftStatus.ACTIVE },
             data: { status: DraftStatus.ARCHIVED, archivedAt: new Date() },
           });
+          if (!archived.count) {
+            const current = await this.findActiveRevision(postId, tx);
+            if (current) return current;
+          }
+        }
+
+        const mediaIds = post.Media.map(({ id }) => id);
+        if (mediaIds.length) {
+          await this.lockOriginals(tx, mediaIds);
+          const current = await this.findActiveRevision(postId, tx);
+          if (current) return current;
+          await this.assertClaimableMedia(
+            tx,
+            ownerId,
+            mediaIds,
+            undefined,
+            postId,
+          );
         }
 
         const draft = await tx.draft.create({
@@ -118,15 +163,22 @@ export class DraftRepository {
               ({ categoryName }) => categoryName,
             ),
             coverMediaId: post.Media.find(
-              ({ publicUrl }) => publicUrl === post.coverImage,
+              ({ publicUrl, Variants }) =>
+                publicUrl === post.coverImage ||
+                Variants.some(
+                  (variant) => variant.publicUrl === post.coverImage,
+                ),
             )?.id,
             draftMedia: {
               create: post.Media.map(({ id }) => ({ mediaId: id })),
             },
           },
           include: {
-            media: true,
-            draftMedia: { include: { media: true } },
+            media: { where: originalMedia },
+            draftMedia: {
+              where: { media: originalMedia },
+              include: { media: true },
+            },
             post: true,
           },
         });
@@ -183,13 +235,20 @@ export class DraftRepository {
    * @param data - Validated scalar fields to update.
    * @returns The updated draft with directly attached media.
    */
-  update(id: string, data: Record<string, unknown>) {
-    return this.prisma.draft.update({
+  update(
+    id: string,
+    data: Record<string, unknown>,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    return tx.draft.update({
       where: { id },
       data,
       include: {
-        media: true,
-        draftMedia: { include: { media: true } },
+        media: { where: originalMedia },
+        draftMedia: {
+          where: { media: originalMedia },
+          include: { media: true },
+        },
         post: true,
       },
     });
@@ -223,28 +282,26 @@ export class DraftRepository {
    * @returns The restored draft with directly attached media.
    */
   markValidationFailed(id: string, error: string) {
-    return this.prisma.draft.update({
-      where: { id },
+    return this.prisma.draft.updateMany({
+      where: { id, status: DraftStatus.PUBLISHING },
       data: { status: DraftStatus.ACTIVE, validationError: error },
-      include: { media: true },
     });
   }
 
   /**
-   * Deletes archived revisions older than the retention cutoff.
+   * Deletes archived drafts older than the retention cutoff.
    *
    * Draft-media history is removed by the draft foreign-key cascade. Media
    * records themselves are retained because they may still be referenced by a
    * post, comment, or another revision.
    *
-   * @param cutoff - Revisions archived before this timestamp are eligible.
-   * @returns The number of deleted archived revisions.
+   * @param cutoff - Drafts archived before this timestamp are eligible.
+   * @returns The number of deleted archived drafts.
    */
   deleteArchivedBefore(cutoff: Date) {
     return this.prisma.draft.deleteMany({
       where: {
         status: DraftStatus.ARCHIVED,
-        sourceVersion: { not: null },
         archivedAt: { lt: cutoff },
       },
     });
@@ -268,57 +325,389 @@ export class DraftRepository {
     });
   }
 
-  findAttachableMedia(ownerId: string, mediaIds: string[]) {
-    return this.prisma.media.findMany({
+  /**
+   * Locks requested originals and existing draft or post families in ID
+   * order.
+   *
+   * @param tx - Transaction that holds the locks until it ends.
+   * @param mediaIds - Explicitly requested original IDs.
+   * @param draftId - Draft whose current attachments should also be locked.
+   * @param postId - Source post whose attachments should also be locked.
+   */
+  private async lockOriginals(
+    tx: Prisma.TransactionClient,
+    mediaIds: string[],
+    draftId?: string,
+    postId?: number,
+  ) {
+    const requested = mediaIds.length
+      ? Prisma.sql`"id" IN (${Prisma.join(mediaIds.map((id) => Prisma.sql`${id}::uuid`))})`
+      : Prisma.sql`FALSE`;
+    await tx.$queryRaw`
+      SELECT "id" FROM "Media"
+      WHERE "parentId" IS NULL AND "media_variant" = 'ORIGINAL'
+        AND (
+          ${requested} OR "draft_id" = ${draftId ?? null}::uuid
+          OR "postId" = ${postId ?? null}::integer
+          OR "id" IN (
+            SELECT COALESCE(m."parentId", m."id") FROM "Media" m
+            WHERE m."draft_id" = ${draftId ?? null}::uuid OR m."postId" = ${postId ?? null}::integer
+              OR EXISTS (SELECT 1 FROM "DraftMedia" dm WHERE dm."media_id" = m."id"
+                AND dm."draft_id" = ${draftId ?? null}::uuid)
+              OR EXISTS (SELECT 1 FROM "Draft" d WHERE d."cover_media_id" = m."id"
+                AND d."id" = ${draftId ?? null}::uuid)
+          )
+        )
+      ORDER BY "id"
+      FOR UPDATE
+    `;
+  }
+
+  /**
+   * Checks locked families for competing claims and permits media from the
+   * revision’s source post.
+   *
+   * @param tx - Transaction holding the original locks.
+   * @param ownerId - Draft owner requesting the claim.
+   * @param mediaIds - Requested original IDs.
+   * @param draftId - Destination draft to exclude from conflict checks.
+   * @param sourcePostId - Revision source post whose attachments can be retained.
+   * @returns The checked originals and their attachment metadata.
+   * @throws {BadRequestException} If any requested original is invalid or ineligible by ownership.
+   * @throws {ConflictException} If a family has a competing or unresolved claim.
+   */
+  private async assertClaimableMedia(
+    tx: Prisma.TransactionClient,
+    ownerId: string,
+    mediaIds: string[],
+    draftId?: string,
+    sourcePostId?: number,
+  ) {
+    if (!mediaIds.length) return [];
+
+    const links = {
+      postId: true,
+      commentId: true,
+      Draft: { select: { id: true, status: true } },
+      DraftMedia: {
+        select: { draft: { select: { id: true, status: true } } },
+      },
+    } as const;
+    const media = await tx.media.findMany({
       where: {
         id: { in: mediaIds },
-        ownerId,
         target: MediaTarget.POST,
+        ...originalMedia,
+      },
+      select: {
+        ...links,
+        id: true,
+        ownerId: true,
+        Variants: { select: { ...links, id: true } },
       },
     });
-  }
+    if (media.length !== mediaIds.length) {
+      throw new BadRequestException('One or more media assets are invalid');
+    }
 
-  attachMedia(id: string, mediaIds: string[]) {
-    return this.prisma.$transaction([
-      this.prisma.media.updateMany({
-        where: { draftId: id },
-        data: { draftId: null },
-      }),
-      this.prisma.media.updateMany({
-        where: { id: { in: mediaIds } },
-        data: { draftId: id },
-      }),
-      this.prisma.draftMedia.deleteMany({ where: { draftId: id } }),
-      this.prisma.draftMedia.createMany({
-        data: mediaIds.map((mediaId) => ({ draftId: id, mediaId })),
-        skipDuplicates: true,
-      }),
-    ]);
-  }
-
-  clearCoverMedia(id: string) {
-    return this.prisma.draft.update({
-      where: { id },
-      data: { coverMediaId: null },
-    });
-  }
-
-  findCoverCandidate(id: string, ownerId: string, mediaId: string) {
-    return this.prisma.media.findFirst({
+    const destinationId = draftId?.toLowerCase();
+    for (const original of media) {
+      for (const member of [original, ...original.Variants]) {
+        if (member.postId != null && member.postId !== sourcePostId) {
+          throw new ConflictException('Media is attached to another post');
+        }
+        if (member.commentId != null) {
+          throw new ConflictException('Media is attached to a comment');
+        }
+        if (
+          [member.Draft, ...member.DraftMedia.map(({ draft }) => draft)].some(
+            (draft) =>
+              draft &&
+              draft.id !== destinationId &&
+              (draft.status === DraftStatus.ACTIVE ||
+                draft.status === DraftStatus.PUBLISHING),
+          )
+        ) {
+          throw new ConflictException(
+            'Media is attached to another active draft',
+          );
+        }
+      }
+      if (
+        original.Variants.some(
+          ({ Draft, DraftMedia }) =>
+            (Draft != null && Draft.id === destinationId) ||
+            DraftMedia.some(({ draft }) => draft.id === destinationId),
+        )
+      ) {
+        throw new ConflictException(
+          'Media has an unresolved variant draft claim',
+        );
+      }
+      if (
+        original.ownerId !== ownerId &&
+        (sourcePostId === undefined || original.postId !== sourcePostId)
+      ) {
+        throw new BadRequestException('One or more media assets are invalid');
+      }
+    }
+    const legacyCoverIds = media.flatMap(({ Variants }) =>
+      Variants.map(({ id }) => id),
+    );
+    const competingCover = await tx.draft.findFirst({
       where: {
-        id: mediaId,
-        ownerId,
-        target: MediaTarget.POST,
-        OR: [{ draftId: id }, { DraftMedia: { some: { draftId: id } } }],
+        id: { not: destinationId },
+        status: { in: [DraftStatus.ACTIVE, DraftStatus.PUBLISHING] },
+        coverMediaId: { in: [...mediaIds, ...legacyCoverIds] },
       },
+      select: { id: true },
+    });
+    const ownLegacyCover =
+      destinationId &&
+      (await tx.draft.findFirst({
+        where: { id: destinationId, coverMediaId: { in: legacyCoverIds } },
+        select: { id: true },
+      }));
+    if (ownLegacyCover)
+      throw new ConflictException(
+        'Media has an unresolved variant cover claim',
+      );
+    if (competingCover)
+      throw new ConflictException('Media is the cover of another active draft');
+    return media;
+  }
+
+  /**
+   * Saves draft fields and, when supplied, replaces the attachment manifest
+   * under row locks.
+   *
+   * @param id - Draft ID.
+   * @param ownerId - Expected draft owner.
+   * @param requestedMediaIds - Replacement manifest. Omit to retain the current attachments.
+   * @param data - Validated draft fields to save.
+   * @param coverMediaId - New original cover ID, or null to clear it. Omit to retain a cover that is still attached.
+   * @returns The saved draft with its media and post relations.
+   * @throws {NotFoundException} If the draft is missing or belongs to another owner.
+   * @throws {BadRequestException} If an asset is invalid or the cover is outside the manifest.
+   * @throws {ConflictException} If the draft is inactive or an attachment claim conflicts.
+   */
+  async attachMedia(
+    id: string,
+    ownerId: string,
+    requestedMediaIds: string[] | undefined,
+    data: Record<string, unknown>,
+    coverMediaId?: string | null,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const [draft] = await tx.$queryRaw<
+        {
+          ownerId: string;
+          status: DraftStatus;
+          coverMediaId: string | null;
+          postId: number | null;
+          sourceVersion: number | null;
+        }[]
+      >`
+        SELECT "owner_id" AS "ownerId", "status", "cover_media_id" AS "coverMediaId", "post_id" AS "postId", "source_version" AS "sourceVersion"
+        FROM "Draft" WHERE "id" = ${id}::uuid FOR UPDATE
+      `;
+      if (!draft || draft.ownerId !== ownerId) {
+        throw new NotFoundException('Draft not found');
+      }
+      if (draft.status !== DraftStatus.ACTIVE) {
+        throw new ConflictException('Draft is not editable while publishing');
+      }
+
+      // Lock outgoing and incoming attachments in the same order.
+      const requested = [
+        ...new Set(requestedMediaIds?.map((mediaId) => mediaId.toLowerCase())),
+      ];
+      await this.lockOriginals(tx, requested, id);
+      const mediaIds = requestedMediaIds
+        ? requested
+        : await this.findDraftOriginalIds(tx, id);
+      const media = await this.assertClaimableMedia(
+        tx,
+        ownerId,
+        mediaIds,
+        id,
+        draft.sourceVersion === null ? undefined : (draft.postId ?? undefined),
+      );
+      if (coverMediaId && !mediaIds.includes(coverMediaId.toLowerCase())) {
+        throw new BadRequestException(
+          'Cover media must be attached to the draft',
+        );
+      }
+
+      if (!requestedMediaIds) {
+        await this.assertNoLegacyDraftClaims(id, tx);
+        return this.update(
+          id,
+          {
+            ...data,
+            ...(coverMediaId !== undefined && { coverMediaId }),
+          },
+          tx,
+        );
+      }
+
+      await tx.media.updateMany({
+        where: { draftId: id, id: { notIn: mediaIds } },
+        data: { draftId: null },
+      });
+      await tx.draftMedia.deleteMany({
+        where: { draftId: id, mediaId: { notIn: mediaIds } },
+      });
+      if (mediaIds.length) {
+        await tx.media.updateMany({
+          where: { id: { in: mediaIds }, ownerId },
+          data: { draftId: id },
+        });
+        await tx.draftMedia.createMany({
+          data: [
+            ...mediaIds.map((mediaId) => ({ draftId: id, mediaId })),
+            ...media.flatMap(({ id: mediaId, ownerId: mediaOwnerId, Draft }) =>
+              mediaOwnerId === ownerId && Draft?.status === DraftStatus.ARCHIVED
+                ? [{ draftId: Draft.id, mediaId }]
+                : [],
+            ),
+          ],
+          skipDuplicates: true,
+        });
+      }
+
+      return this.update(
+        id,
+        {
+          ...data,
+          coverMediaId:
+            coverMediaId !== undefined
+              ? coverMediaId
+              : draft.coverMediaId && mediaIds.includes(draft.coverMediaId)
+                ? draft.coverMediaId
+                : null,
+        },
+        tx,
+      );
     });
   }
 
-  setCoverMedia(id: string, mediaId: string) {
-    return this.prisma.draft.update({
-      where: { id },
-      data: { coverMediaId: mediaId },
+  /**
+   * Removes the direct attachment and its snapshot link, clearing the cover
+   * if it used that media.
+   *
+   * @param draftId - ID of the active draft.
+   * @param mediaId - ID of the directly attached original.
+   * @throws {ConflictException} If the draft is inactive or the direct attachment changed.
+   */
+  async detachMedia(draftId: string, mediaId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Draft" WHERE "id" = ${draftId}::uuid FOR UPDATE`;
+      const draft = await tx.draft.findUnique({
+        where: { id: draftId },
+        select: { status: true },
+      });
+      if (draft?.status !== DraftStatus.ACTIVE) {
+        throw new ConflictException('Draft is no longer active');
+      }
+      const detached = await tx.media.updateMany({
+        where: { id: mediaId, draftId, parentId: null },
+        data: { draftId: null },
+      });
+      if (!detached.count) {
+        throw new ConflictException('Media attachment changed');
+      }
+      await tx.draftMedia.deleteMany({ where: { draftId, mediaId } });
+      await tx.draft.updateMany({
+        where: { id: draftId, coverMediaId: mediaId },
+        data: { coverMediaId: null },
+      });
     });
+  }
+
+  private async findDraftOriginalIds(
+    tx: Prisma.TransactionClient,
+    draftId: string,
+  ) {
+    const rows = await tx.media.findMany({
+      where: {
+        ...originalMedia,
+        OR: [{ draftId }, { DraftMedia: { some: { draftId } } }],
+      },
+      select: { id: true },
+    });
+    return rows.map(({ id }) => id);
+  }
+
+  /**
+   * Rejects unresolved draft links and cover references that still point to
+   * a variant.
+   *
+   * @param draftId - Draft to check.
+   * @param tx - Transaction to read from, when supplied.
+   * @throws {ConflictException} If a variant still has a direct, snapshot, or cover claim.
+   */
+  async assertNoLegacyDraftClaims(
+    draftId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    const draft = await tx.draft.findUnique({
+      where: { id: draftId },
+      select: { coverMediaId: true },
+    });
+    const legacy = await tx.media.findFirst({
+      where: {
+        parentId: { not: null },
+        OR: [
+          { draftId },
+          { DraftMedia: { some: { draftId } } },
+          ...(draft?.coverMediaId ? [{ id: draft.coverMediaId }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (legacy)
+      throw new ConflictException(
+        'Media has an unresolved variant draft claim',
+      );
+  }
+
+  /**
+   * Locks the affected media and verifies that the validated manifest and
+   * cover still match.
+   *
+   * @param tx - Publication transaction.
+   * @param draftId - Publishing draft ID.
+   * @param ownerId - Expected draft owner.
+   * @param validated - IDs of the originals and cover validated by the worker.
+   * @param coverMediaId - Current cover ID read under the draft lock.
+   * @param postId - Source post ID when publishing a revision.
+   * @returns The current original IDs ready for transfer.
+   * @throws {ConflictException} If the manifest changed or a claim conflicts.
+   * @throws {BadRequestException} If a requested original is invalid or ineligible by ownership.
+   */
+  private async validatePublicationMedia(
+    tx: Prisma.TransactionClient,
+    draftId: string,
+    ownerId: string,
+    validated: { mediaIds: string[]; coverMediaId: string },
+    coverMediaId: string | null,
+    postId?: number,
+  ) {
+    await this.lockOriginals(tx, validated.mediaIds, draftId, postId);
+    await this.assertNoLegacyDraftClaims(draftId, tx);
+    const current = await this.findDraftOriginalIds(tx, draftId);
+    if (
+      coverMediaId !== validated.coverMediaId ||
+      current.length !== validated.mediaIds.length ||
+      current.some((id) => !validated.mediaIds.includes(id))
+    ) {
+      throw new ConflictException(
+        'Draft attachments changed during publication',
+      );
+    }
+    await this.assertClaimableMedia(tx, ownerId, current, draftId, postId);
+    return current;
   }
 
   /**
@@ -342,16 +731,38 @@ export class DraftRepository {
       excerpt: string;
       content: string;
       coverImage: string;
+      coverMediaId: string;
+      mediaIds: string[];
       categoryNames: string[];
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Draft" WHERE "id" = ${draftId}::uuid FOR UPDATE`;
+      const draft = await tx.draft.findFirst({
+        where: {
+          id: draftId,
+          ownerId,
+          status: DraftStatus.PUBLISHING,
+          postId: null,
+        },
+        select: { coverMediaId: true },
+      });
+      if (!draft) throw new ConflictException('Draft is no longer publishing');
+
+      const originalIds = await this.validatePublicationMedia(
+        tx,
+        draftId,
+        ownerId,
+        data,
+        draft.coverMediaId,
+      );
       const post = await tx.post.create({
         data: {
           title: data.title,
           slug: data.slug,
           excerpt: data.excerpt,
           content: data.content,
+          published: true,
           coverImage: data.coverImage,
           authorId: ownerId,
           categories: {
@@ -366,10 +777,7 @@ export class DraftRepository {
         },
       });
 
-      await tx.media.updateMany({
-        where: { draftId },
-        data: { draftId: null, postId: post.id },
-      });
+      await this.transferMediaToPost(tx, originalIds, draftId, post.id);
 
       await tx.draft.update({
         where: { id: draftId },
@@ -409,37 +817,64 @@ export class DraftRepository {
       excerpt: string;
       content: string;
       coverImage: string;
+      coverMediaId: string;
+      mediaIds: string[];
       categoryNames: string[];
       sourceVersion: number;
       postId: number;
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const post = await tx.post.findFirst({
+      await tx.$queryRaw`SELECT "id" FROM "Draft" WHERE "id" = ${draftId}::uuid FOR UPDATE`;
+      const draft = await tx.draft.findFirst({
         where: {
-          id: data.postId,
-          authorId: ownerId,
-          version: data.sourceVersion,
+          id: draftId,
+          ownerId,
+          status: DraftStatus.PUBLISHING,
+          postId: data.postId,
         },
+        select: { sourceVersion: true, coverMediaId: true },
       });
-      if (!post) {
+      if (!draft) throw new ConflictException('Draft is no longer publishing');
+
+      const postId = data.postId;
+      if (draft.sourceVersion !== data.sourceVersion) {
         throw new ConflictException(
           'Post changed since this revision was created',
         );
       }
-
-      await tx.postToCategory.deleteMany({ where: { postId: post.id } });
-      if (data.categoryNames.length) {
-        await tx.postToCategory.createMany({
-          data: data.categoryNames.map((categoryName) => ({
-            postId: post.id,
-            categoryName,
-          })),
-        });
+      const originalIds = await this.validatePublicationMedia(
+        tx,
+        draftId,
+        ownerId,
+        data,
+        draft.coverMediaId,
+        postId,
+      );
+      const outgoing = await tx.media.findMany({
+        where: {
+          parentId: null,
+          OR: [{ postId }, { Variants: { some: { postId } } }],
+        },
+        select: { id: true, postId: true },
+      });
+      if (outgoing.some((row) => row.postId !== postId)) {
+        throw new ConflictException(
+          'Post has an unresolved variant media claim',
+        );
       }
+      await this.assertClaimableMedia(
+        tx,
+        ownerId,
+        outgoing
+          .filter(({ id }) => !originalIds.includes(id))
+          .map(({ id }) => id),
+        draftId,
+        postId,
+      );
 
-      await tx.post.update({
-        where: { id: post.id },
+      const updated = await tx.post.updateMany({
+        where: { id: postId, authorId: ownerId, version: data.sourceVersion },
         data: {
           title: data.title,
           excerpt: data.excerpt,
@@ -448,21 +883,27 @@ export class DraftRepository {
           version: { increment: 1 },
         },
       });
+      if (!updated.count) {
+        throw new ConflictException(
+          'Post changed since this revision was created',
+        );
+      }
 
-      const revisionMedia = await tx.draftMedia.findMany({
-        where: { draftId },
-        select: { mediaId: true },
-      });
-      await tx.media.updateMany({
-        where: { postId: post.id },
-        data: { postId: null },
-      });
-      if (revisionMedia.length) {
-        await tx.media.updateMany({
-          where: { id: { in: revisionMedia.map(({ mediaId }) => mediaId) } },
-          data: { postId: post.id, draftId: null },
+      await tx.postToCategory.deleteMany({ where: { postId } });
+      if (data.categoryNames.length) {
+        await tx.postToCategory.createMany({
+          data: data.categoryNames.map((categoryName) => ({
+            postId,
+            categoryName,
+          })),
         });
       }
+
+      await tx.media.updateMany({
+        where: { postId },
+        data: { postId: null },
+      });
+      await this.transferMediaToPost(tx, originalIds, draftId, postId);
 
       await tx.draft.update({
         where: { id: draftId },
@@ -474,12 +915,30 @@ export class DraftRepository {
       });
 
       return tx.post.findUniqueOrThrow({
-        where: { id: post.id },
+        where: { id: postId },
         include: {
           author: { select: { name: true, image: true } },
           categories: { include: { category: true } },
         },
       });
+    });
+  }
+
+  private async transferMediaToPost(
+    tx: Prisma.TransactionClient,
+    originalIds: string[],
+    draftId: string,
+    postId: number,
+  ) {
+    await tx.media.updateMany({
+      where: { id: { in: originalIds }, draftId },
+      data: { draftId: null },
+    });
+    await tx.media.updateMany({
+      where: {
+        OR: [{ id: { in: originalIds } }, { parentId: { in: originalIds } }],
+      },
+      data: { postId },
     });
   }
 

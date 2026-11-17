@@ -1,5 +1,6 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -9,7 +10,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Job, UnrecoverableError } from 'bullmq';
 import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
+import remarkParse from 'remark-parse';
 import slugify from 'slugify';
+import { unified } from 'unified';
 import {
   MAX_DRAFT_CONTENT_LENGTH,
   MAX_DRAFT_IMAGE_REFERENCES,
@@ -21,8 +24,13 @@ import {
   VALIDATE_AND_PUBLISH_JOB,
 } from './constants/draft-processor.constants';
 import { DraftRepository } from './draft.repository';
+import { effectiveMedia } from './effective-media';
 
-const imagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+type MdastNode = {
+  type: string;
+  url?: string;
+  children?: MdastNode[];
+};
 
 /**
  * Processes asynchronous draft publication jobs.
@@ -158,9 +166,10 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
-      const revisionMedia = draft.draftMedia?.map(({ media }) => media) ?? [];
-      const effectiveMedia = revisionMedia.length ? revisionMedia : draft.media;
-      const cover = effectiveMedia.find(
+      await this.repo.assertNoLegacyDraftClaims(id);
+      const originals = effectiveMedia(draft);
+      const mediaIds = originals.map(({ id }) => id);
+      const cover = originals.find(
         (media) =>
           media.id === draft.coverMediaId && media.target === MediaTarget.POST,
       );
@@ -170,11 +179,19 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
-      this.validateMarkdownImages(draft.content, effectiveMedia);
-      for (const media of effectiveMedia) {
+      const variants = await this.repo.findVariantUrls(mediaIds);
+      const imageUrls = this.validateMarkdownImages(draft.content, [
+        ...originals,
+        ...variants,
+      ]);
+      for (const media of originals) {
         if (
           media.id !== draft.coverMediaId &&
-          !draft.content.includes(media.publicUrl)
+          !imageUrls.has(media.publicUrl) &&
+          !variants.some(
+            (variant) =>
+              variant.parentId === media.id && imageUrls.has(variant.publicUrl),
+          )
         ) {
           throw new UnprocessableEntityException(
             `Attached media is not referenced by the draft: ${media.id}`,
@@ -186,23 +203,27 @@ export class DraftProcessor extends WorkerHost {
         if (draft.sourceVersion === null) {
           throw new ConflictException('Revision source version is missing');
         }
-        return this.repo.publishRevision(draft.id, ownerId, {
+        return await this.repo.publishRevision(draft.id, ownerId, {
           title: draft.title,
           excerpt: draft.excerpt,
           content: draft.content,
           coverImage: cover.publicUrl,
+          coverMediaId: cover.id,
+          mediaIds,
           categoryNames: draft.categoryNames,
           sourceVersion: draft.sourceVersion,
           postId: draft.postId,
         });
       }
 
-      return this.repo.publish(draft.id, ownerId, {
+      return await this.repo.publish(draft.id, ownerId, {
         title: draft.title,
         slug: slugify(draft.title, { lower: true }),
         excerpt: draft.excerpt,
         content: draft.content,
         coverImage: cover.publicUrl,
+        coverMediaId: cover.id,
+        mediaIds,
         categoryNames: draft.categoryNames,
       });
     } catch (error) {
@@ -217,6 +238,7 @@ export class DraftProcessor extends WorkerHost {
         throw new UnrecoverableError(conflict.message);
       }
       if (
+        error instanceof BadRequestException ||
         error instanceof NotFoundException ||
         error instanceof ConflictException ||
         error instanceof UnprocessableEntityException
@@ -229,7 +251,7 @@ export class DraftProcessor extends WorkerHost {
   }
 
   /**
-   * Validates image references without parsing Markdown on request reads.
+   * Validates parsed inline Markdown image nodes without rendering Markdown.
    *
    * Internal URLs must match media attached to the draft. Other URLs must be
    * valid HTTPS URLs whose hostname is configured in the external allowlist.
@@ -237,7 +259,7 @@ export class DraftProcessor extends WorkerHost {
    *
    * @param content - Draft Markdown content to inspect.
    * @param media - Media currently attached to the draft.
-   * @returns Nothing when all image references are valid.
+   * @returns The parsed image destinations.
    * @throws {UnprocessableEntityException} When a reference is invalid,
    * detached, disallowed, or exceeds a configured limit.
    */
@@ -252,16 +274,43 @@ export class DraftProcessor extends WorkerHost {
     }
 
     const knownUrls = new Set(media.map(({ publicUrl }) => publicUrl));
-    let imageReferenceCount = 0;
-    for (const match of content.matchAll(imagePattern)) {
-      imageReferenceCount += 1;
-      if (imageReferenceCount > MAX_DRAFT_IMAGE_REFERENCES) {
+    const images: MdastNode[] = [];
+    const visit = (node: MdastNode) => {
+      if (
+        node.type === 'html' ||
+        node.type === 'imageReference' ||
+        node.type === 'definition'
+      ) {
         throw new UnprocessableEntityException(
-          `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
+          'Raw HTML and reference-style Markdown images are not supported',
         );
       }
+      if (node.type === 'image') images.push(node);
+      node.children?.forEach(visit);
+    };
 
-      const rawUrl = match[1];
+    let tree: MdastNode;
+    try {
+      tree = unified().use(remarkParse).parse(content) as MdastNode;
+    } catch {
+      throw new UnprocessableEntityException('Invalid Markdown content');
+    }
+    visit(tree);
+
+    if (images.length > MAX_DRAFT_IMAGE_REFERENCES) {
+      throw new UnprocessableEntityException(
+        `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
+      );
+    }
+
+    const imageUrls = new Set<string>();
+    for (const image of images) {
+      const rawUrl = image.url;
+      if (!rawUrl) {
+        throw new UnprocessableEntityException(
+          'Image URL is required in Markdown',
+        );
+      }
       let url: URL;
       try {
         url = new URL(rawUrl);
@@ -271,6 +320,7 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
+      imageUrls.add(rawUrl);
       if (knownUrls.has(rawUrl)) continue;
       if (
         url.protocol !== 'https:' ||
@@ -281,5 +331,6 @@ export class DraftProcessor extends WorkerHost {
         );
       }
     }
+    return imageUrls;
   }
 }

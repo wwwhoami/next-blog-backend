@@ -11,6 +11,7 @@ describe('DraftProcessor', () => {
 
   beforeEach(() => {
     repository = mockDeep<DraftRepository>();
+    repository.findVariantUrls.mockResolvedValue([]);
     config = mockDeep<ConfigService>();
     config.get.mockReturnValue('');
     processor = new DraftProcessor(repository, config);
@@ -80,6 +81,69 @@ describe('DraftProcessor', () => {
     );
   });
 
+  it.each([
+    [
+      'escaped Markdown destination',
+      '![Body](https://cdn.example.com/body\\(1\\).webp)',
+      true,
+    ],
+    ['prose', 'https://cdn.example.com/body(1).webp', false],
+    [
+      'a code fence',
+      '```markdown\n![Body](https://cdn.example.com/body(1).webp)\n```',
+      false,
+    ],
+  ])('checks variant use in %s', async (_label, content, referenced) => {
+    const cover = {
+      id: 'cover-id',
+      target: MediaTarget.POST,
+      publicUrl: 'https://cdn.example.com/cover.webp',
+    };
+    const body = {
+      id: 'body-id',
+      target: MediaTarget.POST,
+      publicUrl: 'https://cdn.example.com/body-original.webp',
+    };
+    repository.findById.mockResolvedValue({
+      id: 'draft-id',
+      ownerId: 'owner-id',
+      status: DraftStatus.PUBLISHING,
+      title: 'Title',
+      excerpt: 'Excerpt',
+      content,
+      categoryNames: [],
+      coverMediaId: cover.id,
+      media: [body],
+      draftMedia: [{ media: cover }],
+    } as never);
+    repository.findVariantUrls.mockResolvedValue([
+      { parentId: body.id, publicUrl: 'https://cdn.example.com/body(1).webp' },
+    ]);
+    repository.publish.mockResolvedValue({ id: 1 } as never);
+
+    const publication = processor.process({
+      name: 'validate-and-publish',
+      data: { draftId: 'draft-id', ownerId: 'owner-id' },
+    } as never);
+    if (referenced) {
+      await expect(publication).resolves.toMatchObject({ id: 1 });
+      expect(repository.publish).toHaveBeenCalledWith(
+        'draft-id',
+        'owner-id',
+        expect.objectContaining({
+          content,
+          coverMediaId: cover.id,
+          mediaIds: [body.id, cover.id],
+        }),
+      );
+    } else {
+      await expect(publication).rejects.toThrow(
+        'Attached media is not referenced',
+      );
+      expect(repository.publish).not.toHaveBeenCalled();
+    }
+  });
+
   it('uses direct draft media when no revision media links exist', async () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
@@ -110,6 +174,71 @@ describe('DraftProcessor', () => {
 
     expect(repository.publish).toHaveBeenCalled();
   });
+
+  it('accepts an inline image URL belonging to an attached original', async () => {
+    repository.findById.mockResolvedValue({
+      id: 'draft-id',
+      ownerId: 'owner-id',
+      title: 'Title',
+      excerpt: 'Excerpt',
+      content: '![Body](https://cdn.example.com/body.webp)',
+      categoryNames: [],
+      coverMediaId: 'cover-id',
+      status: DraftStatus.PUBLISHING,
+      media: [
+        {
+          id: 'cover-id',
+          target: MediaTarget.POST,
+          publicUrl: 'https://cdn.example.com/body.webp',
+          parentId: null,
+        },
+      ],
+    } as never);
+    repository.publish.mockResolvedValue({ id: 1 } as never);
+
+    await expect(
+      processor.process({
+        name: 'validate-and-publish',
+        data: { draftId: 'draft-id', ownerId: 'owner-id' },
+      } as never),
+    ).resolves.toMatchObject({ id: 1 });
+  });
+
+  it.each([
+    ['![Body][image]\n\n[image]: https://cdn.example.com/body.webp'],
+    ['<img src="https://cdn.example.com/body.webp" />'],
+  ])(
+    'rejects unsupported reference-style images and raw HTML',
+    async (content) => {
+      repository.findById.mockResolvedValue({
+        id: 'draft-id',
+        ownerId: 'owner-id',
+        title: 'Title',
+        excerpt: 'Excerpt',
+        content,
+        categoryNames: [],
+        coverMediaId: 'cover-id',
+        status: DraftStatus.PUBLISHING,
+        media: [
+          {
+            id: 'cover-id',
+            target: MediaTarget.POST,
+            publicUrl: 'https://cdn.example.com/cover.webp',
+            parentId: null,
+          },
+        ],
+      } as never);
+
+      await expect(
+        processor.process({
+          name: 'validate-and-publish',
+          data: { draftId: 'draft-id', ownerId: 'owner-id' },
+        } as never),
+      ).rejects.toThrow(
+        'Raw HTML and reference-style Markdown images are not supported',
+      );
+    },
+  );
 
   it('restores a draft after the final worker attempt fails', async () => {
     repository.markValidationFailed.mockResolvedValue({} as never);

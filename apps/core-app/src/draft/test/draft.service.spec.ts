@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { DraftStatus } from 'prisma/generated/client';
 import { DraftRepository } from '../draft.repository';
@@ -129,7 +129,7 @@ describe('DraftService', () => {
       status: DraftStatus.ACTIVE,
       media: [],
     } as never);
-    repository.findAttachableMedia.mockResolvedValue([]);
+    repository.attachMedia.mockRejectedValue(new BadRequestException());
 
     await expect(
       service.update('draft-id', 'owner-id', {
@@ -137,9 +137,13 @@ describe('DraftService', () => {
       }),
     ).rejects.toThrow();
 
-    expect(repository.findAttachableMedia).toHaveBeenCalledWith('owner-id', [
-      'media-id',
-    ]);
+    expect(repository.attachMedia).toHaveBeenCalledWith(
+      'draft-id',
+      'owner-id',
+      ['media-id'],
+      {},
+      undefined,
+    );
   });
 
   it('preserves revision media in update responses', async () => {
@@ -149,15 +153,15 @@ describe('DraftService', () => {
       postId: 7,
       status: DraftStatus.ACTIVE,
       draftMedia: [{ media: { id: 'media-id' } }],
-      media: [],
+      media: [{ id: 'uploaded' }, { id: 'media-id' }],
     } as never);
-    repository.update.mockResolvedValue({
+    repository.attachMedia.mockResolvedValue({
       id: 'revision-id',
       ownerId: 'owner-id',
       postId: 7,
       status: DraftStatus.ACTIVE,
       draftMedia: [{ media: { id: 'media-id' } }],
-      media: [],
+      media: [{ id: 'uploaded' }, { id: 'media-id' }],
     } as never);
 
     await expect(
@@ -165,7 +169,7 @@ describe('DraftService', () => {
     ).resolves.toEqual(
       expect.objectContaining({
         revisionMode: 'REVISION',
-        effectiveMedia: [{ id: 'media-id' }],
+        effectiveMedia: [{ id: 'uploaded' }, { id: 'media-id' }],
       }),
     );
   });
