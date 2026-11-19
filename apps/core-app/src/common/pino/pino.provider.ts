@@ -70,7 +70,11 @@ export const pinoParams: Params = {
     },
 
     transport:
-      process.env.NODE_ENV !== 'prod' ? pinoTransportDev : pinoTransportProd,
+      process.env.NODE_ENV === 'testing'
+        ? undefined
+        : process.env.NODE_ENV !== 'prod'
+          ? pinoTransportDev
+          : pinoTransportProd,
 
     level:
       (process.env.NODE_ENV === 'prod' && 'info') ||

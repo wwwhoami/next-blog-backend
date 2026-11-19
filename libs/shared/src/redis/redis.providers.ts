@@ -11,19 +11,21 @@ export const redisSubscriber: Provider = {
   inject: [ConfigService],
   provide: REDIS_SUBSCRIBER_CLIENT,
   useFactory: async (configService: ConfigService) =>
-    redisSubscriberProviderFactory(configService),
+    withDisconnectOnModuleDestroy(
+      redisSubscriberProviderFactory(configService),
+    ),
 };
 
 export const redisPublisher: Provider = {
   inject: [ConfigService],
   provide: REDIS_PUBLISHER_CLIENT,
   useFactory: async (configService: ConfigService) =>
-    redisPublisherProviderFactory(configService),
+    withDisconnectOnModuleDestroy(redisPublisherProviderFactory(configService)),
 };
 
 export const redisSubscriberProviderFactory = (
   configService: ConfigService,
-): ClientProvider =>
+): Redis =>
   new Redis({
     host: configService.get<string>('REDIS_HOST'),
     port: configService.get<number>('REDIS_PORT'),
@@ -32,11 +34,19 @@ export const redisSubscriberProviderFactory = (
 
 export const redisPublisherProviderFactory = (
   configService: ConfigService,
-): ClientProvider =>
+): Redis =>
   new Redis({
     host: configService.get<string>('REDIS_HOST'),
     port: configService.get<number>('REDIS_PORT'),
     password: configService.get<string>('REDIS_PASSWORD'),
   });
+
+const withDisconnectOnModuleDestroy = (redisClient: Redis): ClientProvider => {
+  return Object.assign(redisClient, {
+    onModuleDestroy: async () => {
+      redisClient.disconnect();
+    },
+  });
+};
 
 export const redisProviders: Provider[] = [redisSubscriber, redisPublisher];

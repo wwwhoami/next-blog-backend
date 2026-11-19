@@ -22,29 +22,31 @@ import { SharedModule } from './shared/shared.module';
     LoggerModule.forRoot({
       pinoHttp: {
         transport:
-          process.env.NODE_ENV !== 'prod'
-            ? {
-                target: 'pino-pretty',
-                options: {
-                  singleLine: true,
+          process.env.NODE_ENV === 'testing'
+            ? undefined
+            : process.env.NODE_ENV !== 'prod'
+              ? {
+                  target: 'pino-pretty',
+                  options: {
+                    singleLine: true,
+                  },
+                }
+              : {
+                  targets: [
+                    {
+                      target: 'pino/file',
+                      options: {
+                        destination: `${__dirname}/ws-notification.log`,
+                      },
+                    },
+                    {
+                      target: 'pino-pretty',
+                      options: {
+                        singleLine: true,
+                      },
+                    },
+                  ],
                 },
-              }
-            : {
-                targets: [
-                  {
-                    target: 'pino/file',
-                    options: {
-                      destination: `${__dirname}/ws-notification.log`,
-                    },
-                  },
-                  {
-                    target: 'pino-pretty',
-                    options: {
-                      singleLine: true,
-                    },
-                  },
-                ],
-              },
         level:
           (process.env.NODE_ENV === 'prod' && 'info') ||
           // suppress pino logs during testing

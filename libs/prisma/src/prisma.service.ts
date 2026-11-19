@@ -1,19 +1,20 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PinoLogger } from 'nestjs-pino';
-import { Pool } from 'pg';
 import { Prisma, PrismaClient } from 'prisma/generated/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor(
     private configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
     const connectionString = configService.get<string>('POSTGRES_URL');
-    const pool = new Pool({ connectionString });
-    const adapter = new PrismaPg(pool);
+    const adapter = new PrismaPg({ connectionString });
 
     super({
       adapter,
@@ -61,5 +62,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
     await this.$connect();
     await this.$queryRaw`SET pg_trgm.similarity_threshold = 0.3`;
+  }
+
+  async onModuleDestroy() {
+    await this.$disconnect();
   }
 }

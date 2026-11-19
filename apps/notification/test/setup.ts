@@ -1,9 +1,5 @@
-import '@dotenvx/dotenvx/config';
-import 'tsconfig-paths/register';
-
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import { PrismaClient } from 'prisma/generated/client';
+import { withE2eDatabase } from '../../../libs/test-support/e2e-database';
 
 export const resetNotificationAutoIncrement = async (prisma: PrismaClient) => {
   const resetNotificationIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Notification_id_seq" RESTART`;
@@ -11,11 +7,8 @@ export const resetNotificationAutoIncrement = async (prisma: PrismaClient) => {
   await prisma.$transaction([resetNotificationIdSeq]);
 };
 
-const setup = async () => {
-  const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
-  try {
+const setup = () =>
+  withE2eDatabase(async (prisma) => {
     // Cleanup database before seeding
     const deleteNotifications = prisma.notification.deleteMany();
 
@@ -23,10 +16,6 @@ const setup = async () => {
 
     // Reset auto-increment id sequences
     await resetNotificationAutoIncrement(prisma);
-  } catch (err) {
-    console.error(err);
-    await prisma.$disconnect();
-  }
-};
+  });
 
 export default setup;

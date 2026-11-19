@@ -1,10 +1,11 @@
-import '@dotenvx/dotenvx/config';
 import 'tsconfig-paths/register';
 
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import { PrismaClient } from 'prisma/generated/client';
 import { seedWithMocks } from 'prisma/seeders/seed-with-mocks';
+import {
+  clearBlogFixtures,
+  withE2eDatabase,
+} from '../../../libs/test-support/e2e-database';
 
 const resetAutoIncrement = async (prisma: PrismaClient) => {
   const resetCommentIdSeq = prisma.$queryRaw`ALTER SEQUENCE "public"."Comment_id_seq" RESTART`;
@@ -18,37 +19,15 @@ const resetAutoIncrement = async (prisma: PrismaClient) => {
   ]);
 };
 
-const setup = async () => {
-  const pool = new Pool({ connectionString: process.env.POSTGRES_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
-  try {
-    // Cleanup database before seeding
-    const deleteUsers = prisma.user.deleteMany();
-    const deletePosts = prisma.post.deleteMany();
-    const deletePostToCategory = prisma.postToCategory.deleteMany();
-    const deleteCategory = prisma.category.deleteMany();
-    const deleteComments = prisma.comment.deleteMany();
-    const deleteNotifications = prisma.notification.deleteMany();
-
-    await prisma.$transaction([
-      deletePostToCategory,
-      deleteUsers,
-      deletePosts,
-      deleteCategory,
-      deleteComments,
-      deleteNotifications,
-    ]);
+const setup = () =>
+  withE2eDatabase(async (prisma) => {
+    await clearBlogFixtures(prisma);
 
     // Reset auto-increment id sequences
     await resetAutoIncrement(prisma);
 
     // Seed database with mocks only
     await seedWithMocks(prisma);
-  } catch (err) {
-    console.error(err);
-    await prisma.$disconnect();
-  }
-};
+  });
 
 export default setup;
