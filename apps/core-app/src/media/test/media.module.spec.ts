@@ -3,6 +3,7 @@ import { StorageService } from '@core/src/storage/storage.service';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaClient } from 'prisma/generated/client';
@@ -12,7 +13,10 @@ import { MediaProcessor } from '../media.processor';
 import { MediaRepository } from '../media.repository';
 import { MediaService } from '../media.service';
 
+jest.mock('ioredis');
+
 describe('MediaModule Components', () => {
+  let module: TestingModule | undefined;
   let mockPrismaClient: DeepMockProxy<PrismaClient>;
   let mockConfigService: DeepMockProxy<ConfigService>;
   let mockQueue: DeepMockProxy<Queue>;
@@ -20,6 +24,12 @@ describe('MediaModule Components', () => {
   let mockStorageService: DeepMockProxy<StorageService>;
 
   beforeEach(async () => {
+    jest.mocked(Redis).mockImplementation(() => {
+      const redis = mockDeep<Redis>();
+      redis.quit.mockResolvedValue('OK');
+      return redis;
+    });
+
     mockPrismaClient = mockDeep<PrismaClient>();
     mockConfigService = mockDeep<ConfigService>();
     mockQueue = mockDeep<Queue>();
@@ -42,12 +52,14 @@ describe('MediaModule Components', () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await module?.close();
+    module = undefined;
     jest.clearAllMocks();
   });
 
   it('should create MediaService', async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MediaService,
         MediaRepository,
@@ -67,7 +79,7 @@ describe('MediaModule Components', () => {
   });
 
   it('should create MediaRepository', async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MediaRepository,
         { provide: PrismaService, useValue: mockPrismaClient },
@@ -82,7 +94,7 @@ describe('MediaModule Components', () => {
   });
 
   it('should create MediaProcessor', async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MediaProcessor,
         MediaRepository,
@@ -100,7 +112,7 @@ describe('MediaModule Components', () => {
   });
 
   it('should create MediaEventsService', async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MediaEventsService,
         { provide: ConfigService, useValue: mockConfigService },
