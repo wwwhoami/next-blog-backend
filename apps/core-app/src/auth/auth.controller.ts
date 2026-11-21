@@ -5,6 +5,7 @@ import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import { UpdateUserDto } from '@core/src/user/dto/update-user.dto';
 import { UserNoPasswordEntity } from '@core/src/user/entities/user.entity';
 import {
+  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -48,6 +49,7 @@ export class AuthController {
     try {
       signedUpUser = await this.authService.signUp(user);
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
