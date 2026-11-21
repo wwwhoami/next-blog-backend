@@ -1,14 +1,28 @@
+import { PrismaService } from '@app/prisma';
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { CommentService } from '@core/src/comment/comment.service';
 import { CommentEntity } from '@core/src/comment/entities/comment.entity';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
+import { StorageService } from '@core/src/storage/storage.service';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { randomUUID } from 'node:crypto';
+import {
+  MediaTarget,
+  MediaType,
+  MediaVariant,
+  Prisma,
+} from 'prisma/generated/client';
 import request from 'supertest';
 import TestAgent from 'supertest/lib/agent';
+
+// Media deletion returns the original record, including its BigInt size.
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
@@ -99,6 +113,7 @@ describe('Comment (e2e)', () => {
           expect(Array.isArray(response.body)).toBe(true);
           expect(response.body[0]).toEqual({
             id: expect.any(Number),
+            images: [],
             authorId: expect.any(String),
             postId: expect.any(Number),
             content: expect.any(String),
@@ -142,6 +157,7 @@ describe('Comment (e2e)', () => {
           expect(Array.isArray(response.body)).toBe(true);
           expect(response.body[0]).toEqual({
             id: expect.any(Number),
+            images: [],
             authorId: expect.any(String),
             postId: expect.any(Number),
             content: expect.any(String),
@@ -205,6 +221,7 @@ describe('Comment (e2e)', () => {
           expect(response.body).toEqual({
             id: expect.any(Number),
             ...newComment,
+            images: [],
             authorId,
             isDeleted: false,
             ancestorId: null,
@@ -235,6 +252,7 @@ describe('Comment (e2e)', () => {
           expect(response.body).toEqual({
             id: expect.any(Number),
             ...newComment,
+            images: [],
             authorId,
             isDeleted: false,
             ancestorId,
@@ -361,6 +379,7 @@ describe('Comment (e2e)', () => {
           expect(response.body).toEqual({
             id: commentId,
             ...updatedComment,
+            images: [],
             authorId,
             postId: 1,
             isDeleted: false,
@@ -468,6 +487,7 @@ describe('Comment (e2e)', () => {
           expect(response.body).toEqual({
             id: commentId,
             content: 'COMMENT IS DELETED',
+            images: [],
             authorId,
             postId: 1,
             isDeleted: true,
@@ -704,5 +724,176 @@ describe('Comment (e2e)', () => {
         .auth(accessToken, { type: 'bearer' })
         .expect(HttpStatus.BAD_REQUEST);
     });
+  });
+  it('keeps ordered comment galleries independent when they share the same media', async () => {
+    const prisma = app.get(PrismaService);
+    const storage = app.get(StorageService);
+    const ownerId = userData[0].id;
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: userData[0].email, password: 'password' })
+      .expect(HttpStatus.CREATED);
+    const accessToken = login.body.accessToken;
+    const post = await prisma.post.create({
+      data: {
+        title: randomUUID(),
+        slug: randomUUID(),
+        authorId: ownerId,
+        content: 'text',
+        excerpt: '',
+        coverImage: '',
+      },
+    });
+    const createImage = (
+      overrides: Partial<Prisma.MediaUncheckedCreateInput> = {},
+    ) => {
+      const key = `image/${ownerId}/${randomUUID()}.webp`;
+      return prisma.media.create({
+        data: {
+          key,
+          ownerId,
+          publicUrl: storage.buildPublicUrl(key),
+          bucket: storage.bucket,
+          type: MediaType.IMAGE,
+          target: MediaTarget.COMMENT,
+          mimeType: 'image/webp',
+          sizeBytes: 1,
+          ...overrides,
+        },
+      });
+    };
+    const shared = await createImage();
+    const second = await createImage();
+    const unrelated = await createImage({ ownerId: userData[1].id });
+    const wrongTarget = await createImage({ target: MediaTarget.POST });
+    const variant = await createImage({
+      parentId: shared.id,
+      variant: MediaVariant.THUMBNAIL,
+    });
+
+    const create = (mediaIds?: string[], ancestorId?: number) =>
+      request(app.getHttpServer())
+        .post('/comment')
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          postId: post.id,
+          content: 'Comment text',
+          mediaIds,
+          ancestorId,
+          authorId: userData[1].id,
+          isDeleted: true,
+          likesCount: 5,
+          commentMedia: { create: { mediaId: unrelated.id, position: 0 } },
+        });
+    for (const ids of [
+      [shared.id, shared.id.toUpperCase()],
+      [unrelated.id],
+      [wrongTarget.id],
+      [variant.id],
+    ]) {
+      await create(ids).expect(HttpStatus.BAD_REQUEST);
+    }
+    await expect(
+      prisma.comment.count({ where: { postId: post.id } }),
+    ).resolves.toBe(0);
+    const root = await create([second.id, shared.id]).expect(
+      HttpStatus.CREATED,
+    );
+    expect(root.body.images.map(({ id }) => id)).toEqual([
+      second.id,
+      shared.id,
+    ]);
+    const reply = await create([shared.id], root.body.id).expect(
+      HttpStatus.CREATED,
+    );
+    expect(reply.body.images).toEqual([
+      { id: shared.id, publicUrl: shared.publicUrl, mimeType: shared.mimeType },
+    ]);
+    const plain = await create().expect(HttpStatus.CREATED);
+    const plainReply = await create([], plain.body.id).expect(
+      HttpStatus.CREATED,
+    );
+    for (const result of [plain, plainReply]) {
+      expect(result.body).toMatchObject({
+        authorId: ownerId,
+        isDeleted: false,
+        images: [],
+      });
+    }
+    await create([shared.id, unrelated.id], plain.body.id).expect(
+      HttpStatus.BAD_REQUEST,
+    );
+    await expect(
+      prisma.comment.count({ where: { postId: post.id } }),
+    ).resolves.toBe(4);
+
+    const edit = (data: object) =>
+      request(app.getHttpServer())
+        .patch(`/comment/${root.body.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .send(data)
+        .expect(HttpStatus.OK);
+    const get = async (id: number) =>
+      (
+        await request(app.getHttpServer())
+          .get(`/comment/${id}`)
+          .expect(HttpStatus.OK)
+      ).body;
+    const remove = (force: boolean) =>
+      request(app.getHttpServer())
+        .delete(`/media/${shared.id}?force=${force}`)
+        .auth(accessToken, { type: 'bearer' });
+
+    try {
+      const edited = await edit({ content: 'Edited text' });
+      expect(edited.body.images.map(({ id }) => id)).toEqual([
+        second.id,
+        shared.id,
+      ]);
+      expect((await edit({ mediaIds: [] })).body.images).toEqual([]);
+      expect((await get(reply.body.id)).images).toEqual(reply.body.images);
+      const conflict = await remove(false).expect(HttpStatus.CONFLICT);
+      expect(conflict.body).toMatchObject({
+        code: 'MEDIA_IN_USE',
+        canForce: true,
+      });
+
+      await edit({ mediaIds: [shared.id, second.id] });
+      const replies = await request(app.getHttpServer())
+        .get(`/comment/${root.body.id}/replies`)
+        .expect(HttpStatus.OK);
+      expect(replies.body[0].images).toEqual(reply.body.images);
+      await remove(true).expect(HttpStatus.OK);
+      expect(await get(root.body.id)).toMatchObject({
+        content: 'Edited text',
+        images: [{ id: second.id }],
+      });
+      expect(await get(reply.body.id)).toMatchObject({
+        content: 'Comment text',
+        images: [],
+      });
+
+      const secondReply = await create([second.id], root.body.id).expect(
+        HttpStatus.CREATED,
+      );
+      await request(app.getHttpServer())
+        .delete(`/comment/${root.body.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.OK);
+      expect((await get(root.body.id)).images).toEqual([]);
+      expect((await get(secondReply.body.id)).images).toEqual([
+        {
+          id: second.id,
+          publicUrl: second.publicUrl,
+          mimeType: second.mimeType,
+        },
+      ]);
+      await request(app.getHttpServer())
+        .delete(`/media/${second.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.CONFLICT);
+    } finally {
+      await prisma.post.delete({ where: { id: post.id } });
+    }
   });
 });

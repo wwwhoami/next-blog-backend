@@ -124,6 +124,461 @@ describe('Draft (e2e)', () => {
     });
   };
 
+  const loginAs = async (email: string) => {
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: 'password' })
+      .expect(HttpStatus.CREATED);
+    return login.body.accessToken as string;
+  };
+
+  const createManagedMedia = (
+    ownerId: string,
+    overrides: Partial<Prisma.MediaUncheckedCreateInput> = {},
+  ) => {
+    const storage = app.get(StorageService);
+    const key = `image/${ownerId}/${randomUUID()}.webp`;
+    return createMedia(ownerId, {
+      key,
+      bucket: storage.bucket,
+      publicUrl: storage.buildPublicUrl(key),
+      ...overrides,
+    });
+  };
+
+  const createTestAccount = async () => {
+    const name = randomUUID();
+    const image = 'https://example.com/avatar.webp';
+    const { body } = await request(app.getHttpServer())
+      .post('/auth/sign-up')
+      .send({ name, email: `${name}@example.com`, password: 'password', image })
+      .expect(HttpStatus.CREATED);
+    return { id: body.id as string, token: body.accessToken as string, image };
+  };
+
+  it('attaches pasted variant URLs and detaches editable draft families without deleting files', async () => {
+    const ownerId = userData[0].id;
+    const original = await createManagedMedia(ownerId);
+    const variant = await createManagedMedia(ownerId, {
+      parentId: original.id,
+      variant: MediaVariant.THUMBNAIL,
+    });
+    const foreign = await createManagedMedia(userData[1].id);
+    const avatar = await createManagedMedia(ownerId, {
+      target: MediaTarget.USER_AVATAR,
+    });
+    const draft = await createDraft({
+      content: `![variant](${variant.publicUrl}?v=1)`,
+    });
+    expect(draft.effectiveMedia).toEqual([
+      expect.objectContaining({ id: original.id }),
+    ]);
+
+    const save = (data: object) =>
+      request(app.getHttpServer())
+        .put(`/draft/${draft.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .send(data);
+    for (const unusable of [foreign, avatar]) {
+      await save({ content: `![invalid](${unusable.publicUrl})` }).expect(
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await save({ mediaIds: [], coverMediaId: original.id }).expect(
+      HttpStatus.OK,
+    );
+    const remove = (force: boolean) =>
+      request(app.getHttpServer())
+        .delete(`/media/${original.id}?force=${force}`)
+        .auth(accessToken, { type: 'bearer' });
+    await remove(false).expect(HttpStatus.OK);
+    await expect(
+      prisma.draft.findUnique({
+        where: { id: draft.id },
+        include: { draftMedia: true },
+      }),
+    ).resolves.toMatchObject({ coverMediaId: null, draftMedia: [] });
+    await expect(
+      prisma.media.findUnique({
+        where: { id: original.id },
+        include: { Variants: true },
+      }),
+    ).resolves.toMatchObject({ draftId: null, Variants: [{ id: variant.id }] });
+    await expect(
+      prisma.mediaStorageDeletion.count({
+        where: { key: { in: [original.key, variant.key] } },
+      }),
+    ).resolves.toBe(0);
+
+    await save({ mediaIds: [original.id], coverMediaId: original.id }).expect(
+      HttpStatus.OK,
+    );
+    await prisma.draft.update({
+      where: { id: draft.id },
+      data: { status: DraftStatus.ARCHIVED },
+    });
+    const conflict = await remove(false).expect(HttpStatus.CONFLICT);
+    expect(conflict.body).toMatchObject({
+      code: 'MEDIA_IN_USE',
+      canForce: true,
+    });
+    const adminToken = await loginAs(userData[4].email);
+    await request(app.getHttpServer())
+      .delete(`/media/${original.id}?force=true`)
+      .auth(adminToken, { type: 'bearer' })
+      .expect(HttpStatus.OK);
+    await expect(
+      prisma.draft.findUnique({
+        where: { id: draft.id },
+        include: { draftMedia: true },
+      }),
+    ).resolves.toMatchObject({
+      coverMediaId: null,
+      draftMedia: [],
+      content: draft.content,
+    });
+    await expect(
+      prisma.media.count({ where: { id: { in: [original.id, variant.id] } } }),
+    ).resolves.toBe(0);
+  });
+
+  it('serializes deletion with a new draft reference', async () => {
+    const draft = await createDraft();
+    const media = await createManagedMedia(draft.ownerId);
+    const [save] = await Promise.all([
+      request(app.getHttpServer())
+        .put(`/draft/${draft.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .send({
+          content: `![image](${media.publicUrl})`,
+          coverMediaId: media.id,
+        }),
+      request(app.getHttpServer())
+        .delete(`/media/${media.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .expect(HttpStatus.OK),
+    ]);
+    expect([HttpStatus.OK, HttpStatus.BAD_REQUEST]).toContain(save.status);
+    await expect(
+      prisma.draft.findUnique({
+        where: { id: draft.id },
+        include: { draftMedia: true, media: true },
+      }),
+    ).resolves.toMatchObject({ coverMediaId: null, draftMedia: [], media: [] });
+  });
+
+  it('tracks selected avatars and serializes profile selection with confirmed deletion', async () => {
+    const owner = await createTestAccount();
+    const createdAt = new Date(0);
+    const cutoff = new Date('2001-01-01');
+    const avatar = await createManagedMedia(owner.id, {
+      target: MediaTarget.USER_AVATAR,
+      createdAt,
+    });
+    const variant = await createManagedMedia(owner.id, {
+      target: MediaTarget.USER_AVATAR,
+      parentId: avatar.id,
+      variant: MediaVariant.THUMBNAIL,
+    });
+    const foreign = await createManagedMedia(userData[1].id, {
+      target: MediaTarget.USER_AVATAR,
+    });
+    const profile = (image: string | null) =>
+      request(app.getHttpServer())
+        .patch('/auth/profile')
+        .auth(owner.token, { type: 'bearer' })
+        .send({ image });
+    const remove = (id: string, force: boolean) =>
+      request(app.getHttpServer())
+        .delete(`/media/${id}?force=${force}`)
+        .auth(owner.token, { type: 'bearer' });
+
+    try {
+      await profile(foreign.publicUrl).expect(HttpStatus.BAD_REQUEST);
+      await profile(variant.publicUrl).expect(HttpStatus.OK);
+      const user = () => prisma.user.findUnique({ where: { id: owner.id } });
+      await expect(user()).resolves.toMatchObject({
+        image: variant.publicUrl,
+        avatarMediaId: avatar.id,
+      });
+      const repo = app.get(MediaRepository);
+      await expect(
+        repo.findUnattachedBefore(cutoff),
+      ).resolves.not.toContainEqual({ id: avatar.id });
+      await expect(
+        repo.deleteUnattachedBefore(avatar.id, cutoff),
+      ).resolves.toBe(false);
+      const replacement = await createManagedMedia(owner.id, {
+        target: MediaTarget.USER_AVATAR,
+      });
+      await profile(replacement.publicUrl).expect(HttpStatus.OK);
+      await expect(repo.findUnattachedBefore(cutoff)).resolves.toContainEqual({
+        id: avatar.id,
+      });
+      await expect(
+        repo.deleteUnattachedBefore(avatar.id, cutoff),
+      ).resolves.toBe(true);
+      await expect(
+        prisma.media.count({ where: { id: { in: [avatar.id, variant.id] } } }),
+      ).resolves.toBe(0);
+
+      await expect(user()).resolves.toMatchObject({
+        image: replacement.publicUrl,
+        avatarMediaId: replacement.id,
+      });
+      const conflict = await remove(replacement.id, false).expect(
+        HttpStatus.CONFLICT,
+      );
+      expect(conflict.body).toMatchObject({
+        code: 'MEDIA_IN_USE',
+        canForce: true,
+      });
+      await expect(user()).resolves.toMatchObject({
+        image: replacement.publicUrl,
+        avatarMediaId: replacement.id,
+      });
+      await remove(replacement.id, true).expect(HttpStatus.OK);
+      await expect(user()).resolves.toMatchObject({
+        image: null,
+        avatarMediaId: null,
+      });
+
+      const concurrent = await createManagedMedia(owner.id, {
+        target: MediaTarget.USER_AVATAR,
+      });
+      const [selected] = await Promise.all([
+        profile(concurrent.publicUrl),
+        remove(concurrent.id, true).expect(HttpStatus.OK),
+      ]);
+      expect([HttpStatus.OK, HttpStatus.BAD_REQUEST]).toContain(
+        selected.status,
+      );
+      await expect(user()).resolves.toMatchObject({
+        image: null,
+        avatarMediaId: null,
+      });
+      await profile(owner.image).expect(HttpStatus.OK);
+      await expect(user()).resolves.toMatchObject({
+        image: owner.image,
+        avatarMediaId: null,
+      });
+    } finally {
+      await prisma.user.delete({ where: { id: owner.id } });
+    }
+  });
+
+  it('records managed trusted post images and retries their confirmed storage deletion after commit', async () => {
+    const admin = userData[4];
+    const adminToken = await loginAs(admin.email);
+    const original = await createManagedMedia(admin.id);
+    const variant = await createManagedMedia(admin.id, {
+      parentId: original.id,
+      variant: MediaVariant.THUMBNAIL,
+    });
+    const foreign = await createManagedMedia(userData[0].id);
+    const payload = {
+      title: randomUUID(),
+      excerpt: 'Trusted',
+      published: true,
+    };
+    const post = (coverImage: string, content: string) =>
+      request(app.getHttpServer())
+        .post('/post')
+        .auth(adminToken, { type: 'bearer' })
+        .send({ ...payload, coverImage, content });
+    await post(foreign.publicUrl, 'text').expect(HttpStatus.BAD_REQUEST);
+    const html = `<img alt="a > b" src="${variant.publicUrl}">`;
+    const externalCover = 'https://example.com/cover.webp';
+    await post(externalCover, html).expect(HttpStatus.BAD_REQUEST);
+    await expect(
+      prisma.post.findUnique({ where: { title: payload.title } }),
+    ).resolves.toBeNull();
+    const fenced = `\`\`\`markdown\n${html}\n\`\`\``;
+    const example = await post(externalCover, fenced).expect(
+      HttpStatus.CREATED,
+    );
+    expect(example.body.content).toBe(fenced);
+    await expect(
+      prisma.media.count({ where: { postId: example.body.id } }),
+    ).resolves.toBe(0);
+    payload.title = randomUUID();
+    const content = `![variant][image]\n\n[image]: ${variant.publicUrl}`;
+    const saved = await post(externalCover, content).expect(HttpStatus.CREATED);
+    await expect(
+      prisma.media.count({
+        where: { postId: saved.body.id, id: { in: [original.id, variant.id] } },
+      }),
+    ).resolves.toBe(2);
+
+    const remove = (force: boolean) =>
+      request(app.getHttpServer())
+        .delete(`/media/${original.id}?force=${force}`)
+        .auth(adminToken, { type: 'bearer' });
+    await remove(false).expect(HttpStatus.CONFLICT);
+    const storage = app.get(StorageService);
+    const removeObject = storage.deleteObject.bind(storage);
+    let failOriginal = true;
+    const deleteObject = jest
+      .spyOn(storage, 'deleteObject')
+      .mockImplementation(async (key, bucket) => {
+        if (key === original.key && failOriginal)
+          throw new Error('Storage unavailable');
+        return removeObject(key, bucket);
+      });
+    try {
+      await remove(true).expect(HttpStatus.OK);
+      await expect(
+        prisma.post.findUnique({ where: { id: saved.body.id } }),
+      ).resolves.toMatchObject({ content, coverImage: externalCover });
+      await expect(
+        prisma.mediaStorageDeletion.findFirst({ where: { key: original.key } }),
+      ).resolves.toMatchObject({ key: original.key });
+      failOriginal = false;
+      await prisma.mediaStorageDeletion.updateMany({
+        where: { key: original.key },
+        data: { nextAttemptAt: new Date(0) },
+      });
+      await app
+        .get(MediaCleanupProcessor)
+        .process({ name: 'drainStorage' } as Job);
+      await expect(
+        prisma.mediaStorageDeletion.count({
+          where: { key: { in: [original.key, variant.key] } },
+        }),
+      ).resolves.toBe(0);
+      expect(deleteObject).toHaveBeenCalledWith(variant.key, variant.bucket);
+    } finally {
+      deleteObject.mockRestore();
+    }
+  });
+
+  it('opens a repair revision after confirmed deletion and requires missing images to be replaced', async () => {
+    const ownerId = userData[0].id;
+    const post = await prisma.post.create({
+      data: {
+        authorId: ownerId,
+        title: randomUUID(),
+        slug: randomUUID(),
+        content: 'post',
+        excerpt: 'post',
+        coverImage: '',
+        published: true,
+      },
+    });
+    const original = await createManagedMedia(ownerId, { postId: post.id });
+    const variant = await createManagedMedia(ownerId, {
+      postId: post.id,
+      parentId: original.id,
+      variant: MediaVariant.THUMBNAIL,
+    });
+    const brokenContent = `![deleted](${variant.publicUrl})`;
+    const source = await prisma.post.update({
+      where: { id: post.id },
+      data: { coverImage: variant.publicUrl, content: brokenContent },
+    });
+    await request(app.getHttpServer())
+      .delete(`/media/${original.id}?force=true`)
+      .auth(accessToken, { type: 'bearer' })
+      .expect(HttpStatus.OK);
+    const { body: repair } = await request(app.getHttpServer())
+      .post(`/post/${post.id}/draft`)
+      .auth(accessToken, { type: 'bearer' })
+      .expect(HttpStatus.CREATED);
+    expect(repair).toMatchObject({
+      content: brokenContent,
+      coverMediaId: null,
+      effectiveMedia: [],
+    });
+
+    const repo = app.get(DraftRepository);
+    const processor = app.get(DraftProcessor);
+    const publish = async () => {
+      await repo.markPublishing(repair.id, ownerId);
+      return processor.process({
+        name: VALIDATE_AND_PUBLISH_JOB,
+        data: { draftId: repair.id, ownerId },
+      } as Job<DraftPublishJobData>);
+    };
+    await expect(publish()).rejects.toThrow(
+      'A cover image attached to the draft is required',
+    );
+    const replacement = await createManagedMedia(ownerId, {
+      draftId: repair.id,
+    });
+    await request(app.getHttpServer())
+      .put(`/draft/${repair.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({ coverMediaId: replacement.id })
+      .expect(HttpStatus.OK);
+    await expect(publish()).rejects.toThrow('Image URL is not attached media');
+    await expect(
+      prisma.post.findUnique({ where: { id: post.id } }),
+    ).resolves.toEqual(source);
+
+    const content = `![replacement](${replacement.publicUrl})`;
+    await request(app.getHttpServer())
+      .put(`/draft/${repair.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({
+        content,
+        mediaIds: [replacement.id],
+        coverMediaId: replacement.id,
+      })
+      .expect(HttpStatus.OK);
+    await expect(publish()).resolves.toMatchObject({
+      id: post.id,
+      content,
+      coverImage: replacement.publicUrl,
+    });
+  });
+
+  it('publishes protocol-relative managed variants and rejects foreign or external ones', async () => {
+    const ownerId = userData[0].id;
+    const cover = await createManagedMedia(ownerId);
+    const foreign = await createManagedMedia(userData[1].id);
+    const variant = (parentId: string, ownerId: string) =>
+      createManagedMedia(ownerId, {
+        parentId,
+        variant: MediaVariant.THUMBNAIL,
+      });
+    const [ownedVariant, foreignVariant] = await Promise.all([
+      variant(cover.id, ownerId),
+      variant(foreign.id, foreign.ownerId),
+    ]);
+    const relative = (url: string) => url.replace(/^https?:/, '');
+    const repo = app.get(DraftRepository);
+    const publish = async (id: string) => {
+      await repo.markPublishing(id, ownerId);
+      return app.get(DraftProcessor).process({
+        name: VALIDATE_AND_PUBLISH_JOB,
+        data: { draftId: id, ownerId },
+      } as Job<DraftPublishJobData>);
+    };
+    const content = `![owned](${relative(ownedVariant.publicUrl)})`;
+    const draft = await createDraft({ title: randomUUID(), content });
+    await saveMedia(draft.id, [cover.id], cover.id).expect(HttpStatus.OK);
+    for (const [url, message] of [
+      [relative(foreignVariant.publicUrl), 'Image URL is not attached media'],
+      ['//images.example.org/external.webp', 'Invalid image URL in Markdown'],
+    ]) {
+      // Simulate saved content that predates managed-image validation.
+      await prisma.draft.update({
+        where: { id: draft.id },
+        data: { content: `![invalid](${url})` },
+      });
+      await expect(publish(draft.id)).rejects.toThrow(message);
+    }
+    await request(app.getHttpServer())
+      .put(`/draft/${draft.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({ content })
+      .expect(HttpStatus.OK);
+    await expect(publish(draft.id)).resolves.toMatchObject({
+      content,
+      coverImage: cover.publicUrl,
+    });
+  });
+
   it.each(['direct', 'snapshot'] as const)(
     'rejects a claim against a live %s attachment and preserves the destination',
     async (link) => {
@@ -370,32 +825,39 @@ describe('Draft (e2e)', () => {
     });
   });
 
-  it('returns 409 when deleting the cover of a publishing draft', async () => {
-    const draft = await createDraft();
-    const cover = await createMedia(draft.ownerId, { draftId: draft.id });
-    await prisma.draft.update({
-      where: { id: draft.id },
-      data: {
-        status: DraftStatus.PUBLISHING,
-        coverMediaId: cover.id,
-        draftMedia: { create: { mediaId: cover.id } },
-      },
-    });
-    await request(app.getHttpServer())
-      .delete(`/media/${cover.id}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(HttpStatus.CONFLICT);
-    await expect(
-      prisma.draft.findUnique({
+  it.each([false, true])(
+    'blocks deleting a publishing draft cover with force=%s',
+    async (force) => {
+      const draft = await createDraft();
+      const cover = await createMedia(draft.ownerId, { draftId: draft.id });
+      await prisma.draft.update({
         where: { id: draft.id },
-        include: { draftMedia: true, media: true },
-      }),
-    ).resolves.toMatchObject({
-      coverMediaId: cover.id,
-      draftMedia: [{ mediaId: cover.id }],
-      media: [{ id: cover.id }],
-    });
-  });
+        data: {
+          status: DraftStatus.PUBLISHING,
+          coverMediaId: cover.id,
+          draftMedia: { create: { mediaId: cover.id } },
+        },
+      });
+      const conflict = await request(app.getHttpServer())
+        .delete(`/media/${cover.id}?force=${force}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(HttpStatus.CONFLICT);
+      expect(conflict.body).toMatchObject({
+        code: 'MEDIA_DRAFT_PUBLISHING',
+        canForce: false,
+      });
+      await expect(
+        prisma.draft.findUnique({
+          where: { id: draft.id },
+          include: { draftMedia: true, media: true },
+        }),
+      ).resolves.toMatchObject({
+        coverMediaId: cover.id,
+        draftMedia: [{ mediaId: cover.id }],
+        media: [{ id: cover.id }],
+      });
+    },
+  );
 
   it('deduplicates concurrent uploads per draft and protects archived snapshot media', async () => {
     const first = await createDraft();
@@ -503,6 +965,80 @@ describe('Draft (e2e)', () => {
       put.mockRestore();
     }
   });
+
+  it.each([MediaTarget.COMMENT, MediaTarget.USER_AVATAR])(
+    'deduplicates unattached %s uploads without reusing a live asset',
+    async (target) => {
+      const owner = await createTestAccount();
+      const hash = randomUUID().replaceAll('-', '').padEnd(64, '0');
+      const original = await createManagedMedia(owner.id, { target, hash });
+      let postId: number | undefined;
+      try {
+        if (target === MediaTarget.COMMENT) {
+          const post = await prisma.post.create({
+            data: {
+              authorId: owner.id,
+              title: randomUUID(),
+              slug: randomUUID(),
+              content: 'post',
+              excerpt: 'post',
+              coverImage: '',
+            },
+          });
+          postId = post.id;
+          await prisma.comment.create({
+            data: {
+              authorId: owner.id,
+              postId,
+              content: 'comment',
+              commentMedia: { create: { mediaId: original.id, position: 0 } },
+            },
+          });
+        } else {
+          await request(app.getHttpServer())
+            .patch('/auth/profile')
+            .auth(owner.token, { type: 'bearer' })
+            .send({ image: original.publicUrl })
+            .expect(HttpStatus.OK);
+        }
+
+        const repo = app.get(MediaRepository);
+        const upload = () => {
+          const key = randomUUID();
+          return repo.reuseOrCreateUpload(
+            owner.id,
+            hash,
+            original.type,
+            target,
+            undefined,
+            { key, bucket: original.bucket },
+            async () => ({
+              key,
+              bucket: original.bucket,
+              ownerId: owner.id,
+              hash,
+              target,
+              type: original.type,
+              variant: MediaVariant.ORIGINAL,
+              mimeType: original.mimeType,
+              sizeBytes: original.sizeBytes,
+              publicUrl: app.get(StorageService).buildPublicUrl(key),
+            }),
+          );
+        };
+        const fresh = await upload();
+        expect(fresh.id).not.toBe(original.id);
+        await expect(upload()).resolves.toMatchObject({ id: fresh.id });
+        await expect(repo.findOwnedMedia(owner.id, true)).resolves.toEqual([
+          expect.objectContaining({ id: original.id }),
+        ]);
+      } finally {
+        if (postId !== undefined)
+          await prisma.post.delete({ where: { id: postId } });
+        await prisma.user.delete({ where: { id: owner.id } });
+      }
+    },
+  );
 
   it('refreshes retention on reuse and creates a fresh record after cleanup wins', async () => {
     const draft = await createDraft();
@@ -619,6 +1155,15 @@ describe('Draft (e2e)', () => {
       });
     const retainedVariant = await variant(retained.id);
     const orphanVariant = await variant(orphan.id);
+    const originalCover = await createMedia(draft.ownerId, { createdAt });
+    const variantCoverFamily = await createMedia(draft.ownerId, { createdAt });
+    const variantCover = await variant(variantCoverFamily.id);
+    await prisma.draft.createMany({
+      data: [originalCover, variantCover].map(({ id }) => ({
+        ownerId: draft.ownerId,
+        coverMediaId: id,
+      })),
+    });
     const repository = app.get(MediaRepository);
 
     const candidates = await repository.findUnattachedBefore(cutoff);
@@ -626,6 +1171,12 @@ describe('Draft (e2e)', () => {
       expect.arrayContaining([{ id: retained.id }, { id: orphan.id }]),
     );
     expect(candidates).not.toContainEqual({ id: orphanVariant.id });
+    for (const { id } of [originalCover, variantCoverFamily]) {
+      expect(candidates).not.toContainEqual({ id });
+      await expect(repository.deleteUnattachedBefore(id, cutoff)).resolves.toBe(
+        false,
+      );
+    }
     await prisma.draft.update({
       where: { id: draft.id },
       data: {
@@ -811,11 +1362,8 @@ describe('Draft (e2e)', () => {
     ).resolves.toBe(true);
   });
 
-  it('inherits and republishes legacy foreign media without changing ownership', async () => {
+  it('preserves an owned managed variant cover when publishing a title-only revision', async () => {
     const draft = await createDraft();
-    const foreign = await prisma.user.findFirstOrThrow({
-      where: { id: { not: draft.ownerId } },
-    });
     const post = await prisma.post.create({
       data: {
         authorId: draft.ownerId,
@@ -826,8 +1374,10 @@ describe('Draft (e2e)', () => {
         coverImage: '',
       },
     });
-    const original = await createMedia(foreign.id, { postId: post.id });
-    const variant = await createMedia(foreign.id, {
+    const original = await createManagedMedia(draft.ownerId, {
+      postId: post.id,
+    });
+    const variant = await createManagedMedia(draft.ownerId, {
       parentId: original.id,
       postId: post.id,
       variant: MediaVariant.THUMBNAIL,
@@ -836,33 +1386,113 @@ describe('Draft (e2e)', () => {
       where: { id: post.id },
       data: {
         coverImage: variant.publicUrl,
-        content: `![legacy](${variant.publicUrl})`,
       },
     });
     const repository = app.get(DraftRepository);
     const revision = await repository.createRevision(draft.ownerId, post.id);
     expect(revision?.coverMediaId).toBe(original.id);
-    const unrelated = await createMedia(foreign.id);
-    await saveMedia(revision!.id, [original.id, unrelated.id]).expect(
-      HttpStatus.BAD_REQUEST,
-    );
-    await saveMedia(revision!.id, [original.id], original.id).expect(
-      HttpStatus.OK,
-    );
-    await expect(
-      prisma.media.findUnique({ where: { id: original.id } }),
-    ).resolves.toMatchObject({ draftId: null });
+    const title = randomUUID();
+    await request(app.getHttpServer())
+      .put(`/draft/${revision!.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({ title })
+      .expect(HttpStatus.OK);
     await repository.markPublishing(revision!.id, draft.ownerId);
     await expect(
       app.get(DraftProcessor).process({
         name: VALIDATE_AND_PUBLISH_JOB,
         data: { draftId: revision!.id, ownerId: draft.ownerId },
       } as Job<DraftPublishJobData>),
-    ).resolves.toMatchObject({ id: post.id, version: 1 });
+    ).resolves.toMatchObject({
+      id: post.id,
+      version: 1,
+      title,
+      coverImage: variant.publicUrl,
+      content: post.content,
+    });
     await expect(
-      prisma.media.findUnique({ where: { id: original.id } }),
-    ).resolves.toMatchObject({ ownerId: foreign.id, postId: post.id });
+      prisma.media.count({
+        where: { postId: post.id, id: { in: [original.id, variant.id] } },
+      }),
+    ).resolves.toBe(2);
   });
+
+  it.each(['cover', 'body'] as const)(
+    'rejects a foreign managed %s already attached to the source post',
+    async (foreignUse) => {
+      const ownerId = userData[0].id;
+      const post = await prisma.post.create({
+        data: {
+          authorId: ownerId,
+          title: randomUUID(),
+          slug: randomUUID(),
+          content: 'post',
+          excerpt: 'post',
+          coverImage: '',
+        },
+      });
+      const owned = await createManagedMedia(ownerId, { postId: post.id });
+      const foreign = await createManagedMedia(userData[1].id, {
+        postId: post.id,
+      });
+      const variant = await createManagedMedia(userData[1].id, {
+        postId: post.id,
+        parentId: foreign.id,
+        variant: MediaVariant.THUMBNAIL,
+      });
+      const cover = foreignUse === 'cover' ? foreign : owned;
+      const source = await prisma.post.update({
+        where: { id: post.id },
+        data: {
+          coverImage:
+            foreignUse === 'cover' ? variant.publicUrl : owned.publicUrl,
+          content:
+            foreignUse === 'body'
+              ? `![foreign](${variant.publicUrl})`
+              : post.content,
+        },
+        include: { Media: { orderBy: { id: 'asc' } } },
+      });
+      const repo = app.get(DraftRepository);
+      await expect(repo.createRevision(ownerId, post.id)).rejects.toThrow(
+        'Managed image is unavailable',
+      );
+
+      const revision = await prisma.draft.create({
+        data: {
+          ownerId,
+          postId: post.id,
+          sourceVersion: post.version,
+          title: randomUUID(),
+          excerpt: post.excerpt,
+          content: source.content,
+          coverMediaId: cover.id,
+          status: DraftStatus.PUBLISHING,
+          draftMedia: {
+            create: [...new Set([cover.id, foreign.id])].map((mediaId) => ({
+              mediaId,
+            })),
+          },
+        },
+      });
+      await expect(
+        app.get(DraftProcessor).process({
+          name: VALIDATE_AND_PUBLISH_JOB,
+          data: { draftId: revision.id, ownerId },
+        } as Job<DraftPublishJobData>),
+      ).rejects.toThrow(
+        foreignUse === 'cover'
+          ? 'A cover image attached to the draft is required'
+          : 'Image URL is not attached media',
+      );
+      await expect(
+        prisma.post.findUnique({
+          where: { id: post.id },
+          include: { Media: { orderBy: { id: 'asc' } } },
+        }),
+      ).resolves.toEqual(source);
+    },
+  );
 
   it('protects a legacy variant claim until an explicit manifest drops it', async () => {
     const other = await createDraft();
@@ -884,7 +1514,27 @@ describe('Draft (e2e)', () => {
       .delete(`/media/${variant.id}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(HttpStatus.CONFLICT);
+    const remove = (force: boolean) =>
+      request(app.getHttpServer())
+        .delete(`/media/${claimed.id}?force=${force}`)
+        .auth(accessToken, { type: 'bearer' });
+    for (const force of [false, true]) {
+      const { body } = await remove(force).expect(HttpStatus.CONFLICT);
+      expect(body).toMatchObject({
+        code: 'MEDIA_LEGACY_DRAFT_CLAIM',
+        canForce: false,
+      });
+    }
+    const pasted = await createManagedMedia(other.ownerId);
+    await request(app.getHttpServer())
+      .put(`/draft/${conflicting.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({ content: `![new image](${pasted.publicUrl})` })
+      .expect(HttpStatus.CONFLICT);
     await saveMedia(other.id, [claimed.id]).expect(HttpStatus.CONFLICT);
+    await expect(
+      prisma.media.findUnique({ where: { id: claimed.id } }),
+    ).resolves.toMatchObject({ draftId: other.id });
     await expect(
       prisma.draft.findUnique({
         where: { id: conflicting.id },
@@ -892,11 +1542,13 @@ describe('Draft (e2e)', () => {
       }),
     ).resolves.toMatchObject({
       coverMediaId: variant.id,
+      content: conflicting.content,
       draftMedia: [{ mediaId: variant.id }],
     });
 
     await saveMedia(conflicting.id, []).expect(HttpStatus.OK);
     await saveMedia(other.id, [claimed.id]).expect(HttpStatus.OK);
+    await remove(false).expect(HttpStatus.OK);
   });
 
   it.each(['publication', 'explicit deletion', 'scheduled deletion'] as const)(

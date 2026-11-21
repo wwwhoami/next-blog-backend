@@ -1,9 +1,11 @@
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
+import { StorageService } from '@core/src/storage/storage.service';
 import { CreateUserDto } from '@core/src/user/dto/create-user.dto';
 import { Role } from '@core/src/user/entities/role.enum';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
@@ -23,14 +25,26 @@ const newUser: AuthCredentialsDto = {
 };
 
 const user = userData[0];
+const mediaBaseUrl = 'https://signup-media.example.com';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    const get = ConfigService.prototype.get;
+    const config = jest
+      .spyOn(ConfigService.prototype, 'get')
+      .mockImplementation(function (
+        this: ConfigService,
+        key: string,
+        ...options: unknown[]
+      ) {
+        if (key === 'MEDIA_BASE_URL') return mediaBaseUrl;
+        return Reflect.apply(get, this, [key, ...options]);
+      });
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .compile()
+      .finally(() => config.mockRestore());
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
@@ -45,6 +59,17 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/sign-up (POST)', () => {
+    it('rejects a managed avatar with instructions to select it after signing up', async () => {
+      const { bucket } = app.get(StorageService);
+      await request(app.getHttpServer())
+        .post('/auth/sign-up')
+        .send({ ...newUser, image: `${mediaBaseUrl}/${bucket}/avatar.webp` })
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect(({ body }) => {
+          expect(body.message).toBe('Select a managed avatar after signing up');
+        });
+    });
+
     it('should sign up new user, set refreshToken cookie, return userData with access token', () => {
       return request(app.getHttpServer())
         .post('/auth/sign-up')
