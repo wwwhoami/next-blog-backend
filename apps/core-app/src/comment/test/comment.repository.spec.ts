@@ -5,13 +5,7 @@ import { UnprocessableEntityError } from '@core/src/common/errors/unprocessable-
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import {
-  Comment,
-  CommentLikes,
-  Post,
-  Prisma,
-  PrismaClient,
-} from 'prisma/generated/client';
+import { Prisma, PrismaClient } from 'prisma/generated/client';
 import { CommentRepository } from '../comment.repository';
 import {
   CreateCommentDto,
@@ -97,13 +91,16 @@ describe('CommentService', () => {
     prisma = module.get(PrismaService);
     postRepository = module.get(PostRepository);
     repository = module.get<CommentRepository>(CommentRepository);
+    prisma.commentMedia.findMany.mockResolvedValue([]);
+    prisma.media.findMany.mockResolvedValue([]);
+    (prisma.$transaction as jest.Mock).mockImplementation((run) => run(prisma));
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should be defined', () => {
+  it('should be defined', async () => {
     expect(repository).toBeDefined();
   });
 
@@ -161,7 +158,10 @@ describe('CommentService', () => {
         isDeleted: false,
         likesCount: 0,
       };
-      prisma.comment.create.mockResolvedValue(resolvedComment);
+      prisma.comment.create.mockResolvedValue({
+        ...resolvedComment,
+        commentMedia: [],
+      } as typeof resolvedComment);
 
       const createdComment = await repository.create(commentData, authorId);
 
@@ -198,15 +198,21 @@ describe('CommentService', () => {
         likesCount: 0,
       };
 
-      prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
-      prisma.comment.create.mockResolvedValue(resolvedComment);
+      prisma.comment.findFirstOrThrow.mockResolvedValue({
+        ...commentAncestor,
+        commentMedia: [],
+      } as typeof commentAncestor);
+      prisma.comment.create.mockResolvedValue({
+        ...resolvedComment,
+        commentMedia: [],
+      } as typeof resolvedComment);
 
       const createdResponse = await repository.createResponse(
         commentData,
         authorId,
       );
 
-      expect(createdResponse).toEqual(resolvedComment);
+      expect(createdResponse).toEqual({ ...resolvedComment, images: [] });
     });
 
     it('should throw NotFoundError if ancestor is not found', async () => {
@@ -222,7 +228,7 @@ describe('CommentService', () => {
 
       const createdResponse = repository.createResponse(commentData, authorId);
 
-      expect(createdResponse).rejects.toThrow(NotFoundError);
+      await expect(createdResponse).rejects.toThrow(NotFoundError);
     });
 
     it('should throw ConflictError if ancestor and comment to create have different postIds', async () => {
@@ -247,15 +253,21 @@ describe('CommentService', () => {
         likesCount: 0,
       };
 
-      prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
-      prisma.comment.create.mockResolvedValue(resolvedComment);
+      prisma.comment.findFirstOrThrow.mockResolvedValue({
+        ...commentAncestor,
+        commentMedia: [],
+      } as typeof commentAncestor);
+      prisma.comment.create.mockResolvedValue({
+        ...resolvedComment,
+        commentMedia: [],
+      } as typeof resolvedComment);
 
       const createdResponse = repository.createResponse(commentData, authorId);
 
-      expect(createdResponse).rejects.toThrow(ConflictError);
+      await expect(createdResponse).rejects.toThrow(ConflictError);
     });
 
-    it('should throw ConflictError if ancestor is deleted', () => {
+    it('should throw ConflictError if ancestor is deleted', async () => {
       const resolvedComment = {
         ...commentData,
         id: 12312,
@@ -277,25 +289,33 @@ describe('CommentService', () => {
         likesCount: 0,
       };
 
-      prisma.comment.findFirstOrThrow.mockResolvedValue(commentAncestor);
-      prisma.comment.create.mockResolvedValue(resolvedComment);
+      prisma.comment.findFirstOrThrow.mockResolvedValue({
+        ...commentAncestor,
+        commentMedia: [],
+      } as typeof commentAncestor);
+      prisma.comment.create.mockResolvedValue({
+        ...resolvedComment,
+        commentMedia: [],
+      } as typeof resolvedComment);
 
       const createResponse = repository.createResponse(commentData, authorId);
 
-      expect(createResponse).rejects.toThrow(ConflictError);
+      await expect(createResponse).rejects.toThrow(ConflictError);
     });
   });
 
   describe('getManyForPost', () => {
-    it('gets comments for provided post id', () => {
+    it('gets comments for provided post id', async () => {
       const postId = 1;
 
       prisma.$queryRaw.mockResolvedValue(comments);
 
-      expect(repository.getManyForPost(postId)).resolves.toEqual(comments);
+      await expect(repository.getManyForPost(postId)).resolves.toEqual(
+        comments.map((comment) => ({ ...comment, images: [] })),
+      );
     });
 
-    it('should throw NotFoundError if post is not found', () => {
+    it('should throw NotFoundError if post is not found', async () => {
       const postId = 1;
       const exception = new Prisma.PrismaClientKnownRequestError(
         'An operation failed because it depends on one or more records that were required but not found. {cause}',
@@ -309,40 +329,43 @@ describe('CommentService', () => {
 
       const getManyForPost = repository.getManyForPost(postId);
 
-      expect(getManyForPost).rejects.toThrow(NotFoundError);
+      await expect(getManyForPost).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('getManyForPostWithChildrenCount', () => {
-    it('gets comments for provided post id, does not count children of elements that could not have children', () => {
+    it('gets comments for provided post id, does not count children of elements that could not have children', async () => {
       const postId = 1;
       const depth = 5;
       const descendants = comments.slice(3, 5);
       const descendantsWithChildrenCount = descendants.map((descendant) => ({
         ...descendant,
+        images: [],
         childrenCount: undefined,
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
 
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
         'getCountOfDescendants',
       );
 
-      expect(
+      await expect(
         repository.getManyForPostWithChildrenCount(postId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
       expect(getCountOfDescendantsSpy).toHaveBeenCalledTimes(0);
     });
 
-    it('gets comments for provided post id, counts children of elements that could have children', () => {
+    it('gets comments for provided post id, counts children of elements that could have children', async () => {
       const postId = 1;
       const depth = 2;
       const descendants = comments.slice(3, 5);
       const countOfDescendants = 0;
       const descendantsWithChildrenCount = descendants.map((descendant) => ({
         ...descendant,
+        images: [],
         childrenCount: countOfDescendants,
       }));
 
@@ -351,12 +374,12 @@ describe('CommentService', () => {
         .spyOn(repository, 'getCountOfDescendants')
         .mockResolvedValue(countOfDescendants);
 
-      expect(
+      await expect(
         repository.getManyForPostWithChildrenCount(postId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
     });
 
-    it('should throw NotFoundError if post is not found', () => {
+    it('should throw NotFoundError if post is not found', async () => {
       const postId = 1;
       const depth = 5;
       const exception = new Prisma.PrismaClientKnownRequestError(
@@ -372,23 +395,26 @@ describe('CommentService', () => {
       const getManyForPostWithChildrenCount =
         repository.getManyForPostWithChildrenCount(postId, { depth });
 
-      expect(getManyForPostWithChildrenCount).rejects.toThrow(NotFoundError);
+      await expect(getManyForPostWithChildrenCount).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
   describe('getDescendants', () => {
-    it('gets comment descendants of comment id provided', () => {
+    it('gets comment descendants of comment id provided', async () => {
       const commentId = comments[0].id;
       const descendants = comments.slice(3, 5);
 
       prisma.$queryRaw.mockResolvedValue(descendants);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
 
-      expect(repository.getDescendants(commentId)).resolves.toEqual(
-        descendants,
+      await expect(repository.getDescendants(commentId)).resolves.toEqual(
+        descendants.map((comment) => ({ ...comment, images: [] })),
       );
     });
 
-    it('throws NotFoundError if comment with provided id does not exist', () => {
+    it('throws NotFoundError if comment with provided id does not exist', async () => {
       const commentId = -1;
       const exception = new Prisma.PrismaClientKnownRequestError(
         'An operation failed because it depends on one or more records that were required but not found. {cause}',
@@ -401,58 +427,62 @@ describe('CommentService', () => {
       const getOne = jest.spyOn(repository, 'getOne');
       getOne.mockRejectedValue(exception);
 
-      expect(repository.getDescendants(commentId)).rejects.toThrow(
+      await expect(repository.getDescendants(commentId)).rejects.toThrow(
         NotFoundError,
       );
     });
   });
 
   describe('getDescendantsWithChildrenCount', () => {
-    it('gets descendants of comment with provided id, counts children of elements that could have children', () => {
+    it('gets descendants of comment with provided id, counts children of elements that could have children', async () => {
       const commentId = comments[0].id;
       const depth = 2;
       const descendants = comments.slice(3, 5);
       const countOfDescendants = 0;
       const descendantsWithChildrenCount = descendants.map((descendant) => ({
         ...descendant,
+        images: [],
         childrenCount: countOfDescendants,
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
         'getCountOfDescendants',
       );
       getCountOfDescendantsSpy.mockResolvedValue(countOfDescendants);
 
-      expect(
+      await expect(
         repository.getDescendantsWithChildrenCount(commentId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
     });
 
-    it('gets descendants of comment with provided id, does not count children of elements that could not have children', () => {
+    it('gets descendants of comment with provided id, does not count children of elements that could not have children', async () => {
       const commentId = comments[0].id;
       const depth = 5;
       const descendants = comments.slice(3, 5);
       const descendantsWithChildrenCount = descendants.map((descendant) => ({
         ...descendant,
+        images: [],
         childrenCount: undefined,
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
 
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
         'getCountOfDescendants',
       );
 
-      expect(
+      await expect(
         repository.getDescendantsWithChildrenCount(commentId, { depth }),
       ).resolves.toEqual(descendantsWithChildrenCount);
       expect(getCountOfDescendantsSpy).toHaveBeenCalledTimes(0);
     });
 
-    it('throws NotFoundError if comment with provided id does not exist', () => {
+    it('throws NotFoundError if comment with provided id does not exist', async () => {
       const commentId = -1;
       const depth = 5;
       const exception = new Prisma.PrismaClientKnownRequestError(
@@ -466,23 +496,23 @@ describe('CommentService', () => {
       const getOne = jest.spyOn(repository, 'getOne');
       getOne.mockRejectedValue(exception);
 
-      expect(
+      await expect(
         repository.getDescendantsWithChildrenCount(commentId, { depth }),
       ).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('getCountOfDescendants', () => {
-    it('counts descendants of comment with provided id', () => {
+    it('counts descendants of comment with provided id', async () => {
       const commentId = comments[0].id;
       const countOfDescendants = BigInt(2);
       const expected = Number(countOfDescendants);
 
       prisma.$queryRaw.mockResolvedValue([{ count: countOfDescendants }]);
 
-      expect(repository.getCountOfDescendants(commentId)).resolves.toEqual(
-        expected,
-      );
+      await expect(
+        repository.getCountOfDescendants(commentId),
+      ).resolves.toEqual(expected);
     });
   });
 
@@ -502,11 +532,14 @@ describe('CommentService', () => {
         likesCount: 0,
       };
 
-      prisma.comment.findFirstOrThrow.mockResolvedValue(expectedComment);
+      prisma.comment.findFirstOrThrow.mockResolvedValue({
+        ...expectedComment,
+        commentMedia: [],
+      } as typeof expectedComment);
 
       const foundComment = await repository.getOne(commentId);
 
-      expect(foundComment).toEqual(expectedComment);
+      expect(foundComment).toEqual({ ...expectedComment, images: [] });
     });
   });
 
@@ -514,10 +547,11 @@ describe('CommentService', () => {
     const commentId = 1;
 
     it("gets comment's authorId by commentId", async () => {
-      const expected =
-        authorId as unknown as Prisma.Prisma__CommentClient<Comment>;
+      const expected = { authorId };
 
-      prisma.comment.findFirstOrThrow.mockResolvedValue(expected);
+      (
+        prisma.comment.findFirstOrThrow as jest.Mock<Promise<typeof expected>>
+      ).mockResolvedValue(expected);
 
       const foundAuthor = await repository.getAuthorId(commentId);
 
@@ -529,8 +563,7 @@ describe('CommentService', () => {
     const postId = 1;
 
     it("gets post's authorId by postId", async () => {
-      const expected =
-        authorId as unknown as Prisma.Prisma__CommentClient<Post>;
+      const expected = { authorId };
 
       postRepository.getAuthorById.mockResolvedValue(expected);
 
@@ -542,9 +575,9 @@ describe('CommentService', () => {
 
   describe('update', () => {
     const commentId = 1;
-    const comment: UpdateCommentDto = {
+    const comment = {
       content: 'New content',
-    };
+    } satisfies UpdateCommentDto;
 
     it('updates comment by id with data provided', async () => {
       const updatedComment: CommentEntity = {
@@ -559,15 +592,22 @@ describe('CommentService', () => {
         ...comment,
       };
 
-      prisma.comment.update.mockResolvedValue(updatedComment);
+      prisma.comment.update.mockResolvedValue({
+        ...updatedComment,
+        commentMedia: [],
+      } as typeof updatedComment);
 
       const commentUpdated = await repository.update(commentId, comment);
 
-      expect(commentUpdated).toEqual(updatedComment);
+      expect(commentUpdated).toEqual({ ...updatedComment, images: [] });
     });
   });
 
   describe('getLikes', () => {
+    beforeEach(() => {
+      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+    });
+
     const likes = [
       {
         user: {
@@ -583,14 +623,16 @@ describe('CommentService', () => {
       },
     ];
 
-    it('should get post likes', async () => {
-      const postId = 1;
+    it('should get comment likes', async () => {
+      const commentId = 1;
 
-      prisma.commentLikes.findMany.mockResolvedValue(
-        likes as unknown as Prisma.Prisma__CommentClient<Array<CommentLikes>>,
-      );
+      (
+        prisma.commentLikes.findMany as unknown as jest.Mock<
+          Promise<typeof likes>
+        >
+      ).mockResolvedValue(likes);
 
-      const commentLikes = await repository.getLikes(postId);
+      const commentLikes = await repository.getLikes(commentId);
 
       expect(commentLikes).toEqual(likes);
     });
@@ -619,20 +661,23 @@ describe('CommentService', () => {
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
       const expected = {
         id: commentId,
+        postId: 1,
         likesCount: 1,
-      } as unknown as Prisma.Prisma__CommentClient<Comment>;
+      };
 
       prisma.commentLikes.create.mockResolvedValue({
         commentId,
         userId,
       });
-      prisma.comment.update.mockResolvedValue(expected);
+      (
+        prisma.comment.update as jest.Mock<Promise<typeof expected>>
+      ).mockResolvedValue(expected);
 
       const commentLikes = await repository.like(commentId, userId);
       expect(commentLikes).toEqual(expected);
     });
 
-    it('should throw UnprocessableEntityError if no comment exists', () => {
+    it('should throw UnprocessableEntityError if no comment exists', async () => {
       const commentId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
       const exception = new Prisma.PrismaClientKnownRequestError(
@@ -645,7 +690,7 @@ describe('CommentService', () => {
 
       prisma.comment.findFirstOrThrow.mockRejectedValue(exception);
 
-      expect(repository.like(commentId, userId)).rejects.toThrow(
+      await expect(repository.like(commentId, userId)).rejects.toThrow(
         UnprocessableEntityError,
       );
     });
@@ -657,14 +702,17 @@ describe('CommentService', () => {
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
       const expected = {
         id: commentId,
+        postId: 1,
         likesCount: 1,
-      } as unknown as Prisma.Prisma__CommentClient<Comment>;
+      };
 
       prisma.commentLikes.delete.mockResolvedValue({
         commentId,
         userId,
       });
-      prisma.comment.update.mockResolvedValue(expected);
+      (
+        prisma.comment.update as jest.Mock<Promise<typeof expected>>
+      ).mockResolvedValue(expected);
 
       const commentLikes = await repository.unlike(commentId, userId);
       expect(commentLikes).toEqual(expected);
@@ -692,7 +740,7 @@ describe('CommentService', () => {
 
       const softRemove = await repository.softRemove(commentId);
 
-      expect(softRemove).toEqual(softRemovedComment);
+      expect(softRemove).toEqual({ ...softRemovedComment, images: [] });
     });
   });
 });

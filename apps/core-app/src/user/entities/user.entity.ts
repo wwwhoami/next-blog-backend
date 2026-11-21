@@ -1,7 +1,7 @@
 import { ApiProperty, OmitType, PickType } from '@nestjs/swagger';
 import { Role, User } from 'prisma/generated/client';
 
-export class UserEntity implements User {
+export class UserEntity implements Omit<User, 'avatarMediaId'> {
   id: string;
   email: string;
   name: string;

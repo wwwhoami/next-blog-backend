@@ -1,7 +1,18 @@
-import { PickType } from '@nestjs/swagger';
+import { ApiProperty, PickType } from '@nestjs/swagger';
 import { Comment } from 'prisma/generated/client';
 
+export class CommentImage {
+  id: string;
+
+  publicUrl: string;
+
+  mimeType: string;
+}
+
 export class CommentEntity implements Comment {
+  @ApiProperty({ type: [CommentImage] })
+  images?: CommentImage[];
+
   id: number;
   authorId: string | null;
   postId: number;

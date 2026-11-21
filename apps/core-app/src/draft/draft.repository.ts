@@ -4,22 +4,23 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import {
-  DraftStatus,
-  MediaTarget,
-  MediaVariant,
-  Prisma,
-} from 'prisma/generated/client';
-
-const originalMedia = {
-  parentId: null,
-  variant: MediaVariant.ORIGINAL,
-} as const;
+import { ConfigService } from '@nestjs/config';
+import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
+import { ManagedMedia, originalMedia } from '../media/util/managed-media';
+import { markdownImages } from '../media/util/markdown-images';
 
 @Injectable()
 export class DraftRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly managedMedia: ManagedMedia;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() config?: ConfigService,
+  ) {
+    this.managedMedia = new ManagedMedia(config);
+  }
 
   async getAuthorId(id: string): Promise<{ authorId: string }> {
     const { ownerId } = await this.prisma.draft.findUniqueOrThrow({
@@ -31,9 +32,36 @@ export class DraftRepository {
   }
 
   create(ownerId: string, data: Record<string, unknown>) {
-    return this.prisma.draft.create({
-      data: { ...data, ownerId },
-      include: { media: { where: originalMedia } },
+    const keys = this.managedMedia.keys(
+      typeof data.content === 'string' ? markdownImages(data.content).urls : [],
+    );
+    const create = (tx: Prisma.TransactionClient, mediaIds: string[] = []) =>
+      tx.draft.create({
+        data: {
+          ...data,
+          ownerId,
+          ...(mediaIds.length && {
+            draftMedia: { create: mediaIds.map((mediaId) => ({ mediaId })) },
+          }),
+        },
+        include: {
+          media: { where: originalMedia },
+          draftMedia: {
+            where: { media: originalMedia },
+            include: { media: true },
+          },
+        },
+      });
+    if (!keys.length) return create(this.prisma);
+    return this.prisma.$transaction(async (tx) => {
+      const mediaIds = await this.managedMedia.lockAndResolve(
+        tx,
+        keys,
+        ownerId,
+        MediaTarget.POST,
+      );
+      await this.assertClaimableMedia(tx, ownerId, mediaIds);
+      return create(tx, mediaIds);
     });
   }
 
@@ -69,7 +97,7 @@ export class DraftRepository {
   findVariantUrls(originalIds: string[]) {
     return this.prisma.media.findMany({
       where: { parentId: { in: originalIds } },
-      select: { parentId: true, publicUrl: true },
+      select: { parentId: true, publicUrl: true, key: true },
     });
   }
 
@@ -137,20 +165,64 @@ export class DraftRepository {
           }
         }
 
-        const mediaIds = post.Media.map(({ id }) => id);
-        if (mediaIds.length) {
-          await this.lockOriginals(tx, mediaIds);
+        const coverKey = this.managedMedia.key(post.coverImage);
+        const keys = this.managedMedia.keys([
+          post.coverImage,
+          ...markdownImages(post.content).urls,
+        ]);
+        // Confirmed deletion can leave URLs behind for the author to repair.
+        const referenced = await this.managedMedia.resolveByKey(
+          tx,
+          keys,
+          ownerId,
+          MediaTarget.POST,
+          { allowMissing: true },
+        );
+        const attachedIds = post.Media.map(({ id }) => id);
+        const lockIds = [...new Set([...attachedIds, ...referenced.values()])];
+        let currentReferences = referenced;
+        if (lockIds.length) {
+          await this.lockOriginals(tx, lockIds);
           const current = await this.findActiveRevision(postId, tx);
           if (current) return current;
-          await this.assertClaimableMedia(
+          currentReferences = await this.managedMedia.resolveByKey(
             tx,
+            keys,
             ownerId,
-            mediaIds,
-            undefined,
-            postId,
+            MediaTarget.POST,
+            { allowMissing: true },
           );
+          if (
+            [...currentReferences].some(
+              ([key, id]) => referenced.get(key) !== id,
+            )
+          ) {
+            throw new BadRequestException(
+              'Managed image changed. Retry the request.',
+            );
+          }
         }
+        const mediaIds = [
+          ...new Set([...attachedIds, ...currentReferences.values()]),
+        ];
+        await this.assertClaimableMedia(
+          tx,
+          ownerId,
+          mediaIds,
+          undefined,
+          postId,
+        );
 
+        const coverMediaId =
+          coverKey === undefined
+            ? post.Media.find(
+                ({ publicUrl, Variants }) =>
+                  publicUrl === post.coverImage ||
+                  Variants.some(
+                    (variant) => variant.publicUrl === post.coverImage,
+                  ),
+              )?.id
+            : currentReferences.get(coverKey);
         const draft = await tx.draft.create({
           data: {
             ownerId,
@@ -162,15 +234,9 @@ export class DraftRepository {
             categoryNames: post.categories.map(
               ({ categoryName }) => categoryName,
             ),
-            coverMediaId: post.Media.find(
-              ({ publicUrl, Variants }) =>
-                publicUrl === post.coverImage ||
-                Variants.some(
-                  (variant) => variant.publicUrl === post.coverImage,
-                ),
-            )?.id,
+            coverMediaId,
             draftMedia: {
-              create: post.Media.map(({ id }) => ({ mediaId: id })),
+              create: mediaIds.map((mediaId) => ({ mediaId })),
             },
           },
           include: {
@@ -396,6 +462,7 @@ export class DraftRepository {
     const media = await tx.media.findMany({
       where: {
         id: { in: mediaIds },
+        ownerId,
         target: MediaTarget.POST,
         ...originalMedia,
       },
@@ -443,12 +510,6 @@ export class DraftRepository {
         throw new ConflictException(
           'Media has an unresolved variant draft claim',
         );
-      }
-      if (
-        original.ownerId !== ownerId &&
-        (sourcePostId === undefined || original.postId !== sourcePostId)
-      ) {
-        throw new BadRequestException('One or more media assets are invalid');
       }
     }
     const legacyCoverIds = media.flatMap(({ Variants }) =>
@@ -502,14 +563,15 @@ export class DraftRepository {
       const [draft] = await tx.$queryRaw<
         {
           ownerId: string;
+          content: string;
           status: DraftStatus;
           coverMediaId: string | null;
           postId: number | null;
           sourceVersion: number | null;
         }[]
       >`
-        SELECT "owner_id" AS "ownerId", "status", "cover_media_id" AS "coverMediaId", "post_id" AS "postId", "source_version" AS "sourceVersion"
-        FROM "Draft" WHERE "id" = ${id}::uuid FOR UPDATE
+        SELECT "owner_id" AS "ownerId", "content", "status", "cover_media_id" AS "coverMediaId", "post_id" AS "postId", "source_version" AS "sourceVersion"
+        FROM "Draft" WHERE "id" = ${id}::uuid FOR NO KEY UPDATE
       `;
       if (!draft || draft.ownerId !== ownerId) {
         throw new NotFoundException('Draft not found');
@@ -518,14 +580,44 @@ export class DraftRepository {
         throw new ConflictException('Draft is not editable while publishing');
       }
 
-      // Lock outgoing and incoming attachments in the same order.
+      const content =
+        typeof data.content === 'string'
+          ? data.content
+          : requestedMediaIds
+            ? draft.content
+            : undefined;
+      const keys = this.managedMedia.keys(
+        content ? markdownImages(content).urls : [],
+      );
+      const referenced = await this.managedMedia.resolve(
+        tx,
+        keys,
+        ownerId,
+        MediaTarget.POST,
+      );
       const requested = [
         ...new Set(requestedMediaIds?.map((mediaId) => mediaId.toLowerCase())),
       ];
-      await this.lockOriginals(tx, requested, id);
-      const mediaIds = requestedMediaIds
+      // Lock outgoing and incoming attachments in the same order.
+      await this.lockOriginals(tx, [...requested, ...referenced], id);
+      if (requestedMediaIds === undefined) {
+        await this.assertNoLegacyDraftClaims(id, tx);
+      }
+      const currentReferences = await this.managedMedia.resolve(
+        tx,
+        keys,
+        ownerId,
+        MediaTarget.POST,
+      );
+      if (currentReferences.some((mediaId) => !referenced.includes(mediaId))) {
+        throw new BadRequestException(
+          'Managed image changed. Retry the request.',
+        );
+      }
+      const previous = requestedMediaIds
         ? requested
         : await this.findDraftOriginalIds(tx, id);
+      const mediaIds = [...new Set([...previous, ...currentReferences])];
       const media = await this.assertClaimableMedia(
         tx,
         ownerId,
@@ -539,8 +631,7 @@ export class DraftRepository {
         );
       }
 
-      if (!requestedMediaIds) {
-        await this.assertNoLegacyDraftClaims(id, tx);
+      if (!requestedMediaIds && mediaIds.length === previous.length) {
         return this.update(
           id,
           {
@@ -589,39 +680,6 @@ export class DraftRepository {
         },
         tx,
       );
-    });
-  }
-
-  /**
-   * Removes the direct attachment and its snapshot link, clearing the cover
-   * if it used that media.
-   *
-   * @param draftId - ID of the active draft.
-   * @param mediaId - ID of the directly attached original.
-   * @throws {ConflictException} If the draft is inactive or the direct attachment changed.
-   */
-  async detachMedia(draftId: string, mediaId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "Draft" WHERE "id" = ${draftId}::uuid FOR UPDATE`;
-      const draft = await tx.draft.findUnique({
-        where: { id: draftId },
-        select: { status: true },
-      });
-      if (draft?.status !== DraftStatus.ACTIVE) {
-        throw new ConflictException('Draft is no longer active');
-      }
-      const detached = await tx.media.updateMany({
-        where: { id: mediaId, draftId, parentId: null },
-        data: { draftId: null },
-      });
-      if (!detached.count) {
-        throw new ConflictException('Media attachment changed');
-      }
-      await tx.draftMedia.deleteMany({ where: { draftId, mediaId } });
-      await tx.draft.updateMany({
-        where: { id: draftId, coverMediaId: mediaId },
-        data: { coverMediaId: null },
-      });
     });
   }
 

@@ -24,6 +24,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiProperty,
+  ApiQuery,
   ApiResponse,
 } from '@nestjs/swagger';
 import { MediaTarget, MediaType } from 'prisma/generated/enums';
@@ -166,10 +167,19 @@ export class MediaController {
   }
 
   @Delete(':id')
+  @ApiQuery({ name: 'force', required: false, type: Boolean })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Media is in use. When canForce is true, confirmation may delete the file, break images or covers in saved content, and reset an active avatar.',
+  })
   @UuidId()
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.mediaService.removeReference(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('force', new ParseBoolPipe({ optional: true })) force = false,
+  ) {
+    return this.mediaService.removeReference(id, force);
   }
 }

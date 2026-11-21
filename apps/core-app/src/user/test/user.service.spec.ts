@@ -2,13 +2,16 @@ import { WrongParamsError } from '@core/src/common/errors/wrong-params.error';
 import { Test, TestingModule } from '@nestjs/testing';
 import { userData } from 'data/seed-data';
 import { MockProxy, mock } from 'jest-mock-extended';
-import { Prisma, User } from 'prisma/generated/client';
+import { Role, User } from 'prisma/generated/client';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
 
 describe('UserService', () => {
   let service: UserService;
   let repository: MockProxy<UserRepository>;
+  const { id, name, email, image } = userData[0];
+  const user = { name, email, image: image ?? null, role: Role.USER };
+  const userWithId = { id, ...user };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -34,22 +37,16 @@ describe('UserService', () => {
   });
 
   describe('get', () => {
-    it('should get user by id if id provided', () => {
-      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
-      const id = userData[0].id;
-
+    it('should get user by id if id provided', async () => {
       repository.getByUuid.mockResolvedValue(user);
 
-      expect(service.get({ id })).resolves.toEqual(user);
+      await expect(service.get({ id })).resolves.toEqual(user);
     });
 
-    it('should get user by username if username provided', () => {
-      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
-      const username = userData[0].name;
-
+    it('should get user by username if username provided', async () => {
       repository.getByName.mockResolvedValue(user);
 
-      expect(service.get({ name: username })).resolves.toEqual(user);
+      await expect(service.get({ name })).resolves.toEqual(user);
     });
 
     it('should throw NotFoundException if no user found', async () => {
@@ -60,13 +57,10 @@ describe('UserService', () => {
       await expect(service.get({ name: username })).resolves.toBeNull();
     });
 
-    it('should get user by email if no username but email provided', () => {
-      const user = userData[0] as unknown as Prisma.Prisma__UserClient<User>;
-      const email = userData[0].email;
-
+    it('should get user by email if no username but email provided', async () => {
       repository.getByEmail.mockResolvedValue(user);
 
-      expect(service.get({ email })).resolves.toEqual(user);
+      await expect(service.get({ email })).resolves.toEqual(user);
     });
 
     it('should throw WrongParamsError if neither username nor email provided', async () => {
@@ -85,28 +79,20 @@ describe('UserService', () => {
     it('should create user returning his data', async () => {
       const password = 'password';
       const userToCreate = { ...userData[0], password };
-      const createdUser =
-        userData[0] as unknown as Prisma.Prisma__UserClient<User>;
-
-      repository.create.mockResolvedValue(createdUser);
+      repository.create.mockResolvedValue(userWithId);
 
       const createUserAction = await service.create(userToCreate);
 
-      expect(createUserAction).toEqual(createdUser);
+      expect(createUserAction).toEqual(userWithId);
     });
   });
 
   describe('update', () => {
-    it('should update user', () => {
-      const userId = userData[0].id;
-      const userToUpdate = userData[0];
-      const updatedUser =
-        userData[0] as unknown as Prisma.Prisma__UserClient<User>;
+    it('should update user', async () => {
+      repository.update.mockResolvedValue(userWithId);
 
-      repository.update.mockResolvedValue(updatedUser);
-
-      expect(service.update(userId, userToUpdate)).resolves.toEqual(
-        updatedUser,
+      await expect(service.update(id, userData[0])).resolves.toEqual(
+        userWithId,
       );
     });
   });

@@ -29,6 +29,7 @@ describe('MediaRepository', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
+    retentionRefreshedAt: null,
     postId: null,
     commentId: null,
     draftId: null,
@@ -125,25 +126,28 @@ describe('MediaRepository', () => {
     });
   });
 
-  it('protects a family whose only draft reference is its original cover', async () => {
-    const media = {
-      ...mockMediaRecord,
-      Variants: [],
-      _count: { DraftMedia: 0 },
-    } as any;
+  it('blocks retention and confirmed deletion when a publishing draft only uses the family as its cover', async () => {
+    const media = { ...mockMediaRecord, Variants: [] };
     (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
       (callback) => callback(mockPrismaClient),
     );
     mockPrismaClient.media.findFirst.mockResolvedValue(media);
-    mockPrismaClient.media.findUniqueOrThrow.mockResolvedValue(media);
+    mockPrismaClient.media.findMany.mockResolvedValue([media]);
+    mockPrismaClient.media.findUnique.mockResolvedValue(media);
+    mockPrismaClient.draft.findMany.mockResolvedValue([
+      { id: 'draft-id', status: 'PUBLISHING' } as never,
+    ]);
+    mockPrismaClient.user.findMany.mockResolvedValue([]);
     mockPrismaClient.$queryRaw.mockResolvedValue([{ id: media.id }]);
 
     await expect(
       repository.deleteUnattachedBefore(media.id, new Date()),
     ).resolves.toBe(false);
-    await expect(repository.removeReference(media.id)).rejects.toThrow(
-      'Media is attached to a draft',
-    );
+    await expect(
+      repository.removeReference(media.id, true),
+    ).rejects.toMatchObject({
+      response: { code: 'MEDIA_DRAFT_PUBLISHING', canForce: false },
+    });
     expect(
       mockPrismaClient.mediaStorageDeletion.createMany,
     ).not.toHaveBeenCalled();
@@ -186,9 +190,8 @@ describe('MediaRepository', () => {
 
   describe('reuseOrCreateUpload', () => {
     it('should find unattached original media in the same ownership context', async () => {
-      mockPrismaClient.media.findFirst.mockResolvedValue(
-        mockMediaRecord as any,
-      );
+      mockPrismaClient.media.findFirst.mockResolvedValue(mockMediaRecord);
+      mockPrismaClient.$queryRaw.mockResolvedValue([]);
 
       (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
         (callback) => callback(mockPrismaClient),
@@ -203,10 +206,11 @@ describe('MediaRepository', () => {
         { key: 'unused', bucket: 'test-bucket' },
         upload,
       );
+      const [lookup] = mockPrismaClient.media.findFirst.mock.calls[0];
       expect(mockPrismaClient.media.findFirst).toHaveBeenLastCalledWith({
-        where: expect.objectContaining({ id: mockMediaRecord.id }),
+        where: { ...lookup?.where, id: mockMediaRecord.id },
       });
-      expect(mockPrismaClient.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(mockPrismaClient.$queryRaw).toHaveBeenCalledTimes(3);
       expect(mockPrismaClient.$executeRaw).toHaveBeenCalledTimes(3);
       expect(upload).not.toHaveBeenCalled();
 
@@ -219,10 +223,18 @@ describe('MediaRepository', () => {
           target: MediaTarget.POST,
           parentId: null,
           variant: MediaVariant.ORIGINAL,
-          draftId: null,
-          postId: null,
-          commentId: null,
-          DraftMedia: { none: {} },
+          NOT: {
+            OR: [
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { DraftMedia: { some: {} } },
+                  { AvatarUsers: { some: {} } },
+                  { CommentMedia: { some: {} } },
+                ]),
+              }),
+              { Variants: { some: expect.any(Object) } },
+            ],
+          },
         },
       });
     });

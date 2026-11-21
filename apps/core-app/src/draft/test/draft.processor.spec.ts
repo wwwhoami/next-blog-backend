@@ -30,6 +30,7 @@ describe('DraftProcessor', () => {
       media: [
         {
           id: 'cover-id',
+          ownerId: 'owner-id',
           target: MediaTarget.POST,
           publicUrl: 'https://cdn.example.com/cover.webp',
         },
@@ -96,11 +97,13 @@ describe('DraftProcessor', () => {
   ])('checks variant use in %s', async (_label, content, referenced) => {
     const cover = {
       id: 'cover-id',
+      ownerId: 'owner-id',
       target: MediaTarget.POST,
       publicUrl: 'https://cdn.example.com/cover.webp',
     };
     const body = {
       id: 'body-id',
+      ownerId: 'owner-id',
       target: MediaTarget.POST,
       publicUrl: 'https://cdn.example.com/body-original.webp',
     };
@@ -158,6 +161,7 @@ describe('DraftProcessor', () => {
       media: [
         {
           id: 'cover-id',
+          ownerId: 'owner-id',
           target: MediaTarget.POST,
           publicUrl: 'https://cdn.example.com/cover.webp',
         },
@@ -188,6 +192,7 @@ describe('DraftProcessor', () => {
       media: [
         {
           id: 'cover-id',
+          ownerId: 'owner-id',
           target: MediaTarget.POST,
           publicUrl: 'https://cdn.example.com/body.webp',
           parentId: null,
@@ -222,6 +227,7 @@ describe('DraftProcessor', () => {
         media: [
           {
             id: 'cover-id',
+            ownerId: 'owner-id',
             target: MediaTarget.POST,
             publicUrl: 'https://cdn.example.com/cover.webp',
             parentId: null,

@@ -1,8 +1,17 @@
 import { PrismaService } from '@app/prisma';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { ConflictException, Injectable } from '@nestjs/common';
-import { Prisma } from 'prisma/generated/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { isURL } from 'class-validator';
+import { MediaTarget, Prisma } from 'prisma/generated/client';
 import slugify from 'slugify';
+import { ManagedMedia } from '../media/util/managed-media';
+import { markdownImages } from '../media/util/markdown-images';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
 import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
@@ -10,7 +19,14 @@ import { selectPostWithAuthorCategories } from './utils/select.objects';
 
 @Injectable()
 export class PostRepository {
-  constructor(private prisma: PrismaService) {}
+  private readonly managedMedia: ManagedMedia;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() config?: ConfigService,
+  ) {
+    this.managedMedia = new ManagedMedia(config);
+  }
 
   /**
    * @param {PostOrderBy} orderBy - The field to order by
@@ -348,30 +364,82 @@ export class PostRepository {
    * @param {string} authorId - Author id
    * @description Create post
    */
-  create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+  async create(post: CreatePostDto, authorId: string): Promise<PostEntity> {
+    const { urls, hasHtml } = markdownImages(post.content);
+    if (hasHtml) throw new BadRequestException('Raw HTML is not supported');
+
     const { categories, ...postData } = post;
     const slug = slugify(postData.title, { lower: true });
-
-    return this.prisma.post.create({
-      data: {
-        ...postData,
-        slug,
-        authorId,
-        categories: {
-          create: categories?.map((category) => ({
-            category: {
-              connectOrCreate: {
-                where: { name: category.name },
-                create: category,
+    const coverKey = this.managedMedia.key(post.coverImage);
+    if (coverKey === undefined && !isURL(post.coverImage)) {
+      throw new BadRequestException('coverImage must be a URL address');
+    }
+    const keys = this.managedMedia.keys([post.coverImage, ...urls]);
+    const create = (tx: Prisma.TransactionClient) =>
+      tx.post.create({
+        data: {
+          ...postData,
+          slug,
+          authorId,
+          categories: {
+            create: categories?.map((category) => ({
+              category: {
+                connectOrCreate: {
+                  where: { name: category.name },
+                  create: category,
+                },
               },
-            },
-          })),
+            })),
+          },
         },
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-        content: true,
-      },
+        select: {
+          ...selectPostWithAuthorCategories,
+          content: true,
+        },
+      });
+    if (!keys.length) return create(this.prisma);
+
+    return this.prisma.$transaction(async (tx) => {
+      const originals = await this.managedMedia.lockAndResolve(
+        tx,
+        keys,
+        authorId,
+        MediaTarget.POST,
+      );
+      const ids = { in: originals };
+      const family = { OR: [{ id: ids }, { parentId: ids }] };
+      const members = await tx.media.findMany({
+        where: family,
+        select: {
+          id: true,
+          postId: true,
+          draftId: true,
+          commentId: true,
+          _count: { select: { DraftMedia: true } },
+        },
+      });
+      const cover = await tx.draft.findFirst({
+        where: { coverMediaId: { in: members.map(({ id }) => id) } },
+        select: { id: true },
+      });
+      if (
+        cover ||
+        members.some(
+          ({ postId, draftId, commentId, _count }) =>
+            postId !== null ||
+            draftId !== null ||
+            commentId !== null ||
+            _count.DraftMedia > 0,
+        )
+      ) {
+        throw new ConflictException('Media is already attached');
+      }
+      const created = await create(tx);
+      await tx.media.updateMany({
+        where: family,
+        data: { postId: created.id },
+      });
+      return created;
     });
   }
 

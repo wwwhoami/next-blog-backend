@@ -1,5 +1,9 @@
 import { PrismaService } from '@app/prisma';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { isURL } from 'class-validator';
+import { MediaTarget, Prisma } from 'prisma/generated/client';
+import { ManagedMedia } from '../media/util/managed-media';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserNoPasswordEntity } from './entities/user.entity';
@@ -7,7 +11,14 @@ import { UserType } from './types/user-with-password-or-user.type';
 
 @Injectable()
 export class UserRepository {
-  constructor(private prisma: PrismaService) {}
+  private readonly managedMedia: ManagedMedia;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() config?: ConfigService,
+  ) {
+    this.managedMedia = new ManagedMedia(config);
+  }
 
   /**
    *
@@ -98,6 +109,9 @@ export class UserRepository {
    * @returns User's data without password
    */
   create(user: CreateUserDto): Promise<UserNoPasswordEntity> {
+    if (user.image && this.managedMedia.key(user.image) !== undefined) {
+      throw new BadRequestException('Select a managed avatar after signing up');
+    }
     return this.prisma.user.create({
       data: user,
       select: {
@@ -114,23 +128,47 @@ export class UserRepository {
     id: string,
     { name, email, image, newPassword }: UpdateUserDto,
   ): Promise<UserNoPasswordEntity> {
-    return this.prisma.user.update({
-      where: {
+    const update = (
+      tx: Prisma.TransactionClient,
+      avatarMediaId?: string | null,
+    ) =>
+      tx.user.update({
+        where: { id },
+        data: {
+          name,
+          email,
+          image,
+          ...(image !== undefined && { avatarMediaId }),
+          password: newPassword,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true,
+          role: true,
+        },
+      });
+
+    if (image === undefined) return update(this.prisma);
+    const key = image === null ? undefined : this.managedMedia.key(image);
+    if (key === undefined) {
+      if (image !== null && !isURL(image))
+        throw new BadRequestException('image must be a URL address');
+      return update(this.prisma, null);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "User" WHERE "id" = ${id}::uuid FOR NO KEY UPDATE
+      `;
+      const [mediaId] = await this.managedMedia.lockAndResolve(
+        tx,
+        [key],
         id,
-      },
-      data: {
-        name,
-        email,
-        image,
-        password: newPassword,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        role: true,
-      },
+        MediaTarget.USER_AVATAR,
+      );
+      return update(tx, mediaId);
     });
   }
 

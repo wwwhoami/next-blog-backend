@@ -2,7 +2,6 @@ import {
   IsEmail,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -30,6 +29,6 @@ export class UpdateUserDto {
   newPassword?: string;
 
   @IsOptional()
-  @IsUrl()
-  image?: string;
+  @IsString()
+  image?: string | null;
 }

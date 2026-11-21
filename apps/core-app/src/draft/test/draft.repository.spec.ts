@@ -101,6 +101,8 @@ describe('DraftRepository', () => {
       id: 7,
       authorId: 'owner-id',
       version: 1,
+      content: 'Post',
+      coverImage: 'https://example.com/cover.webp',
       categories: [],
       Media: [],
     } as never);
@@ -129,6 +131,8 @@ describe('DraftRepository', () => {
       id: 7,
       authorId: 'owner-id',
       version: 1,
+      content: 'Post',
+      coverImage: 'https://example.com/cover.webp',
       categories: [],
       Media: [],
     } as never);
@@ -153,6 +157,8 @@ describe('DraftRepository', () => {
       id: 7,
       authorId: 'owner-id',
       version: 1,
+      content: 'Post',
+      coverImage: 'https://example.com/cover.webp',
       categories: [],
       Media: [],
     } as never);

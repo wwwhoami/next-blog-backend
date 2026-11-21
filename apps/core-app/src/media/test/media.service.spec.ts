@@ -390,7 +390,6 @@ describe('MediaService', () => {
         { key: mockMediaRecord.key, bucket: mockMediaRecord.bucket },
         { key: 'variant.webp', bucket: mockMediaRecord.bucket },
       ];
-      mockRepository.findById.mockResolvedValue(mockMediaRecord);
       mockRepository.removeReference.mockResolvedValue({
         media: mockMediaRecord,
         objects,
@@ -418,12 +417,7 @@ describe('MediaService', () => {
       );
     });
 
-    it('returns media retained by the reference update without calling storage', async () => {
-      mockRepository.findById.mockResolvedValue({
-        ...mockMediaRecord,
-        postId: 42,
-        refCount: 2,
-      });
+    it('returns media detached from an editable draft without calling storage', async () => {
       mockRepository.removeReference.mockResolvedValue({
         media: mockMediaRecord,
         objects: [],
@@ -434,6 +428,7 @@ describe('MediaService', () => {
       ).resolves.toEqual(mockMediaRecord);
       expect(mockRepository.removeReference).toHaveBeenCalledWith(
         mockMediaRecord.id,
+        false,
       );
       expect(mockStorageService.deleteObject).not.toHaveBeenCalled();
     });

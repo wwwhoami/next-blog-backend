@@ -57,7 +57,7 @@ export class StorageService {
       this.configService.get<string>('MEDIA_BASE_URL') ??
       this.configService.get<string>('MINIO_ENDPOINT') ??
       '';
-    return `${base}/${this.bucket}/${key}`;
+    return `${base.replace(/\/+$/, '')}/${this.bucket}/${key}`;
   }
 
   async getPresignedUrl(bucket: string, key: string, ttlSeconds = 600) {
@@ -103,7 +103,6 @@ export class StorageService {
     return Buffer.from(byteArr);
   }
 
-  // delete storage (used rarely because we usually gate via refCount)
   async deleteObject(key: string, bucket: string) {
     try {
       return await this.s3.send(

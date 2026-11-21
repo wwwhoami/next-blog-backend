@@ -4,8 +4,9 @@ import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { UnprocessableEntityError } from '@core/src/common/errors/unprocessable-entity.error';
 import { PostRepository } from '@core/src/post/post.repository';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { Injectable } from '@nestjs/common';
-import { Prisma } from 'prisma/generated/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { MediaTarget, Prisma } from 'prisma/generated/client';
+import { lockOriginalMedia, originalMedia } from '../media/util/managed-media';
 import {
   CreateCommentDto,
   CreateResponseToCommentDto,
@@ -16,8 +17,17 @@ import {
   CommentEntity,
   CommentEntityWithChildrenCount,
   CommentEntityWithDepth,
+  CommentImage,
   CommentLike,
 } from './entities/comment.entity';
+
+const selectImage = { id: true, publicUrl: true, mimeType: true } as const;
+const includeImages = {
+  commentMedia: {
+    select: { media: { select: selectImage } },
+    orderBy: { position: 'asc' },
+  },
+} satisfies Prisma.CommentInclude;
 
 @Injectable()
 export class CommentRepository {
@@ -103,13 +113,109 @@ export class CommentRepository {
    *    content: 'This is a comment',
    * }, '1');
    */
-  create(comment: CreateCommentDto, authorId: string): Promise<CommentEntity> {
-    return this.prisma.comment.create({
-      data: {
-        ...comment,
-        authorId,
+  create(
+    { postId, ancestorId, content, mediaIds }: CreateCommentDto,
+    authorId: string,
+  ): Promise<CommentEntity> {
+    const create = async (tx: Prisma.TransactionClient, ids: string[] = []) =>
+      this.present(
+        await tx.comment.create({
+          data: {
+            postId,
+            ancestorId,
+            content,
+            authorId,
+            ...(ids.length && {
+              commentMedia: { createMany: { data: this.positionedLinks(ids) } },
+            }),
+          },
+          include: includeImages,
+        }),
+      );
+    if (!mediaIds?.length) return create(this.prisma);
+
+    return this.prisma.$transaction(async (tx) => {
+      const ids = await this.validateImages(tx, authorId, mediaIds);
+      return create(tx, ids);
+    });
+  }
+
+  /**
+   * Validates that each image is an original owned by the comment author and
+   * intended for comments. Locks the originals until the gallery write commits
+   * so media cleanup cannot remove them between validation and attachment.
+   *
+   * @param tx - Transaction that writes the gallery and holds the media locks.
+   * @param ownerId - Comment author ID. An author is required for a nonempty gallery.
+   * @param ids - Requested image IDs in display order.
+   * @returns Lowercase IDs in the requested order.
+   * @throws {BadRequestException} If IDs are duplicated or any image is ineligible.
+   */
+  private async validateImages(
+    tx: Prisma.TransactionClient,
+    ownerId: string | null,
+    ids: string[],
+  ) {
+    const normalized = ids.map((id) => id.toLowerCase());
+    if (new Set(normalized).size !== normalized.length) {
+      throw new BadRequestException('Duplicate comment image IDs');
+    }
+    if (!ids.length) return normalized;
+    if (!ownerId)
+      throw new BadRequestException('Comment images must belong to the author');
+
+    await lockOriginalMedia(tx, normalized);
+    const count = await tx.media.count({
+      where: {
+        id: { in: normalized },
+        ...originalMedia,
+        ownerId,
+        target: MediaTarget.COMMENT,
       },
     });
+    if (count !== ids.length)
+      throw new BadRequestException('One or more comment images are invalid');
+
+    return normalized;
+  }
+
+  /** Converts validated IDs to gallery link rows with zero-based positions. */
+  private positionedLinks(ids: string[]) {
+    return ids.map((mediaId, position) => ({ mediaId, position }));
+  }
+
+  /** Flattens position-ordered Prisma gallery links into the comment's `images` array. */
+  private present<T extends { commentMedia: { media: CommentImage }[] }>({
+    commentMedia,
+    ...comment
+  }: T) {
+    return { ...comment, images: commentMedia.map(({ media }) => media) };
+  }
+
+  /**
+   * Loads galleries for a batch of comments in one query. Preserves comment
+   * order and gives each comment its position-ordered images or an empty array.
+   */
+  private async withImages<T extends { id: number }>(comments: T[]) {
+    if (!comments.length) return [];
+
+    const links = await this.prisma.commentMedia.findMany({
+      where: { commentId: { in: comments.map(({ id }) => id) } },
+      orderBy: { position: 'asc' },
+      select: { commentId: true, media: { select: selectImage } },
+    });
+    const images = new Map<number, CommentImage[]>();
+
+    for (const { commentId, media } of links) {
+      const gallery = images.get(commentId) ?? [];
+      gallery.push(media);
+      images.set(commentId, gallery);
+    }
+
+    return comments.map((comment) => ({
+      ...comment,
+      images: images.get(comment.id) ?? [],
+    }));
   }
 
   /**
@@ -144,7 +250,7 @@ export class CommentRepository {
     }
 
     // Get the comments for the post with the specified depth and ordering (using a recursive CTE)
-    return this.prisma.$queryRaw<CommentEntityWithDepth[]>`   
+    const comments = await this.prisma.$queryRaw<CommentEntityWithDepth[]>`
       WITH RECURSIVE d AS (
         SELECT
           c.id,
@@ -191,6 +297,7 @@ export class CommentRepository {
         "depth" ASC,
         ancestor_id ASC,
         ${ordering}`;
+    return this.withImages(comments);
   }
 
   /**
@@ -260,7 +367,7 @@ export class CommentRepository {
     }
 
     // Get the descendants for the ancestor with the specified depth and ordering (using a recursive CTE)
-    return this.prisma.$queryRaw<CommentEntityWithDepth[]>`   
+    const comments = await this.prisma.$queryRaw<CommentEntityWithDepth[]>`
       WITH RECURSIVE d AS (
         SELECT
           c.id,
@@ -305,6 +412,7 @@ export class CommentRepository {
         "depth" ASC,
         ancestor_id ASC,
         ${ordering}`;
+    return this.withImages(comments);
   }
 
   /**
@@ -381,12 +489,13 @@ export class CommentRepository {
    * @example
    * const comment = await commentRepository.getOne(1);
    */
-  getOne(id: number): Promise<CommentEntity> {
-    return this.prisma.comment.findFirstOrThrow({
-      where: {
-        id,
-      },
-    });
+  async getOne(id: number): Promise<CommentEntity> {
+    return this.present(
+      await this.prisma.comment.findFirstOrThrow({
+        where: { id },
+        include: includeImages,
+      }),
+    );
   }
 
   /**
@@ -423,12 +532,37 @@ export class CommentRepository {
    * This method is used to update comment data.
    * It does not allow to change post_id, author_id and ancestor_id.
    */
-  update(id: number, comment: UpdateCommentDto): Promise<CommentEntity> {
-    return this.prisma.comment.update({
-      data: comment,
-      where: {
-        id,
-      },
+  update(
+    id: number,
+    { content, mediaIds }: UpdateCommentDto,
+  ): Promise<CommentEntity> {
+    const update = async (tx: Prisma.TransactionClient, ids?: string[]) =>
+      this.present(
+        await tx.comment.update({
+          where: { id, isDeleted: false },
+          data: {
+            content,
+            ...(ids?.length && {
+              commentMedia: {
+                createMany: { data: this.positionedLinks(ids) },
+              },
+            }),
+          },
+          include: includeImages,
+        }),
+      );
+
+    if (mediaIds === undefined) return update(this.prisma);
+    return this.prisma.$transaction(async (tx) => {
+      const [comment] = await tx.$queryRaw<{ authorId: string | null }[]>`
+        SELECT "author_id" AS "authorId" FROM "Comment"
+        WHERE "id" = ${id} AND NOT "is_deleted" FOR NO KEY UPDATE
+      `;
+      if (!comment) throw new NotFoundError('Comment not found');
+      const ids = await this.validateImages(tx, comment.authorId, mediaIds);
+      // Clear the old gallery before inserting its replacement, including reused IDs.
+      await tx.commentMedia.deleteMany({ where: { commentId: id } });
+      return update(tx, ids);
     });
   }
 
@@ -557,22 +691,33 @@ export class CommentRepository {
    * @example
    * await commentRepository.softRemove(1);
    */
-  async softRemove(id: number): Promise<CommentEntity> {
-    await this.prisma.commentLikes.deleteMany({
-      where: {
-        commentId: id,
-      },
-    });
-
-    return this.prisma.comment.update({
-      data: {
-        isDeleted: true,
-        content: 'COMMENT IS DELETED',
-        likesCount: 0,
-      },
-      where: {
-        id,
-      },
+  softRemove(id: number): Promise<CommentEntity> {
+    return this.prisma.$transaction(async (tx) => {
+      const comment = await tx.comment.update({
+        data: {
+          isDeleted: true,
+          content: 'COMMENT IS DELETED',
+          likesCount: 0,
+        },
+        where: { id },
+      });
+      const legacyImages = await tx.media.findMany({
+        where: { commentId: id },
+        select: { id: true, parentId: true },
+      });
+      if (legacyImages.length) {
+        await lockOriginalMedia(
+          tx,
+          legacyImages.map(({ id, parentId }) => parentId ?? id),
+        );
+        await tx.media.updateMany({
+          where: { commentId: id },
+          data: { commentId: null },
+        });
+      }
+      await tx.commentMedia.deleteMany({ where: { commentId: id } });
+      await tx.commentLikes.deleteMany({ where: { commentId: id } });
+      return { ...comment, images: [] };
     });
   }
 }

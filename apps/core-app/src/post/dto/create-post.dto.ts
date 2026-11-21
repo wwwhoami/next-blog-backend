@@ -4,7 +4,6 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
-  IsUrl,
   ValidateNested,
 } from 'class-validator';
 export class CreatePostDto {
@@ -20,7 +19,7 @@ export class CreatePostDto {
   @IsBoolean()
   published: boolean;
 
-  @IsUrl()
+  @IsString()
   coverImage: string;
 
   @IsOptional()

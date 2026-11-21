@@ -115,11 +115,12 @@ describe('MediaController', () => {
     it('should remove media reference', async () => {
       mockMediaService.removeReference.mockResolvedValue(mockMediaRecord);
 
-      const result = await controller.remove('media-id-1');
+      const result = await controller.remove('media-id-1', true);
 
       expect(result).toEqual(mockMediaRecord);
       expect(mockMediaService.removeReference).toHaveBeenCalledWith(
         'media-id-1',
+        true,
       );
     });
   });

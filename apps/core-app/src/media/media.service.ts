@@ -1,7 +1,6 @@
 import { NotFoundError } from '@app/shared/errors/not-found.error';
 import { InjectQueue } from '@nestjs/bullmq';
 import {
-  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -343,22 +342,8 @@ export class MediaService implements EntityWithAuthorService {
    * @returns The updated or deleted media record
    * @throws {NotFoundError} If the media record is not found
    */
-  async removeReference(id: string) {
-    const media = await this.repo.findById(id);
-
-    if (!media) throw new NotFoundError('Media not found');
-    if (media.parentId || media.variant !== MediaVariant.ORIGINAL) {
-      throw new ConflictException(
-        'Remove generated variants through their original',
-      );
-    }
-
-    if (media.draftId) {
-      await this.draftRepo.detachMedia(media.draftId, id);
-      return this.repo.findById(id);
-    }
-
-    const result = await this.repo.removeReference(id);
+  async removeReference(id: string, force = false) {
+    const result = await this.repo.removeReference(id, force);
     if (result.objects.length) {
       await drainStorageDeletions(
         this.repo,

@@ -16,20 +16,24 @@ enum Role {
 }
 
 model User {
-  id           String         @id @default(uuid()) @db.Uuid
-  email        String         @unique @db.VarChar
-  name         String         @unique @db.VarChar
-  password     String         @db.Char(60)
-  image        String?        @db.VarChar
-  role         Role           @default(USER)
-  posts        Post[]
-  Comment      Comment[]
-  PostLikes    PostLikes[]
-  CommentLikes CommentLikes[]
-  followers    Follows[]      @relation("follower")
-  following    Follows[]      @relation("following")
-  Media        Media[]
-  drafts       Draft[]
+  id            String         @id @default(uuid()) @db.Uuid
+  email         String         @unique @db.VarChar
+  name          String         @unique @db.VarChar
+  password      String         @db.Char(60)
+  image         String?        @db.VarChar
+  avatarMediaId String?        @map("avatar_media_id") @db.Uuid
+  avatarMedia   Media?         @relation("AvatarMedia", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  role          Role           @default(USER)
+  posts         Post[]
+  Comment       Comment[]
+  PostLikes     PostLikes[]
+  CommentLikes  CommentLikes[]
+  followers     Follows[]      @relation("follower")
+  following     Follows[]      @relation("following")
+  Media         Media[]
+  drafts        Draft[]
+
+  @@index([avatarMediaId])
 }
 
 model Follows {
@@ -146,6 +150,19 @@ model Comment {
   descendants  Comment[]      @relation("ancestor_descendants")
   CommentLikes CommentLikes[]
   Media        Media[]
+  commentMedia CommentMedia[]
+}
+
+model CommentMedia {
+  commentId Int    @map("comment_id")
+  mediaId   String @map("media_id") @db.Uuid
+  position  Int
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, mediaId])
+  @@index([mediaId])
 }
 
 model PostLikes {
@@ -207,33 +224,35 @@ enum MediaVariant {
 }
 
 model Media {
-  id        String       @id @default(uuid()) @db.Uuid
-  key       String       @unique
-  ownerId   String       @map("owner_id") @db.Uuid
-  parentId  String?      @db.Uuid
-  postId    Int?
-  commentId Int?
-  draftId   String?      @map("draft_id") @db.Uuid
-  type      MediaType    @map("media_type")
-  target    MediaTarget  @map("media_target")
-  variant   MediaVariant @default(ORIGINAL) @map("media_variant")
-  mimeType  String       @map("mime_type") @db.VarChar
-  sizeBytes BigInt       @map("size_bytes") @db.BigInt
-  bucket    String       @db.VarChar
-  publicUrl String       @db.VarChar //public url (cdn or s3 presigned)
-  hash      String?      @db.Char(64) //deduplication hash (sha256)
-  refCount  Int          @default(1) @map("ref_count")
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
-  retentionRefreshedAt DateTime? @map("retention_refreshed_at") @db.Timestamptz(6)
+  id                   String       @id @default(uuid()) @db.Uuid
+  key                  String       @unique
+  ownerId              String       @map("owner_id") @db.Uuid
+  parentId             String?      @db.Uuid
+  postId               Int?
+  commentId            Int?
+  draftId              String?      @map("draft_id") @db.Uuid
+  type                 MediaType    @map("media_type")
+  target               MediaTarget  @map("media_target")
+  variant              MediaVariant @default(ORIGINAL) @map("media_variant")
+  mimeType             String       @map("mime_type") @db.VarChar
+  sizeBytes            BigInt       @map("size_bytes") @db.BigInt
+  bucket               String       @db.VarChar
+  publicUrl            String       @db.VarChar //public url (cdn or s3 presigned)
+  hash                 String?      @db.Char(64) //deduplication hash (sha256)
+  refCount             Int          @default(1) @map("ref_count")
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt            DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  retentionRefreshedAt DateTime?    @map("retention_refreshed_at") @db.Timestamptz(6)
 
-  User       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  Post       Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
-  Comment    Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  Draft      Draft?       @relation(fields: [draftId], references: [id], onDelete: SetNull)
-  DraftMedia DraftMedia[]
-  Parent     Media?       @relation("MediaVariants", fields: [parentId], references: [id])
-  Variants   Media[]      @relation("MediaVariants")
+  User         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  Post         Post?          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  Comment      Comment?       @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  Draft        Draft?         @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  DraftMedia   DraftMedia[]
+  Parent       Media?         @relation("MediaVariants", fields: [parentId], references: [id])
+  Variants     Media[]        @relation("MediaVariants")
+  AvatarUsers  User[]         @relation("AvatarMedia")
+  CommentMedia CommentMedia[]
 
   @@index([ownerId, hash, type, target])
   @@index([key])

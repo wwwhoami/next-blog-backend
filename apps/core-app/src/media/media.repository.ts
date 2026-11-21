@@ -23,12 +23,28 @@ const attachmentLinks: Prisma.MediaWhereInput = {
     { postId: { not: null } },
     { commentId: { not: null } },
     { DraftMedia: { some: {} } },
+    { AvatarUsers: { some: {} } },
+    { CommentMedia: { some: {} } },
   ],
 };
 const familyAttachments: Prisma.MediaWhereInput = {
   OR: [attachmentLinks, { Variants: { some: attachmentLinks } }],
 };
-const retainedTargets: MediaTarget[] = [MediaTarget.POST, MediaTarget.COMMENT];
+const retainedTargets: MediaTarget[] = [
+  MediaTarget.POST,
+  MediaTarget.COMMENT,
+  MediaTarget.USER_AVATAR,
+];
+
+function draftFamilyUsage(ids: string[]): Prisma.DraftWhereInput {
+  return {
+    OR: [
+      { coverMediaId: { in: ids } },
+      { media: { some: { id: { in: ids } } } },
+      { draftMedia: { some: { mediaId: { in: ids } } } },
+    ],
+  };
+}
 
 @Injectable()
 export class MediaRepository {
@@ -167,20 +183,15 @@ export class MediaRepository {
       target,
       parentId: null,
       variant: MediaVariant.ORIGINAL,
-      draftId: draftId ?? null,
-      postId: null,
-      commentId: null,
-      ...(draftId ? {} : { DraftMedia: { none: {} } }),
+      ...(draftId
+        ? { draftId, postId: null, commentId: null }
+        : { NOT: familyAttachments }),
     };
     const deadline = Date.now() + 40_000;
     do {
       const claim = await this.withUploadLock(scope, async (tx) => {
         await this.checkUploadDraft(tx, ownerId, draftId);
-        const existing = await this.findReusableUpload(
-          tx,
-          where,
-          !draftId && retainedTargets.includes(target),
-        );
+        const existing = await this.findReusableUpload(tx, where, !draftId);
         if (existing) return { existing };
         const current = await this.lockReservation(tx, scope);
         if (current && current.expiresAt > current.now) return {};
@@ -210,11 +221,7 @@ export class MediaRepository {
             current.expiresAt <= current.now
           )
             return null;
-          const existing = await this.findReusableUpload(
-            tx,
-            where,
-            !draftId && retainedTargets.includes(target),
-          );
+          const existing = await this.findReusableUpload(tx, where, !draftId);
           if (existing) {
             await this.abandonUpload(tx, current);
             return existing;
@@ -236,7 +243,7 @@ export class MediaRepository {
   }
 
   /**
-   * Rechecks reusable post or comment media under the cleanup lock before
+   * Rechecks reusable unattached media under the cleanup lock before
    * refreshing retention.
    *
    * @param tx - Current upload transaction.
@@ -249,19 +256,33 @@ export class MediaRepository {
     where: Prisma.MediaWhereInput,
     refreshRetention: boolean,
   ) {
-    const existing = await tx.media.findFirst({ where });
-    if (!existing || !refreshRetention) return existing;
+    if (!refreshRetention) return tx.media.findFirst({ where });
 
-    await this.lockMedia(tx, existing.id);
-    const current = await tx.media.findFirst({
-      where: { ...where, id: existing.id },
-    });
-    if (!current) return null;
-    await tx.$executeRaw`
-      UPDATE "Media" SET "retention_refreshed_at" = clock_timestamp()
-      WHERE "id" = ${current.id}::uuid
-    `;
-    return current;
+    const excluded: string[] = [];
+    while (true) {
+      const existing = await tx.media.findFirst({
+        where: {
+          ...where,
+          ...(excluded.length && { id: { notIn: excluded } }),
+        },
+      });
+      if (!existing) return null;
+      if (await this.hasFamilyCover(tx, existing.id)) {
+        excluded.push(existing.id);
+        continue;
+      }
+
+      await this.lockMedia(tx, existing.id);
+      const current = await tx.media.findFirst({
+        where: { ...where, id: existing.id },
+      });
+      if (!current || (await this.hasFamilyCover(tx, current.id))) return null;
+      await tx.$executeRaw`
+        UPDATE "Media" SET "retention_refreshed_at" = clock_timestamp()
+        WHERE "id" = ${current.id}::uuid
+      `;
+      return current;
+    }
   }
 
   /**
@@ -594,10 +615,32 @@ export class MediaRepository {
   }
 
   findUnattachedBefore(cutoff: Date) {
-    return this.prisma.media.findMany({
-      where: this.unattachedBefore(cutoff),
-      select: { id: true },
-    });
+    return this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT original."id"
+      FROM "Media" AS original
+      WHERE original."parentId" IS NULL
+        AND original."media_variant" = 'ORIGINAL'
+        AND original."media_target" IN (${Prisma.join(retainedTargets.map((target) => Prisma.sql`${target}::"MediaTarget"`))})
+        AND original."created_at" < ${cutoff}
+        AND (original."retention_refreshed_at" IS NULL OR original."retention_refreshed_at" < ${cutoff})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "Media" AS member
+          WHERE COALESCE(member."parentId", member."id") = original."id"
+            AND (
+              member."draft_id" IS NOT NULL OR member."postId" IS NOT NULL OR member."commentId" IS NOT NULL
+              OR EXISTS (SELECT 1 FROM "DraftMedia" WHERE "media_id" = member."id")
+              OR EXISTS (SELECT 1 FROM "User" WHERE "avatar_media_id" = member."id")
+              OR EXISTS (SELECT 1 FROM "CommentMedia" WHERE "media_id" = member."id")
+            )
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "Draft" AS draft
+          JOIN "Media" AS cover ON cover."id" = draft."cover_media_id"
+          WHERE COALESCE(cover."parentId", cover."id") = original."id"
+        )
+    `;
   }
 
   /**
@@ -622,75 +665,160 @@ export class MediaRepository {
     });
   }
 
-  /**
-   * Removes a reference or queues storage cleanup and deletes the family
-   * when the final reference is removed.
-   *
-   * @param id - Original media ID.
-   * @returns The updated or deleted original and any object locations queued for cleanup.
-   * @throws {ConflictException} If the ID is a variant or the family has protected attachment claims.
-   * @throws {Prisma.PrismaClientKnownRequestError} If the original no longer exists.
-   */
-  async removeReference(id: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await this.lockMedia(tx, id);
-      const media = await tx.media.findUniqueOrThrow({
-        where: { id },
-        include: {
-          Variants: { include: { _count: { select: { DraftMedia: true } } } },
-          _count: { select: { DraftMedia: true } },
-        },
-      });
-      if (media.parentId || media.variant !== MediaVariant.ORIGINAL) {
-        throw new ConflictException(
-          'Remove generated variants through their original',
-        );
-      }
-      if (
-        media.draftId ||
-        media._count.DraftMedia ||
-        (await this.hasFamilyCover(tx, id))
-      ) {
-        throw new ConflictException('Media is attached to a draft');
-      }
+  private async findUsage(tx: Prisma.TransactionClient, familyIds: string[]) {
+    const drafts = await tx.draft.findMany({
+      where: draftFamilyUsage(familyIds),
+      select: { id: true, status: true },
+    });
+    const avatars = await tx.user.findMany({
+      where: { avatarMediaId: { in: familyIds } },
+      select: { id: true },
+    });
+    return { drafts, avatars };
+  }
 
-      if (
-        media.Variants.some(
-          (variant) =>
-            variant.draftId ||
-            variant._count.DraftMedia ||
-            (variant.postId != null && variant.postId !== media.postId) ||
-            (variant.commentId != null &&
-              variant.commentId !== media.commentId),
+  private async lockUsage(
+    tx: Prisma.TransactionClient,
+    { drafts, avatars }: Awaited<ReturnType<MediaRepository['findUsage']>>,
+  ) {
+    // These locks serialize updates while allowing unrelated FK checks.
+    if (avatars.length) {
+      await tx.$queryRaw`
+        SELECT "id" FROM "User" WHERE "id" IN (${Prisma.join(avatars.map(({ id }) => Prisma.sql`${id}::uuid`))})
+        ORDER BY "id" FOR NO KEY UPDATE
+      `;
+    }
+    if (drafts.length) {
+      await tx.$queryRaw`
+        SELECT "id" FROM "Draft" WHERE "id" IN (${Prisma.join(drafts.map(({ id }) => Prisma.sql`${id}::uuid`))})
+        ORDER BY "id" FOR NO KEY UPDATE
+      `;
+    }
+  }
+
+  async removeReference(id: string, force = false) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const members = await tx.media.findMany({
+          where: { OR: [{ id }, { parentId: id }] },
+          select: { id: true },
+        });
+        const initial = await this.findUsage(
+          tx,
+          members.map(({ id }) => id),
+        );
+        await this.lockUsage(tx, initial);
+        await this.lockMedia(tx, id);
+
+        const media = await tx.media.findUnique({
+          where: { id },
+          include: {
+            Variants: {
+              include: { _count: { select: { CommentMedia: true } } },
+            },
+            _count: { select: { CommentMedia: true } },
+          },
+        });
+        if (!media) throw new NotFoundException('Media not found');
+        if (media.parentId || media.variant !== MediaVariant.ORIGINAL) {
+          throw new ConflictException({
+            code: 'MEDIA_VARIANT',
+            message: 'Remove generated variants through their original',
+            canForce: false,
+          });
+        }
+        const family = [media, ...media.Variants];
+        const ids = { in: family.map(({ id }) => id) };
+        const { drafts, avatars } = await this.findUsage(tx, ids.in);
+        // A writer may have added a reference before we acquired the original lock.
+        if (
+          drafts.some(
+            ({ id }) => !initial.drafts.some((draft) => draft.id === id),
+          ) ||
+          avatars.some(
+            ({ id }) => !initial.avatars.some((avatar) => avatar.id === id),
+          )
         )
-      ) {
-        throw new ConflictException(
-          'Media has an unresolved variant attachment',
-        );
-      }
+          return null;
 
-      if (media.refCount <= 1) {
+        if (drafts.some(({ status }) => status === DraftStatus.PUBLISHING)) {
+          throw new ConflictException({
+            code: 'MEDIA_DRAFT_PUBLISHING',
+            message: 'Media is attached to a publishing draft',
+            canForce: false,
+          });
+        }
+        if (
+          drafts.length &&
+          media.Variants.length &&
+          (await tx.draft.findFirst({
+            where: draftFamilyUsage(media.Variants.map(({ id }) => id)),
+            select: { id: true },
+          }))
+        ) {
+          throw new ConflictException({
+            code: 'MEDIA_LEGACY_DRAFT_CLAIM',
+            message:
+              'Remove the unresolved variant claim from its draft before deleting this media',
+            canForce: false,
+          });
+        }
+        const protectedUse =
+          avatars.length > 0 ||
+          drafts.some(({ status }) => status === DraftStatus.ARCHIVED) ||
+          family.some(
+            ({ postId, commentId, _count }) =>
+              postId !== null || commentId !== null || _count.CommentMedia > 0,
+          );
+        if (protectedUse && !force) {
+          throw new ConflictException({
+            code: 'MEDIA_IN_USE',
+            message:
+              'Deleting this media may break images or covers in saved content and resets any active avatar.',
+            canForce: true,
+          });
+        }
+
+        if (drafts.length) {
+          await tx.draft.updateMany({
+            where: { coverMediaId: ids },
+            data: { coverMediaId: null },
+          });
+        }
+        if (!force && drafts.length) {
+          await tx.draftMedia.deleteMany({ where: { mediaId: ids } });
+          await tx.media.updateMany({
+            where: { id: ids },
+            data: { draftId: null },
+          });
+          await tx.$executeRaw`
+            UPDATE "Media" SET "retention_refreshed_at" = clock_timestamp()
+            WHERE "id" = ${id}::uuid
+          `;
+          return {
+            media: await tx.media.findUniqueOrThrow({ where: { id } }),
+            objects: [],
+          };
+        }
+
+        if (avatars.length) {
+          await tx.user.updateMany({
+            where: { avatarMediaId: ids },
+            data: { image: null, avatarMediaId: null },
+          });
+        }
         const { deleted, objects } = await this.recordStorageDeletion(
           tx,
           media,
           media.Variants,
         );
         return { media: deleted, objects };
-      }
-      await tx.media.updateMany({
-        where: { parentId: id },
-        data: { postId: null, commentId: null },
       });
-      const updated = await tx.media.update({
-        where: { id },
-        data: {
-          refCount: { decrement: 1 },
-          postId: null,
-          commentId: null,
-        },
-      });
-      return { media: updated, objects: [] };
-    });
+      if (result) return result;
+    }
+    throw new ServiceUnavailableException(
+      'Media usage is changing. Retry the request.',
+    );
   }
 
   private async lockMedia(tx: Prisma.TransactionClient, id: string) {

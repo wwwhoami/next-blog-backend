@@ -10,9 +10,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Job, UnrecoverableError } from 'bullmq';
 import { DraftStatus, MediaTarget, Prisma } from 'prisma/generated/client';
-import remarkParse from 'remark-parse';
 import slugify from 'slugify';
-import { unified } from 'unified';
+import { ManagedMedia } from '../media/util/managed-media';
+import { markdownImages } from '../media/util/markdown-images';
 import {
   MAX_DRAFT_CONTENT_LENGTH,
   MAX_DRAFT_IMAGE_REFERENCES,
@@ -26,12 +26,6 @@ import {
 import { DraftRepository } from './draft.repository';
 import { effectiveMedia } from './effective-media';
 
-type MdastNode = {
-  type: string;
-  url?: string;
-  children?: MdastNode[];
-};
-
 /**
  * Processes asynchronous draft publication jobs.
  *
@@ -44,6 +38,7 @@ type MdastNode = {
 @Injectable()
 @Processor(DRAFT_PROCESSOR_QUEUE)
 export class DraftProcessor extends WorkerHost {
+  private readonly managedMedia: ManagedMedia;
   private readonly externalHosts: Set<string>;
   private readonly logger = new Logger(DraftProcessor.name);
 
@@ -61,6 +56,7 @@ export class DraftProcessor extends WorkerHost {
     private readonly configService: ConfigService,
   ) {
     super();
+    this.managedMedia = new ManagedMedia(configService);
     this.externalHosts = new Set(
       (configService.get<string>('EXTERNAL_MEDIA_DOMAINS') ?? '')
         .split(',')
@@ -171,7 +167,9 @@ export class DraftProcessor extends WorkerHost {
       const mediaIds = originals.map(({ id }) => id);
       const cover = originals.find(
         (media) =>
-          media.id === draft.coverMediaId && media.target === MediaTarget.POST,
+          media.id === draft.coverMediaId &&
+          media.ownerId === ownerId &&
+          media.target === MediaTarget.POST,
       );
       if (!cover) {
         throw new UnprocessableEntityException(
@@ -180,9 +178,23 @@ export class DraftProcessor extends WorkerHost {
       }
 
       const variants = await this.repo.findVariantUrls(mediaIds);
+      const ownedIds = new Set(
+        originals
+          .filter(
+            (media) =>
+              media.ownerId === ownerId && media.target === MediaTarget.POST,
+          )
+          .map(({ id }) => id),
+      );
       const imageUrls = this.validateMarkdownImages(draft.content, [
-        ...originals,
-        ...variants,
+        ...originals.map((media) => ({
+          ...media,
+          owned: ownedIds.has(media.id),
+        })),
+        ...variants.map((media) => ({
+          ...media,
+          owned: media.parentId != null && ownedIds.has(media.parentId),
+        })),
       ]);
       for (const media of originals) {
         if (
@@ -203,11 +215,21 @@ export class DraftProcessor extends WorkerHost {
         if (draft.sourceVersion === null) {
           throw new ConflictException('Revision source version is missing');
         }
+        const sourceCover = draft.post?.coverImage;
+        const sourceKey = sourceCover && this.managedMedia.key(sourceCover);
+        const keepsSourceCover =
+          sourceCover &&
+          variants.some(
+            (variant) =>
+              variant.parentId === cover.id &&
+              (variant.publicUrl === sourceCover ||
+                (sourceKey !== undefined && variant.key === sourceKey)),
+          );
         return await this.repo.publishRevision(draft.id, ownerId, {
           title: draft.title,
           excerpt: draft.excerpt,
           content: draft.content,
-          coverImage: cover.publicUrl,
+          coverImage: keepsSourceCover ? sourceCover : cover.publicUrl,
           coverMediaId: cover.id,
           mediaIds,
           categoryNames: draft.categoryNames,
@@ -265,7 +287,7 @@ export class DraftProcessor extends WorkerHost {
    */
   private validateMarkdownImages(
     content: string,
-    media: { publicUrl: string }[],
+    media: { publicUrl: string; key?: string; owned: boolean }[],
   ) {
     if (content.length > MAX_DRAFT_CONTENT_LENGTH) {
       throw new UnprocessableEntityException(
@@ -273,43 +295,48 @@ export class DraftProcessor extends WorkerHost {
       );
     }
 
-    const knownUrls = new Set(media.map(({ publicUrl }) => publicUrl));
-    const images: MdastNode[] = [];
-    const visit = (node: MdastNode) => {
-      if (
-        node.type === 'html' ||
-        node.type === 'imageReference' ||
-        node.type === 'definition'
-      ) {
-        throw new UnprocessableEntityException(
-          'Raw HTML and reference-style Markdown images are not supported',
-        );
-      }
-      if (node.type === 'image') images.push(node);
-      node.children?.forEach(visit);
-    };
-
-    let tree: MdastNode;
+    let parsed: ReturnType<typeof markdownImages>;
     try {
-      tree = unified().use(remarkParse).parse(content) as MdastNode;
+      parsed = markdownImages(content);
     } catch {
       throw new UnprocessableEntityException('Invalid Markdown content');
     }
-    visit(tree);
-
-    if (images.length > MAX_DRAFT_IMAGE_REFERENCES) {
+    if (parsed.hasHtml || parsed.hasReferenceSyntax) {
+      throw new UnprocessableEntityException(
+        'Raw HTML and reference-style Markdown images are not supported',
+      );
+    }
+    if (parsed.urls.length > MAX_DRAFT_IMAGE_REFERENCES) {
       throw new UnprocessableEntityException(
         `Content exceeds the maximum of ${MAX_DRAFT_IMAGE_REFERENCES} image references`,
       );
     }
 
+    const ownedMedia = media.filter(({ owned }) => owned);
+    const knownUrls = new Set(ownedMedia.map(({ publicUrl }) => publicUrl));
+    const ownedKeys = new Map(
+      ownedMedia.map(({ key, publicUrl }) => [
+        key ?? this.managedMedia.key(publicUrl),
+        publicUrl,
+      ]),
+    );
     const imageUrls = new Set<string>();
-    for (const image of images) {
-      const rawUrl = image.url;
+    for (const rawUrl of parsed.urls) {
       if (!rawUrl) {
         throw new UnprocessableEntityException(
           'Image URL is required in Markdown',
         );
+      }
+      const key = this.managedMedia.key(rawUrl);
+      if (key !== undefined) {
+        const publicUrl = ownedKeys.get(key);
+        if (!publicUrl) {
+          throw new UnprocessableEntityException(
+            `Image URL is not attached media or an allowed external host: ${rawUrl}`,
+          );
+        }
+        imageUrls.add(publicUrl);
+        continue;
       }
       let url: URL;
       try {
@@ -319,7 +346,6 @@ export class DraftProcessor extends WorkerHost {
           `Invalid image URL in Markdown: ${rawUrl}`,
         );
       }
-
       imageUrls.add(rawUrl);
       if (knownUrls.has(rawUrl)) continue;
       if (
