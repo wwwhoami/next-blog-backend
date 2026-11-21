@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Job, Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { StorageService } from '../storage/storage.service';
-import { drainStorageDeletions } from './drain-storage-deletions';
 import { MediaRepository } from './media.repository';
+import { drainStorageDeletions } from './util/drain-storage-deletions';
 
 export const MEDIA_CLEANUP_QUEUE = 'media-cleanup';
 const DAY_MS = 24 * 60 * 60 * 1000;

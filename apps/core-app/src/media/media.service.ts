@@ -30,10 +30,10 @@ import {
   VARIANT_CONFIGS,
 } from './constants/media-processor.constants';
 import { QUEUE_JOB_CONFIG } from './constants/queue-config.constants';
-import { drainStorageDeletions } from './drain-storage-deletions';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import { MediaVariantsStatusMsg } from './media-events.service';
 import { MediaRepository } from './media.repository';
+import { drainStorageDeletions } from './util/drain-storage-deletions';
 
 function hasCompleteVariantSet(rows: { variant: MediaVariant }[]) {
   return VARIANT_CONFIGS.every(({ variant }) =>

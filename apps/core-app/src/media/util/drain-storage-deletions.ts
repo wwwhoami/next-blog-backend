@@ -1,6 +1,6 @@
 import { PinoLogger } from 'nestjs-pino';
-import { StorageService } from '../storage/storage.service';
-import { MediaRepository } from './media.repository';
+import { StorageService } from '../../storage/storage.service';
+import { MediaRepository } from '../media.repository';
 
 /**
  * Processes due entries in the media storage deletion outbox. Acknowledges each
