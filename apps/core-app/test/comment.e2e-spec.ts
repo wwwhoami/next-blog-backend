@@ -725,6 +725,101 @@ describe('Comment (e2e)', () => {
         .expect(HttpStatus.BAD_REQUEST);
     });
   });
+  it('keeps post and comment counters equal to their like rows across concurrent requests and cascades', async () => {
+    const prisma = app.get(PrismaService);
+    const owner = userData[0];
+    const server = request(app.getHttpServer());
+    const actors = await Promise.all(
+      [0, 1, 2].map(async () => {
+        const name = randomUUID();
+        const response = await server
+          .post('/auth/sign-up')
+          .send({ name, email: `${name}@example.com`, password: 'password' })
+          .expect(HttpStatus.CREATED);
+        return {
+          id: response.body.id as string,
+          token: response.body.accessToken as string,
+        };
+      }),
+    );
+    const ownerLogin = await server
+      .post('/auth/login')
+      .send({ email: owner.email, password: 'password' })
+      .expect(HttpStatus.CREATED);
+    const post = await prisma.post.create({
+      data: {
+        authorId: owner.id,
+        title: randomUUID(),
+        slug: randomUUID(),
+        content: 'Post',
+        excerpt: 'Excerpt',
+        coverImage: '',
+      },
+    });
+    const reply = await prisma.comment.create({
+      data: { postId: post.id, authorId: owner.id, content: 'Comment' },
+    });
+    const postPath = `/post/${post.id}/likes`;
+    const commentPath = `/comment/${reply.id}/likes`;
+    const assertCounts = async (posts: number, comments: number) => {
+      await expect(
+        prisma.postLikes.count({ where: { postId: post.id } }),
+      ).resolves.toBe(posts);
+      await expect(
+        prisma.commentLikes.count({ where: { commentId: reply.id } }),
+      ).resolves.toBe(comments);
+      await expect(
+        prisma.post.findUnique({ where: { id: post.id } }),
+      ).resolves.toMatchObject({ likesCount: posts });
+      await expect(
+        prisma.comment.findUnique({ where: { id: reply.id } }),
+      ).resolves.toMatchObject({ likesCount: comments });
+    };
+    try {
+      for (const path of [postPath, commentPath]) {
+        const responses = await Promise.all(
+          [...actors, actors[0]].map(({ token }) =>
+            server.post(path).auth(token, { type: 'bearer' }),
+          ),
+        );
+        expect(responses.map(({ status }) => status).sort()).toEqual([
+          HttpStatus.CREATED,
+          HttpStatus.CREATED,
+          HttpStatus.CREATED,
+          HttpStatus.CONFLICT,
+        ]);
+      }
+      await assertCounts(3, 3);
+
+      await Promise.all(
+        [postPath, commentPath].map((path) =>
+          server
+            .delete(path)
+            .auth(actors[0].token, { type: 'bearer' })
+            .expect(HttpStatus.OK),
+        ),
+      );
+      await assertCounts(2, 2);
+
+      await prisma.user.delete({ where: { id: actors[1].id } });
+      await assertCounts(1, 1);
+
+      await server
+        .delete(`/comment/${reply.id}`)
+        .auth(ownerLogin.body.accessToken, { type: 'bearer' })
+        .expect(HttpStatus.OK)
+        .expect(({ body }) =>
+          expect(body).toMatchObject({ isDeleted: true, likesCount: 0 }),
+        );
+      await assertCounts(1, 0);
+    } finally {
+      await prisma.post.delete({ where: { id: post.id } });
+      await prisma.user.deleteMany({
+        where: { id: { in: actors.map(({ id }) => id) } },
+      });
+    }
+  });
+
   it('keeps ordered comment galleries independent when they share the same media', async () => {
     const prisma = app.get(PrismaService);
     const storage = app.get(StorageService);
@@ -771,13 +866,19 @@ describe('Comment (e2e)', () => {
       variant: MediaVariant.THUMBNAIL,
     });
 
-    const create = (mediaIds?: string[], ancestorId?: number) =>
+    const inline = `![Managed variant](${variant.publicUrl})`;
+    const external = '![External](https://example.org/image.webp)';
+    const create = (
+      mediaIds?: string[],
+      ancestorId?: number,
+      content = 'Comment text',
+    ) =>
       request(app.getHttpServer())
         .post('/comment')
         .auth(accessToken, { type: 'bearer' })
         .send({
           postId: post.id,
-          content: 'Comment text',
+          content,
           mediaIds,
           ancestorId,
           authorId: userData[1].id,
@@ -793,13 +894,15 @@ describe('Comment (e2e)', () => {
     ]) {
       await create(ids).expect(HttpStatus.BAD_REQUEST);
     }
+    await create(undefined, undefined, inline).expect(HttpStatus.BAD_REQUEST);
+    await create([second.id], undefined, inline).expect(HttpStatus.BAD_REQUEST);
     await expect(
       prisma.comment.count({ where: { postId: post.id } }),
     ).resolves.toBe(0);
-    const root = await create([second.id, shared.id]).expect(
+    const root = await create([second.id, shared.id], undefined, inline).expect(
       HttpStatus.CREATED,
     );
-    expect(root.body.images.map(({ id }) => id)).toEqual([
+    expect(root.body.images.map(({ id }: { id: string }) => id)).toEqual([
       second.id,
       shared.id,
     ]);
@@ -809,7 +912,10 @@ describe('Comment (e2e)', () => {
     expect(reply.body.images).toEqual([
       { id: shared.id, publicUrl: shared.publicUrl, mimeType: shared.mimeType },
     ]);
-    const plain = await create().expect(HttpStatus.CREATED);
+    const plain = await create(undefined, undefined, external).expect(
+      HttpStatus.CREATED,
+    );
+    expect(plain.body.content).toBe(external);
     const plainReply = await create([], plain.body.id).expect(
       HttpStatus.CREATED,
     );
@@ -831,8 +937,7 @@ describe('Comment (e2e)', () => {
       request(app.getHttpServer())
         .patch(`/comment/${root.body.id}`)
         .auth(accessToken, { type: 'bearer' })
-        .send(data)
-        .expect(HttpStatus.OK);
+        .send(data);
     const get = async (id: number) =>
       (
         await request(app.getHttpServer())
@@ -845,12 +950,27 @@ describe('Comment (e2e)', () => {
         .auth(accessToken, { type: 'bearer' });
 
     try {
-      const edited = await edit({ content: 'Edited text' });
-      expect(edited.body.images.map(({ id }) => id)).toEqual([
+      await edit({ mediaIds: [second.id] }).expect(HttpStatus.BAD_REQUEST);
+      await edit({ content: `![Foreign](${unrelated.publicUrl})` }).expect(
+        HttpStatus.BAD_REQUEST,
+      );
+      const reordered = await edit({ mediaIds: [shared.id, second.id] }).expect(
+        HttpStatus.OK,
+      );
+      expect(reordered.body.images.map(({ id }: { id: string }) => id)).toEqual(
+        [shared.id, second.id],
+      );
+      const edited = await edit({
+        content: external,
+        mediaIds: [second.id, shared.id],
+      }).expect(HttpStatus.OK);
+      expect(edited.body.images.map(({ id }: { id: string }) => id)).toEqual([
         second.id,
         shared.id,
       ]);
-      expect((await edit({ mediaIds: [] })).body.images).toEqual([]);
+      expect(
+        (await edit({ mediaIds: [] }).expect(HttpStatus.OK)).body.images,
+      ).toEqual([]);
       expect((await get(reply.body.id)).images).toEqual(reply.body.images);
       const conflict = await remove(false).expect(HttpStatus.CONFLICT);
       expect(conflict.body).toMatchObject({
@@ -858,14 +978,16 @@ describe('Comment (e2e)', () => {
         canForce: true,
       });
 
-      await edit({ mediaIds: [shared.id, second.id] });
+      await edit({ content: inline, mediaIds: [shared.id, second.id] }).expect(
+        HttpStatus.OK,
+      );
       const replies = await request(app.getHttpServer())
         .get(`/comment/${root.body.id}/replies`)
         .expect(HttpStatus.OK);
       expect(replies.body[0].images).toEqual(reply.body.images);
       await remove(true).expect(HttpStatus.OK);
       expect(await get(root.body.id)).toMatchObject({
-        content: 'Edited text',
+        content: inline,
         images: [{ id: second.id }],
       });
       expect(await get(reply.body.id)).toMatchObject({

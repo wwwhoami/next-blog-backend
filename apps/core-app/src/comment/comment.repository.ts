@@ -4,9 +4,15 @@ import { ConflictError } from '@core/src/common/errors/conflict.error';
 import { UnprocessableEntityError } from '@core/src/common/errors/unprocessable-entity.error';
 import { PostRepository } from '@core/src/post/post.repository';
 import { UserNameImageEntity } from '@core/src/user/entities/user.entity';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MediaTarget, Prisma } from 'prisma/generated/client';
-import { lockOriginalMedia, originalMedia } from '../media/util/managed-media';
+import {
+  ManagedMedia,
+  lockOriginalMedia,
+  originalMedia,
+} from '../media/util/managed-media';
+import { markdownImages } from '../media/util/markdown-images';
 import {
   CreateCommentDto,
   CreateResponseToCommentDto,
@@ -31,10 +37,15 @@ const includeImages = {
 
 @Injectable()
 export class CommentRepository {
+  private readonly managedMedia: ManagedMedia;
+
   constructor(
     private prisma: PrismaService,
     private postRepository: PostRepository,
-  ) {}
+    @Optional() config?: ConfigService,
+  ) {
+    this.managedMedia = new ManagedMedia(config);
+  }
 
   /**
    * @param {CommentOrderBy} orderBy - The field to order by
@@ -132,10 +143,12 @@ export class CommentRepository {
           include: includeImages,
         }),
       );
-    if (!mediaIds?.length) return create(this.prisma);
+    const keys = this.managedMedia.keys(markdownImages(content).urls);
+    if (!mediaIds?.length && !keys.length) return create(this.prisma);
 
     return this.prisma.$transaction(async (tx) => {
-      const ids = await this.validateImages(tx, authorId, mediaIds);
+      const ids = await this.validateImages(tx, authorId, mediaIds ?? []);
+      await this.validateInlineImages(tx, authorId, ids, keys);
       return create(tx, ids);
     });
   }
@@ -155,16 +168,17 @@ export class CommentRepository {
     tx: Prisma.TransactionClient,
     ownerId: string | null,
     ids: string[],
+    outgoing: string[] = [],
   ) {
     const normalized = ids.map((id) => id.toLowerCase());
     if (new Set(normalized).size !== normalized.length) {
       throw new BadRequestException('Duplicate comment image IDs');
     }
+    await lockOriginalMedia(tx, [...outgoing, ...normalized]);
     if (!ids.length) return normalized;
     if (!ownerId)
       throw new BadRequestException('Comment images must belong to the author');
 
-    await lockOriginalMedia(tx, normalized);
     const count = await tx.media.count({
       where: {
         id: { in: normalized },
@@ -177,6 +191,31 @@ export class CommentRepository {
       throw new BadRequestException('One or more comment images are invalid');
 
     return normalized;
+  }
+
+  private async validateInlineImages(
+    tx: Prisma.TransactionClient,
+    ownerId: string | null,
+    gallery: string[],
+    keys: string[],
+  ) {
+    if (!keys.length) return;
+    if (!ownerId || !gallery.length) {
+      throw new BadRequestException(
+        'Managed comment images must be in the gallery',
+      );
+    }
+    const originals = await this.managedMedia.resolve(
+      tx,
+      keys,
+      ownerId,
+      MediaTarget.COMMENT,
+    );
+    if (originals.some((id) => !gallery.includes(id))) {
+      throw new BadRequestException(
+        'Managed comment images must be in the gallery',
+      );
+    }
   }
 
   /** Converts validated IDs to gallery link rows with zero-based positions. */
@@ -552,15 +591,33 @@ export class CommentRepository {
         }),
       );
 
-    if (mediaIds === undefined) return update(this.prisma);
     return this.prisma.$transaction(async (tx) => {
-      const [comment] = await tx.$queryRaw<{ authorId: string | null }[]>`
-        SELECT "author_id" AS "authorId" FROM "Comment"
+      const [comment] = await tx.$queryRaw<
+        { authorId: string | null; content: string }[]
+      >`
+        SELECT "author_id" AS "authorId", "content" FROM "Comment"
         WHERE "id" = ${id} AND NOT "is_deleted" FOR NO KEY UPDATE
       `;
       if (!comment) throw new NotFoundError('Comment not found');
-      const ids = await this.validateImages(tx, comment.authorId, mediaIds);
-      // Clear the old gallery before inserting its replacement, including reused IDs.
+
+      const previous = await tx.commentMedia.findMany({
+        where: { commentId: id },
+        select: { mediaId: true },
+        orderBy: { position: 'asc' },
+      });
+      const existing = previous.map(({ mediaId }) => mediaId);
+      const ids = await this.validateImages(
+        tx,
+        comment.authorId,
+        mediaIds ?? existing,
+        existing,
+      );
+      const keys = this.managedMedia.keys(
+        markdownImages(content ?? comment.content).urls,
+      );
+      await this.validateInlineImages(tx, comment.authorId, ids, keys);
+      if (mediaIds === undefined) return update(tx);
+
       await tx.commentMedia.deleteMany({ where: { commentId: id } });
       return update(tx, ids);
     });
@@ -602,80 +659,35 @@ export class CommentRepository {
    * @throws {UnprocessableEntityError} - If comment is deleted
    */
   async like(id: number, userId: string): Promise<CommentLike> {
-    try {
-      await this.prisma.comment.findFirstOrThrow({
-        where: {
-          id,
-          isDeleted: false,
-        },
-      });
-    } catch (error) {
-      // If comment is not found or is soft deleted
-      if (error.code === 'P2025') {
+    return this.prisma.$transaction(async (tx) => {
+      const [comment] = await tx.$queryRaw<{ id: number }[]>`
+        SELECT "id" FROM "Comment" WHERE "id" = ${id} AND NOT "is_deleted"
+        FOR NO KEY UPDATE
+      `;
+      if (!comment)
         throw new UnprocessableEntityError('Comment does not exist');
-      }
-      throw error;
-    }
 
-    await this.prisma.commentLikes.create({
-      data: {
-        commentId: id,
-        userId,
-      },
-    });
-
-    return this.prisma.comment.update({
-      where: {
-        id,
-      },
-      data: {
-        likesCount: {
-          increment: 1,
-        },
-      },
-      select: {
-        id: true,
-        likesCount: true,
-        postId: true,
-      },
+      await tx.commentLikes.create({ data: { commentId: id, userId } });
+      return this.readLikeCount(tx, id);
     });
   }
 
-  /**
-   * @param {number} id - Comment id
-   * @param {string} userId - User id
-   * @description Unlike comment deleting like record and decrementing likes count
-   * @throws {Prisma.PrismaClientKnownRequestError} - If comment is not found
-   * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
-   */
   async unlike(id: number, userId: string): Promise<CommentLike> {
-    await this.prisma.commentLikes.delete({
-      where: {
-        commentId_userId: {
-          commentId: id,
-          userId,
-        },
-      },
-      select: {
-        userId: true,
-        commentId: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "Comment" WHERE "id" = ${id} FOR NO KEY UPDATE
+      `;
+      await tx.commentLikes.delete({
+        where: { commentId_userId: { commentId: id, userId } },
+      });
+      return this.readLikeCount(tx, id);
     });
+  }
 
-    return this.prisma.comment.update({
-      where: {
-        id,
-      },
-      data: {
-        likesCount: {
-          decrement: 1,
-        },
-      },
-      select: {
-        id: true,
-        likesCount: true,
-        postId: true,
-      },
+  private readLikeCount(tx: Prisma.TransactionClient, id: number) {
+    return tx.comment.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, likesCount: true, postId: true },
     });
   }
 
@@ -693,31 +705,27 @@ export class CommentRepository {
    */
   softRemove(id: number): Promise<CommentEntity> {
     return this.prisma.$transaction(async (tx) => {
-      const comment = await tx.comment.update({
+      await tx.comment.update({
         data: {
           isDeleted: true,
           content: 'COMMENT IS DELETED',
-          likesCount: 0,
         },
         where: { id },
       });
-      const legacyImages = await tx.media.findMany({
+      const attachments = await tx.commentMedia.findMany({
         where: { commentId: id },
-        select: { id: true, parentId: true },
+        select: { mediaId: true },
       });
-      if (legacyImages.length) {
-        await lockOriginalMedia(
-          tx,
-          legacyImages.map(({ id, parentId }) => parentId ?? id),
-        );
-        await tx.media.updateMany({
-          where: { commentId: id },
-          data: { commentId: null },
-        });
-      }
+      await lockOriginalMedia(
+        tx,
+        attachments.map(({ mediaId }) => mediaId),
+      );
       await tx.commentMedia.deleteMany({ where: { commentId: id } });
       await tx.commentLikes.deleteMany({ where: { commentId: id } });
-      return { ...comment, images: [] };
+      return {
+        ...(await tx.comment.findUniqueOrThrow({ where: { id } })),
+        images: [],
+      };
     });
   }
 }

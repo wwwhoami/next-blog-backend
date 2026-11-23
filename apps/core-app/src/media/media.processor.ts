@@ -150,7 +150,7 @@ export class MediaProcessor extends WorkerHost {
       const current = await this.repo.findByIdWithVariants(mediaId);
       if (!current) return;
       const createdVariants = VARIANT_CONFIGS.map(({ variant }) => {
-        const row = current.Variants.find((row) => row.variant === variant);
+        const row = current.variants.find((row) => row.variant === variant);
         if (!row)
           throw new ProcessingError(
             `Missing ${variant} variant for mediaId: ${mediaId}`,

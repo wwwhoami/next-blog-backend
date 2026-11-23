@@ -41,17 +41,18 @@ describe('DraftRepository', () => {
     expect(repository).toBeDefined();
   });
 
-  it('moves draft media to the created post and archives the draft atomically', async () => {
+  it('adds post links and retains draft links and archives the draft atomically', async () => {
     const post = { id: 42 };
     const tx = mockDeep<PrismaService>();
     tx.draft.findFirst.mockResolvedValueOnce({
       coverMediaId: 'media-id',
     } as never);
-    tx.media.findMany.mockResolvedValue([
-      { id: 'media-id', ownerId: 'owner-id', Variants: [], DraftMedia: [] },
+    tx.draftMedia.findMany.mockResolvedValue([
+      { mediaId: 'media-id' },
     ] as never);
+    tx.media.count.mockResolvedValue(1);
     tx.post.create.mockResolvedValue(post as never);
-    tx.media.updateMany.mockResolvedValue({ count: 1 });
+
     tx.draft.update.mockResolvedValue({
       status: DraftStatus.ARCHIVED,
       postId: post.id,
@@ -71,19 +72,11 @@ describe('DraftRepository', () => {
       categoryNames: [],
     });
 
-    expect(tx.media.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ['media-id'] },
-        draftId: 'draft-id',
-      },
-      data: { draftId: null },
+    expect(tx.postMedia.createMany).toHaveBeenCalledWith({
+      data: [{ postId: post.id, mediaId: 'media-id' }],
+      skipDuplicates: true,
     });
-    expect(tx.media.updateMany).toHaveBeenCalledWith({
-      where: {
-        OR: [{ id: { in: ['media-id'] } }, { parentId: { in: ['media-id'] } }],
-      },
-      data: { postId: post.id },
-    });
+    expect(tx.draftMedia.deleteMany).not.toHaveBeenCalled();
     expect(tx.draft.update).toHaveBeenCalledWith({
       where: { id: 'draft-id' },
       data: {
@@ -97,6 +90,7 @@ describe('DraftRepository', () => {
   it('returns an existing active revision after a concurrent create conflict', async () => {
     const activeRevision = { id: 'existing-revision', postId: 7 };
     const tx = mockDeep<PrismaService>();
+    tx.postMedia.findMany.mockResolvedValue([]);
     tx.post.findUnique.mockResolvedValue({
       id: 7,
       authorId: 'owner-id',
@@ -104,7 +98,7 @@ describe('DraftRepository', () => {
       content: 'Post',
       coverImage: 'https://example.com/cover.webp',
       categories: [],
-      Media: [],
+      postMedia: [],
     } as never);
     tx.draft.findFirst.mockResolvedValue(null);
     tx.draft.create.mockRejectedValue(
@@ -127,6 +121,7 @@ describe('DraftRepository', () => {
 
   it('does not mask unrelated unique constraint errors', async () => {
     const tx = mockDeep<PrismaService>();
+    tx.postMedia.findMany.mockResolvedValue([]);
     tx.post.findUnique.mockResolvedValue({
       id: 7,
       authorId: 'owner-id',
@@ -134,7 +129,7 @@ describe('DraftRepository', () => {
       content: 'Post',
       coverImage: 'https://example.com/cover.webp',
       categories: [],
-      Media: [],
+      postMedia: [],
     } as never);
     tx.draft.findFirst.mockResolvedValue(null);
     const error = new Prisma.PrismaClientKnownRequestError('duplicate', {
@@ -153,6 +148,7 @@ describe('DraftRepository', () => {
 
   it('does not mask compound unique conflicts containing postId', async () => {
     const tx = mockDeep<PrismaService>();
+    tx.postMedia.findMany.mockResolvedValue([]);
     tx.post.findUnique.mockResolvedValue({
       id: 7,
       authorId: 'owner-id',
@@ -160,7 +156,7 @@ describe('DraftRepository', () => {
       content: 'Post',
       coverImage: 'https://example.com/cover.webp',
       categories: [],
-      Media: [],
+      postMedia: [],
     } as never);
     tx.draft.findFirst.mockResolvedValue(null);
     const error = new Prisma.PrismaClientKnownRequestError('duplicate', {
@@ -217,9 +213,14 @@ describe('DraftRepository', () => {
       where: { id: 'draft-id' },
       data: { title: 'Updated title' },
       include: {
-        media: { where: { parentId: null, variant: MediaVariant.ORIGINAL } },
         draftMedia: {
-          where: { media: { parentId: null, variant: MediaVariant.ORIGINAL } },
+          where: {
+            media: {
+              deletedAt: null,
+              parentId: null,
+              variant: MediaVariant.ORIGINAL,
+            },
+          },
           include: { media: true },
         },
         post: true,

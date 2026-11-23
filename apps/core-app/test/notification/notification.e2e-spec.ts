@@ -1,3 +1,4 @@
+import { PrismaService } from '@app/prisma';
 import { NotificationMessage, PostPayload } from '@app/shared/entities';
 import { kafkaProviderFactory } from '@app/shared/kafka';
 import { AppModule } from '@core/src/app.module';
@@ -10,6 +11,7 @@ import { Test } from '@nestjs/testing';
 import { NotificationModule } from 'apps/notification/src/notification.module';
 import { NotificationService } from 'apps/notification/src/notification.service';
 import cookieParser from 'cookie-parser';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import TestAgent from 'supertest/lib/agent';
 
@@ -141,6 +143,35 @@ describe('Notification (e2e)', () => {
           // Check that createdAt is correct date
           expect(new Date(res.body[0].createdAt).getTime()).not.toBeNaN();
         });
+    });
+
+    it('returns notification history after the actor account is deleted', async () => {
+      const name = randomUUID();
+      const { body } = await agent
+        .post('/auth/sign-up')
+        .send({ name, email: `${name}@example.com`, password: 'password' })
+        .expect(HttpStatus.CREATED);
+      const actor: string = body.id;
+      const target = notifications[0].target;
+      const prisma = app.get(PrismaService);
+      await notificationService.postNotification(
+        { actor, target, data: { id: 1 } },
+        'POST_LIKE',
+      );
+      await prisma.user.delete({ where: { id: actor } });
+      try {
+        const response = await agent
+          .get('/notification')
+          .auth(accessToken, { type: 'bearer' })
+          .expect(HttpStatus.OK);
+        expect(response.body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ actor, target, type: 'POST_LIKE' }),
+          ]),
+        );
+      } finally {
+        await prisma.notification.deleteMany({ where: { actor } });
+      }
     });
 
     it('should get 401 Unauthorized if user is not logged in', () => {

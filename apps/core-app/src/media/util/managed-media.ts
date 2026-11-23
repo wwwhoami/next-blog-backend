@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MediaTarget, MediaVariant, Prisma } from 'prisma/generated/client';
 
 export const originalMedia = {
+  deletedAt: null,
   parentId: null,
   variant: MediaVariant.ORIGINAL,
 } as const;
@@ -113,17 +114,19 @@ export class ManagedMedia {
     const ids = new Map<string, string>();
     if (!keys.length) return ids;
     const members = await tx.media.findMany({
-      where: { key: { in: keys } },
+      where: { key: { in: keys }, deletedAt: null },
       select: {
         key: true,
         id: true,
+        deletedAt: true,
         parentId: true,
         variant: true,
         ownerId: true,
         target: true,
-        Parent: {
+        parent: {
           select: {
             id: true,
+            deletedAt: true,
             parentId: true,
             variant: true,
             ownerId: true,
@@ -138,8 +141,9 @@ export class ManagedMedia {
       );
     }
     for (const member of members) {
-      const original = member.Parent ?? member;
+      const original = member.parent ?? member;
       if (
+        original.deletedAt != null ||
         original.parentId !== null ||
         original.variant !== MediaVariant.ORIGINAL ||
         original.ownerId !== ownerId.toLowerCase() ||

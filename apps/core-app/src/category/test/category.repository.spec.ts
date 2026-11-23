@@ -2,7 +2,7 @@ import { PrismaService } from '@app/prisma';
 import { PostRepository } from '@core/src/post/post.repository';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeepMockProxy, MockProxy, mock, mockDeep } from 'jest-mock-extended';
-import { Category, Post, Prisma, PrismaClient } from 'prisma/generated/client';
+import { PrismaClient } from 'prisma/generated/client';
 import { CategoryRepository } from '../category.repository';
 import { CreateCategoriesDto } from '../dto/create-category.dto';
 import {
@@ -44,17 +44,22 @@ describe('CategoryRepository', () => {
   });
 
   describe('getMany', () => {
-    it('should get categories', () => {
+    it('should get categories and select only names and colors', async () => {
       const payload = [
-        { name: 'name1', hexColor: 'hexColor1' },
-        { name: 'name2', hexColor: 'hexColor2' },
-      ] as unknown as Prisma.Prisma__CategoryClient<Array<Category>>;
+        { name: 'name1', hexColor: 'hexColor1', description: 'description1' },
+        { name: 'name2', hexColor: 'hexColor2', description: 'description2' },
+      ];
 
       prisma.category.findMany.mockResolvedValue(payload);
 
-      expect(
+      await expect(
         repository.getMany({ take: undefined, skip: undefined }),
       ).resolves.toEqual(payload);
+      expect(prisma.category.findMany).toHaveBeenCalledWith({
+        select: { name: true, hexColor: true },
+        take: 25,
+        skip: 0,
+      });
     });
   });
 
@@ -66,13 +71,13 @@ describe('CategoryRepository', () => {
           name: 'name1',
           hexColor: 'hexColor1',
           description: 'description1',
-          _count: { PostToCategory: 34 },
+          _count: { posts: 34 },
         },
         {
           name: 'name2',
           hexColor: 'hexColor2',
           description: 'description2',
-          _count: { PostToCategory: 34 },
+          _count: { posts: 34 },
         },
       ];
       const expectedPayload: CategoryWithHotness[] = payload.map(
@@ -80,7 +85,7 @@ describe('CategoryRepository', () => {
           name: category.name,
           description: category.description,
           hexColor: category.hexColor,
-          hotness: category._count.PostToCategory,
+          hotness: category._count.posts,
         }),
       );
 
@@ -164,22 +169,15 @@ describe('CategoryRepository', () => {
       ).resolves.toEqual(expected);
     });
 
-    it('should get empty array if no postIds found for searchTerm', () => {
-      const PostRepositoryPayload = [] as unknown as Prisma.Prisma__PostClient<
-        Array<Post>
-      >;
-      const prismaPayload = [] as unknown as Prisma.Prisma__CategoryClient<
-        Array<Category>
-      >;
+    it('should get empty array if no postIds found for searchTerm', async () => {
       const searchTerm = 'test';
-      const expected: Array<string> = [];
 
-      postRepository.findIds.mockResolvedValue(PostRepositoryPayload);
-      prisma.$queryRaw.mockResolvedValue(prismaPayload);
+      postRepository.findIds.mockResolvedValue([]);
 
-      expect(
+      await expect(
         repository.getCombinationsForSearchTerm({ searchTerm }),
-      ).resolves.toEqual(expected);
+      ).resolves.toEqual([]);
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 

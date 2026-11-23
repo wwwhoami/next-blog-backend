@@ -68,15 +68,12 @@ describe('MediaService', () => {
     sizeBytes: BigInt(1024),
     publicUrl: 'https://example.com/media/test.webp',
     hash: 'abcd1234',
-    refCount: 1,
+    retentionRefreshedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
-    postId: null,
-    commentId: null,
     parentId: null,
-    draftId: null,
-    Variants: [],
+    variants: [],
   };
 
   beforeEach(async () => {
@@ -196,7 +193,6 @@ describe('MediaService', () => {
         { mediaId: mockMediaRecord.id },
         expect.objectContaining({ jobId: mockMediaRecord.id }),
       );
-      expect(mockRepository.incrementRefCount).not.toHaveBeenCalled();
     });
 
     it('retries enqueue with the original ID after a queue failure', async () => {
@@ -285,14 +281,12 @@ describe('MediaService', () => {
     it('should return media with variants', async () => {
       const mediaWithVariants = {
         ...mockMediaRecord,
-        Variants: [
+        variants: [
           {
             id: 'variant-1',
             key: 'uploads/image/user-1/test__thumb.webp',
             ownerId: 'user-1',
             parentId: mockMediaRecord.id,
-            postId: null,
-            commentId: null,
             type: MediaType.IMAGE,
             variant: MediaVariant.THUMBNAIL,
             publicUrl: 'https://example.com/media/test__thumb.webp',
@@ -447,7 +441,7 @@ describe('MediaService', () => {
       }));
       mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockMediaRecord,
-        Variants: variants,
+        variants: variants,
       } as never);
       await expect(
         service.getProcessingResult(mockMediaRecord.id),
@@ -464,7 +458,7 @@ describe('MediaService', () => {
     it('should return failed status if job failed', async () => {
       mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockMediaRecord,
-        Variants: [],
+        variants: [],
       } as any);
 
       const mockJob = {
@@ -487,7 +481,7 @@ describe('MediaService', () => {
     it('should return pending status if job is active/waiting', async () => {
       mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockMediaRecord,
-        Variants: [],
+        variants: [],
       } as any);
 
       const mockJob = {
@@ -508,7 +502,7 @@ describe('MediaService', () => {
     it('should return pending status if job not found', async () => {
       mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockMediaRecord,
-        Variants: [],
+        variants: [],
       } as any);
 
       mockQueue.getJob.mockResolvedValue(undefined);

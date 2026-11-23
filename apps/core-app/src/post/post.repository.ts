@@ -375,12 +375,17 @@ export class PostRepository {
       throw new BadRequestException('coverImage must be a URL address');
     }
     const keys = this.managedMedia.keys([post.coverImage, ...urls]);
-    const create = (tx: Prisma.TransactionClient) =>
+    const create = (tx: Prisma.TransactionClient, mediaIds: string[] = []) =>
       tx.post.create({
         data: {
           ...postData,
           slug,
           authorId,
+          ...(mediaIds.length && {
+            postMedia: {
+              createMany: { data: mediaIds.map((mediaId) => ({ mediaId })) },
+            },
+          }),
           categories: {
             create: categories?.map((category) => ({
               category: {
@@ -406,40 +411,7 @@ export class PostRepository {
         authorId,
         MediaTarget.POST,
       );
-      const ids = { in: originals };
-      const family = { OR: [{ id: ids }, { parentId: ids }] };
-      const members = await tx.media.findMany({
-        where: family,
-        select: {
-          id: true,
-          postId: true,
-          draftId: true,
-          commentId: true,
-          _count: { select: { DraftMedia: true } },
-        },
-      });
-      const cover = await tx.draft.findFirst({
-        where: { coverMediaId: { in: members.map(({ id }) => id) } },
-        select: { id: true },
-      });
-      if (
-        cover ||
-        members.some(
-          ({ postId, draftId, commentId, _count }) =>
-            postId !== null ||
-            draftId !== null ||
-            commentId !== null ||
-            _count.DraftMedia > 0,
-        )
-      ) {
-        throw new ConflictException('Media is already attached');
-      }
-      const created = await create(tx);
-      await tx.media.updateMany({
-        where: family,
-        data: { postId: created.id },
-      });
-      return created;
+      return create(tx, originals);
     });
   }
 
@@ -482,63 +454,25 @@ export class PostRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
    */
   async like(id: number, userId: string): Promise<PostLike> {
-    await this.prisma.postLikes.create({
-      data: {
-        postId: id,
-        userId,
-      },
-    });
-
-    return this.prisma.post.update({
-      where: {
-        id,
-      },
-      data: {
-        likesCount: {
-          increment: 1,
-        },
-      },
-      select: {
-        id: true,
-        likesCount: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.postLikes.create({ data: { postId: id, userId } });
+      return this.readLikeCount(tx, id);
     });
   }
 
-  /**
-   * @param {number} id - Post id
-   * @param {string} userId - User id
-   * @description Unlike post deleting like record and decrementing likes count
-   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
-   * @throws {Prisma.PrismaClientKnownRequestError} - If like record is not found
-   */
   async unlike(id: number, userId: string): Promise<PostLike> {
-    await this.prisma.postLikes.delete({
-      where: {
-        postId_userId: {
-          postId: id,
-          userId,
-        },
-      },
-      select: {
-        userId: true,
-        postId: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.postLikes.delete({
+        where: { postId_userId: { postId: id, userId } },
+      });
+      return this.readLikeCount(tx, id);
     });
+  }
 
-    return this.prisma.post.update({
-      where: {
-        id,
-      },
-      data: {
-        likesCount: {
-          decrement: 1,
-        },
-      },
-      select: {
-        id: true,
-        likesCount: true,
-      },
+  private readLikeCount(tx: Prisma.TransactionClient, id: number) {
+    return tx.post.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, likesCount: true },
     });
   }
 
@@ -548,24 +482,16 @@ export class PostRepository {
    * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
   async deleteById(id: number): Promise<PostEntity> {
-    const revisionsQuery = this.prisma.draft.findMany({
-      where: { postId: id },
-      select: { id: true, status: true },
-    });
-    if (!revisionsQuery || typeof revisionsQuery.then !== 'function') {
-      return this.prisma.post.delete({
-        where: { id },
-        select: { ...selectPostWithAuthorCategories },
-      });
-    }
-
-    const revisions = await revisionsQuery;
-    if (revisions.some(({ status }) => status === 'PUBLISHING')) {
-      throw new ConflictException(
-        'Post cannot be deleted while a revision is publishing',
-      );
-    }
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} FOR UPDATE`;
+      const revisions = await tx.$queryRaw<{ status: string }[]>`
+        SELECT "status" FROM "Draft" WHERE "post_id" = ${id} ORDER BY "id" FOR UPDATE
+      `;
+      if (revisions.some(({ status }) => status === 'PUBLISHING')) {
+        throw new ConflictException(
+          'Post cannot be deleted while a revision is publishing',
+        );
+      }
       await tx.draft.updateMany({
         where: { postId: id, status: 'ACTIVE' },
         data: {
@@ -579,10 +505,6 @@ export class PostRepository {
         where: { postId: id },
         data: { deletedPostId: id, postId: null },
       });
-      await tx.media.updateMany({
-        where: { postId: id },
-        data: { postId: null },
-      });
       return tx.post.delete({
         where: { id },
         select: { ...selectPostWithAuthorCategories },
@@ -595,14 +517,11 @@ export class PostRepository {
    * @description Delete post by slug
    * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
    */
-  deleteBySlug(slug: string): Promise<PostEntity> {
-    return this.prisma.post.delete({
-      where: {
-        slug,
-      },
-      select: {
-        ...selectPostWithAuthorCategories,
-      },
+  async deleteBySlug(slug: string): Promise<PostEntity> {
+    const { id } = await this.prisma.post.findUniqueOrThrow({
+      where: { slug },
+      select: { id: true },
     });
+    return this.deleteById(id);
   }
 }

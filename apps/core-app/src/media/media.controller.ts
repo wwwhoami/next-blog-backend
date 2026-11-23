@@ -22,6 +22,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiOkResponse,
   ApiOperation,
   ApiProperty,
   ApiQuery,
@@ -43,6 +44,7 @@ import { UuidId } from '../common/decorators/id-type.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from '../common/guards/is-admin-or-author.guard';
 import { MAX_FILE_SIZE_BYTES } from './constants/media-processor.constants';
+import { MediaReferencesDto } from './dto/media-references.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import {
   MediaEventsService,
@@ -148,6 +150,17 @@ export class MediaController {
     return merge(immediateCheck$, liveEvents$).pipe(
       take(1), // Close connection after first result
     );
+  }
+
+  @Get(':id/references')
+  @ApiOkResponse({ type: MediaReferencesDto })
+  @ApiBearerAuth('accessToken')
+  @UseGuards(AccessTokenGuard)
+  references(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') ownerId: string,
+  ): Promise<MediaReferencesDto> {
+    return this.mediaService.findReferences(id, ownerId);
   }
 
   @Get(':id')

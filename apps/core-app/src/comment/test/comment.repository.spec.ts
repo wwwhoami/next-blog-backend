@@ -592,6 +592,9 @@ describe('CommentService', () => {
         ...comment,
       };
 
+      prisma.$queryRaw.mockResolvedValue([
+        { authorId, content: 'Previous content' },
+      ]);
       prisma.comment.update.mockResolvedValue({
         ...updatedComment,
         commentMedia: [],
@@ -665,12 +668,13 @@ describe('CommentService', () => {
         likesCount: 1,
       };
 
+      prisma.$queryRaw.mockResolvedValue([{ id: commentId }]);
       prisma.commentLikes.create.mockResolvedValue({
         commentId,
         userId,
       });
       (
-        prisma.comment.update as jest.Mock<Promise<typeof expected>>
+        prisma.comment.findUniqueOrThrow as jest.Mock<Promise<typeof expected>>
       ).mockResolvedValue(expected);
 
       const commentLikes = await repository.like(commentId, userId);
@@ -680,15 +684,7 @@ describe('CommentService', () => {
     it('should throw UnprocessableEntityError if no comment exists', async () => {
       const commentId = 1;
       const userId = 'afe39927-eb6b-4e73-8d06-239fe6b14eb4';
-      const exception = new Prisma.PrismaClientKnownRequestError(
-        'An operation failed because it depends on one or more records that were required but not found. {cause}',
-        {
-          code: 'P2025',
-          clientVersion: '2.19.0',
-        },
-      );
-
-      prisma.comment.findFirstOrThrow.mockRejectedValue(exception);
+      prisma.$queryRaw.mockResolvedValue([]);
 
       await expect(repository.like(commentId, userId)).rejects.toThrow(
         UnprocessableEntityError,
@@ -711,7 +707,7 @@ describe('CommentService', () => {
         userId,
       });
       (
-        prisma.comment.update as jest.Mock<Promise<typeof expected>>
+        prisma.comment.findUniqueOrThrow as jest.Mock<Promise<typeof expected>>
       ).mockResolvedValue(expected);
 
       const commentLikes = await repository.unlike(commentId, userId);
@@ -736,7 +732,7 @@ describe('CommentService', () => {
         likesCount: 0,
       };
 
-      prisma.comment.update.mockResolvedValue(softRemovedComment);
+      prisma.comment.findUniqueOrThrow.mockResolvedValue(softRemovedComment);
 
       const softRemove = await repository.softRemove(commentId);
 

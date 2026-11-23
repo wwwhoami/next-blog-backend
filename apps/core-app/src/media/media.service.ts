@@ -196,7 +196,6 @@ export class MediaService implements EntityWithAuthorService {
           ownerId: userId,
           type: mediaMeta.type,
           target: mediaMeta.target,
-          draftId: mediaMeta.draftId,
           variant: MediaVariant.ORIGINAL,
           mimeType,
           sizeBytes: processed.data.length,
@@ -272,7 +271,7 @@ export class MediaService implements EntityWithAuthorService {
       target: media.target,
       variant: media.variant,
       publicUrl: media.publicUrl,
-      children: (media.Variants || []).map((c) => ({
+      children: (media.variants || []).map((c) => ({
         id: c.id,
         key: c.key,
         variant: c.variant,
@@ -283,6 +282,10 @@ export class MediaService implements EntityWithAuthorService {
     };
 
     return dto;
+  }
+
+  findReferences(id: string, ownerId: string) {
+    return this.repo.findReferences(id, ownerId);
   }
 
   /**
@@ -296,8 +299,12 @@ export class MediaService implements EntityWithAuthorService {
    * when `false`, return unattached media; when omitted, return both.
    * @returns The owner's media records ordered from newest to oldest.
    */
-  listOwnedMedia(ownerId: string, attached?: boolean) {
-    return this.repo.findOwnedMedia(ownerId, attached);
+  async listOwnedMedia(ownerId: string, attached?: boolean) {
+    const media = await this.repo.findOwnedMedia(ownerId, attached);
+    return media.map(({ variants, ...original }) => ({
+      ...original,
+      Variants: variants,
+    }));
   }
 
   /**
@@ -331,16 +338,8 @@ export class MediaService implements EntityWithAuthorService {
   }
 
   /**
-   * Removes one media reference and deletes unreferenced storage objects.
-   *
-   * Draft media is detached without changing its stored asset. Post and
-   * comment references are detached while shared references remain. When the
-   * count reaches zero, the original and all generated variants are removed
-   * from storage after the database transaction commits.
-   *
-   * @param id - The UUID of the media record
-   * @returns The updated or deleted media record
-   * @throws {NotFoundError} If the media record is not found
+   * Deletes the original and variants and drains their storage deletion records.
+   * Referenced media requires confirmation. Publishing drafts block deletion.
    */
   async removeReference(id: string, force = false) {
     const result = await this.repo.removeReference(id, force);
@@ -376,13 +375,13 @@ export class MediaService implements EntityWithAuthorService {
       throw new NotFoundError('Media not found');
     }
 
-    if (hasCompleteVariantSet(media.Variants)) {
+    if (hasCompleteVariantSet(media.variants)) {
       return {
         status: 'completed',
         payload: {
           mediaId: media.id,
           ownerId: media.ownerId,
-          variants: media.Variants.map((v) => ({
+          variants: media.variants.map((v) => ({
             key: v.key,
             publicUrl: v.publicUrl,
             variant: v.variant,

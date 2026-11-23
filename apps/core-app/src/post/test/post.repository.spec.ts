@@ -21,6 +21,7 @@ const postArray = [
     content: 'content',
     likesCount: 0,
     language: 'english',
+    version: 0,
   },
   {
     id: 335,
@@ -36,6 +37,7 @@ const postArray = [
     content: 'content',
     likesCount: 0,
     language: 'english',
+    version: 0,
   },
   {
     id: 995,
@@ -51,6 +53,7 @@ const postArray = [
     content: 'content',
     likesCount: 0,
     language: 'english',
+    version: 0,
   },
 ];
 
@@ -368,6 +371,7 @@ describe('PostRepository', () => {
         updatedAt: new Date(),
         likesCount: 0,
         language: 'english',
+        version: 0,
       });
 
       const createdPost = await repository.create(postToCreate, authorId);
@@ -427,6 +431,11 @@ describe('PostRepository', () => {
     });
   });
 
+  beforeEach(() => {
+    (prisma.$transaction as jest.Mock).mockImplementation((run) => run(prisma));
+    prisma.$queryRaw.mockResolvedValue([]);
+  });
+
   describe('like', () => {
     it('should like post', async () => {
       const postId = 1;
@@ -440,7 +449,7 @@ describe('PostRepository', () => {
         postId,
         userId,
       });
-      prisma.post.update.mockResolvedValue(await expected);
+      prisma.post.findUniqueOrThrow.mockResolvedValue(await expected);
 
       const postLikes = await repository.like(postId, userId);
       expect(postLikes).toEqual(expected);
@@ -460,7 +469,7 @@ describe('PostRepository', () => {
         postId,
         userId,
       });
-      prisma.post.update.mockResolvedValue(await expected);
+      prisma.post.findUniqueOrThrow.mockResolvedValue(await expected);
 
       const postLikes = await repository.unlike(postId, userId);
       expect(postLikes).toEqual(expected);
@@ -513,6 +522,7 @@ describe('PostRepository', () => {
     it('should delete post by slug, return deleted post', async () => {
       prisma.post.delete.mockResolvedValue(onePost);
 
+      prisma.post.findUniqueOrThrow.mockResolvedValue(onePost);
       const deletedPost = await repository.deleteBySlug('slug');
 
       expect(deletedPost).toEqual(onePost);
@@ -528,7 +538,7 @@ describe('PostRepository', () => {
         },
       );
 
-      prisma.post.delete.mockRejectedValue(exception);
+      prisma.post.findUniqueOrThrow.mockRejectedValue(exception);
 
       const deletePostBySlug = repository.deleteBySlug(slug);
 

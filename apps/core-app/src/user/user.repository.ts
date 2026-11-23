@@ -236,7 +236,7 @@ export class UserRepository {
   ): Promise<NonNullable<UserType<false, T>>[]> {
     return this.prisma.user.findMany({
       where: {
-        followers: {
+        outgoingFollows: {
           some: {
             followingId: userId,
           },
@@ -266,7 +266,7 @@ export class UserRepository {
   ): Promise<NonNullable<UserType<false, T>>[]> {
     return this.prisma.user.findMany({
       where: {
-        following: {
+        incomingFollows: {
           some: {
             followerId: userId,
           },

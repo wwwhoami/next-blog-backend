@@ -4,8 +4,10 @@ import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
+import sharp from 'sharp';
 import request from 'supertest';
 
 // Override JSON.stringify to handle BigInt
@@ -104,7 +106,6 @@ describe('Media (e2e)', () => {
           hash: expect.any(String),
           createdAt: expect.any(String),
           deletedAt: null,
-          refCount: 1,
         }),
       );
       // Check for a correct date
@@ -138,7 +139,6 @@ describe('Media (e2e)', () => {
           hash: expect.any(String),
           createdAt: expect.any(String),
           deletedAt: null,
-          refCount: 1,
         }),
       );
       // Check for a correct date
@@ -296,16 +296,21 @@ describe('Media (e2e)', () => {
     let mediaId: string;
 
     beforeEach(async () => {
-      // Upload a test image first
+      const image = await sharp(randomBytes(12), {
+        raw: { width: 2, height: 2, channels: 3 },
+      })
+        .png()
+        .toBuffer();
       const uploadResponse = await request(app.getHttpServer())
         .post('/media')
         .set('Authorization', `Bearer ${accessToken}`)
         .field('type', MediaType.IMAGE)
         .field('target', MediaTarget.POST)
-        .attach('file', testImageBuffer, {
+        .attach('file', image, {
           filename: 'test.png',
           contentType: 'image/png',
-        });
+        })
+        .expect(HttpStatus.CREATED);
 
       mediaId = uploadResponse.body.id;
     });

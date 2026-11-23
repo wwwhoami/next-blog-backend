@@ -27,12 +27,14 @@ describe('DraftProcessor', () => {
       categoryNames: [],
       coverMediaId: 'cover-id',
       status: DraftStatus.PUBLISHING,
-      media: [
+      draftMedia: [
         {
-          id: 'cover-id',
-          ownerId: 'owner-id',
-          target: MediaTarget.POST,
-          publicUrl: 'https://cdn.example.com/cover.webp',
+          media: {
+            id: 'cover-id',
+            ownerId: 'owner-id',
+            target: MediaTarget.POST,
+            publicUrl: 'https://cdn.example.com/cover.webp',
+          },
         },
       ],
     } as never);
@@ -64,7 +66,7 @@ describe('DraftProcessor', () => {
       categoryNames: [],
       coverMediaId: null,
       status: DraftStatus.PUBLISHING,
-      media: [],
+      draftMedia: [],
     } as never);
 
     await expect(
@@ -116,11 +118,14 @@ describe('DraftProcessor', () => {
       content,
       categoryNames: [],
       coverMediaId: cover.id,
-      media: [body],
-      draftMedia: [{ media: cover }],
+      draftMedia: [{ media: body }, { media: cover }],
     } as never);
     repository.findVariantUrls.mockResolvedValue([
-      { parentId: body.id, publicUrl: 'https://cdn.example.com/body(1).webp' },
+      {
+        parentId: body.id,
+        key: 'body(1).webp',
+        publicUrl: 'https://cdn.example.com/body(1).webp',
+      },
     ]);
     repository.publish.mockResolvedValue({ id: 1 } as never);
 
@@ -147,7 +152,7 @@ describe('DraftProcessor', () => {
     }
   });
 
-  it('uses direct draft media when no revision media links exist', async () => {
+  it('uses the draft’s attachment links', async () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
       ownerId: 'owner-id',
@@ -157,13 +162,14 @@ describe('DraftProcessor', () => {
       categoryNames: [],
       coverMediaId: 'cover-id',
       status: DraftStatus.PUBLISHING,
-      draftMedia: [],
-      media: [
+      draftMedia: [
         {
-          id: 'cover-id',
-          ownerId: 'owner-id',
-          target: MediaTarget.POST,
-          publicUrl: 'https://cdn.example.com/cover.webp',
+          media: {
+            id: 'cover-id',
+            ownerId: 'owner-id',
+            target: MediaTarget.POST,
+            publicUrl: 'https://cdn.example.com/cover.webp',
+          },
         },
       ],
     } as never);
@@ -189,13 +195,15 @@ describe('DraftProcessor', () => {
       categoryNames: [],
       coverMediaId: 'cover-id',
       status: DraftStatus.PUBLISHING,
-      media: [
+      draftMedia: [
         {
-          id: 'cover-id',
-          ownerId: 'owner-id',
-          target: MediaTarget.POST,
-          publicUrl: 'https://cdn.example.com/body.webp',
-          parentId: null,
+          media: {
+            id: 'cover-id',
+            ownerId: 'owner-id',
+            target: MediaTarget.POST,
+            publicUrl: 'https://cdn.example.com/body.webp',
+            parentId: null,
+          },
         },
       ],
     } as never);
@@ -224,13 +232,15 @@ describe('DraftProcessor', () => {
         categoryNames: [],
         coverMediaId: 'cover-id',
         status: DraftStatus.PUBLISHING,
-        media: [
+        draftMedia: [
           {
-            id: 'cover-id',
-            ownerId: 'owner-id',
-            target: MediaTarget.POST,
-            publicUrl: 'https://cdn.example.com/cover.webp',
-            parentId: null,
+            media: {
+              id: 'cover-id',
+              ownerId: 'owner-id',
+              target: MediaTarget.POST,
+              publicUrl: 'https://cdn.example.com/cover.webp',
+              parentId: null,
+            },
           },
         ],
       } as never);

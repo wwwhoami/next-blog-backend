@@ -49,7 +49,7 @@ export class CategoryRepository {
         hexColor: true,
         _count: {
           select: {
-            PostToCategory: true,
+            posts: true,
           },
         },
       },
@@ -62,7 +62,7 @@ export class CategoryRepository {
       take,
       skip,
       orderBy: {
-        PostToCategory: {
+        posts: {
           _count: 'desc',
         },
       },
@@ -73,7 +73,7 @@ export class CategoryRepository {
       name: category.name,
       description: category.description,
       hexColor: category.hexColor,
-      hotness: category._count.PostToCategory,
+      hotness: category._count.posts,
     }));
   }
 

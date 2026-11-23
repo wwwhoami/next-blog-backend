@@ -48,14 +48,15 @@ export class DraftService {
     M extends { id: string; parentId?: string | null },
     T extends {
       postId?: number | null;
-      media?: M[];
       draftMedia?: { media: M }[];
     },
   >(draft: T) {
+    const media = effectiveMedia(draft);
     return {
       ...draft,
+      media,
       revisionMode: draft.postId ? 'REVISION' : 'NEW',
-      effectiveMedia: effectiveMedia(draft),
+      effectiveMedia: media,
     };
   }
 
@@ -167,7 +168,7 @@ export class DraftService {
 
   /**
    * Atomically claims an active draft and queues validation and publication.
-   * The worker creates or updates the post, transfers media, and archives the
+   * The worker creates or updates the post, links media, and archives the
    * draft. The queue allows bounded retries; validation and final worker
    * failures restore the draft to `ACTIVE` with a persisted error.
    *

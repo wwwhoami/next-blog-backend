@@ -162,7 +162,6 @@ export class DraftProcessor extends WorkerHost {
         );
       }
 
-      await this.repo.assertNoLegacyDraftClaims(id);
       const originals = effectiveMedia(draft);
       const mediaIds = originals.map(({ id }) => id);
       const cover = originals.find(

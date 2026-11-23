@@ -12,8 +12,6 @@ export async function withE2eDatabase(
 
   try {
     await run(prisma);
-  } catch (err) {
-    console.error(err);
   } finally {
     await prisma.$disconnect();
   }

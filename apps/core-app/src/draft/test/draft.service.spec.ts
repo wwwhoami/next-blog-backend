@@ -152,16 +152,20 @@ describe('DraftService', () => {
       ownerId: 'owner-id',
       postId: 7,
       status: DraftStatus.ACTIVE,
-      draftMedia: [{ media: { id: 'media-id' } }],
-      media: [{ id: 'uploaded' }, { id: 'media-id' }],
+      draftMedia: [
+        { media: { id: 'uploaded' } },
+        { media: { id: 'media-id' } },
+      ],
     } as never);
     repository.attachMedia.mockResolvedValue({
       id: 'revision-id',
       ownerId: 'owner-id',
       postId: 7,
       status: DraftStatus.ACTIVE,
-      draftMedia: [{ media: { id: 'media-id' } }],
-      media: [{ id: 'uploaded' }, { id: 'media-id' }],
+      draftMedia: [
+        { media: { id: 'uploaded' } },
+        { media: { id: 'media-id' } },
+      ],
     } as never);
 
     await expect(

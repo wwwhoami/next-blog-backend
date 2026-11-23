@@ -33,11 +33,9 @@ describe('MediaProcessor', () => {
     sizeBytes: BigInt(2048),
     publicUrl: 'https://example.com/original.jpg',
     hash: 'abcd1234',
-    refCount: 1,
+    retentionRefreshedAt: null,
     createdAt: new Date(),
-    updatedAt: new Date(),
-    postId: null,
-    commentId: null,
+    deletedAt: null,
     parentId: null,
   };
 
@@ -51,10 +49,9 @@ describe('MediaProcessor', () => {
     mockRepository = mockDeep<MediaRepository>();
     mockEventsService = mockDeep<MediaEventsService>();
     mockLogger = mockDeep<PinoLogger>();
-    mockStorageService = mockDeep<StorageService>();
+    mockStorageService = mockDeep<StorageService>({ bucket: 'test-bucket' });
 
     // Mock storage service properties and methods
-    mockStorageService.bucket = 'test-bucket';
     mockStorageService.buildPublicUrl.mockImplementation(
       (key: string) => `https://example.com/media/test-bucket/${key}`,
     );
@@ -136,7 +133,7 @@ describe('MediaProcessor', () => {
       );
       mockRepository.findByIdWithVariants.mockResolvedValue({
         ...mockOriginalMedia,
-        Variants: variants,
+        variants: variants,
       } as never);
 
       mockRepository.releaseVariantPut.mockResolvedValue(undefined);

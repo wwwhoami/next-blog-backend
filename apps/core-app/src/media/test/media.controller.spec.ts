@@ -41,12 +41,9 @@ describe('MediaController', () => {
     sizeBytes: BigInt(1024),
     publicUrl: 'https://example.com/media/test.webp',
     hash: 'abcd1234',
-    refCount: 1,
+    retentionRefreshedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    postId: null,
-    commentId: null,
-    draftId: null,
     parentId: null,
     deletedAt: null,
   };

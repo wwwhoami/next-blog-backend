@@ -5,8 +5,6 @@ export class MediaEntity {
   key: string;
   ownerId: string;
   parentId: string | null;
-  postId: number | null;
-  commentId: number | null;
   type: MediaType;
   target: MediaTarget;
   variant: MediaVariant;
@@ -15,7 +13,6 @@ export class MediaEntity {
   bucket: string;
   publicUrl: string;
   hash: string | null;
-  refCount: number;
   createdAt: Date;
   deletedAt: Date | null;
 }

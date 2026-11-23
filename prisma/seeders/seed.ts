@@ -103,9 +103,8 @@ async function main() {
       console.log('Seeding posts 📝');
       console.time(timeTakenPosts);
 
-      await prismaSeeder.seedPosts(randPostData).then(() => {
-        prismaSeeder.seedMockPosts(postData);
-      });
+      await prismaSeeder.seedPosts(randPostData);
+      await prismaSeeder.seedMockPosts(postData);
     })
     .then(() => {
       console.timeEnd(timeTakenPosts);
@@ -113,11 +112,11 @@ async function main() {
 
   // Seed post to category after posts and categories are created
   const createdPostToCategory = Promise.all([createdPosts, createdCategories])
-    .then(() => {
+    .then(async () => {
       console.log('Linking posts with categories 🔗');
 
       console.time(timeTakenPostToCategory);
-      prismaSeeder.seedPostToCategory(randPostToCategoryData);
+      await prismaSeeder.seedPostToCategory(randPostToCategoryData);
     })
     .then(() => {
       console.timeEnd(timeTakenPostToCategory);
@@ -129,16 +128,15 @@ async function main() {
       console.log('Seeding comments 💬');
       console.time(timeTakenComments);
 
-      await prismaSeeder.seedComments(randCommentData).then(() => {
-        prismaSeeder.seedMockComments(commentData);
-      });
+      await prismaSeeder.seedComments(randCommentData);
+      await prismaSeeder.seedMockComments(commentData);
     })
     .then(() => {
       console.timeEnd(timeTakenComments);
     });
 
   // Wait for all promises to resolve, log time taken to seed db
-  Promise.all([
+  await Promise.all([
     createdUsers,
     createdCategories,
     createdPosts,
@@ -157,4 +155,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

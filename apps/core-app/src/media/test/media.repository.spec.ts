@@ -25,14 +25,10 @@ describe('MediaRepository', () => {
     sizeBytes: BigInt(1024),
     publicUrl: 'https://example.com/media/test.webp',
     hash: 'abcd1234',
-    refCount: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
     retentionRefreshedAt: null,
-    postId: null,
-    commentId: null,
-    draftId: null,
     parentId: null,
   };
 
@@ -93,28 +89,16 @@ describe('MediaRepository', () => {
     it('should list owned media with attachment filtering', async () => {
       mockPrismaClient.media.findMany.mockResolvedValue([]);
 
-      mockPrismaClient.$queryRaw.mockResolvedValue([
-        { id: 'legacy-cover-parent' },
-      ]);
-      (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
-        (callback) => callback(mockPrismaClient),
-      );
-
       await repository.findOwnedMedia('user-1', true);
       await repository.findOwnedMedia('user-1', false);
-
       const attached =
         mockPrismaClient.media.findMany.mock.calls[0][0]?.where?.OR;
-      expect(attached).toEqual(
-        expect.arrayContaining([
-          { id: { in: ['legacy-cover-parent'] } },
-          expect.objectContaining({
-            OR: expect.arrayContaining([
-              { Variants: { some: expect.any(Object) } },
-            ]),
-          }),
-        ]),
-      );
+      expect(attached).toEqual([
+        { postMedia: { some: {} } },
+        { draftMedia: { some: {} } },
+        { commentMedia: { some: {} } },
+        { avatarUsers: { some: {} } },
+      ]);
       expect(
         mockPrismaClient.media.findMany.mock.calls[1][0]?.where,
       ).toMatchObject({
@@ -126,18 +110,20 @@ describe('MediaRepository', () => {
     });
   });
 
-  it('blocks retention and confirmed deletion when a publishing draft only uses the family as its cover', async () => {
-    const media = { ...mockMediaRecord, Variants: [] };
+  it('blocks retention and confirmed deletion when a publishing draft references an original', async () => {
+    const media = {
+      ...mockMediaRecord,
+      variants: [],
+      draftMedia: [{ draft: { id: 'draft-id', status: 'PUBLISHING' } }],
+      postMedia: [],
+      commentMedia: [],
+      avatarUsers: [],
+    };
     (mockPrismaClient.$transaction as jest.Mock).mockImplementation(
       (callback) => callback(mockPrismaClient),
     );
-    mockPrismaClient.media.findFirst.mockResolvedValue(media);
-    mockPrismaClient.media.findMany.mockResolvedValue([media]);
+    mockPrismaClient.media.findFirst.mockResolvedValue(null);
     mockPrismaClient.media.findUnique.mockResolvedValue(media);
-    mockPrismaClient.draft.findMany.mockResolvedValue([
-      { id: 'draft-id', status: 'PUBLISHING' } as never,
-    ]);
-    mockPrismaClient.user.findMany.mockResolvedValue([]);
     mockPrismaClient.$queryRaw.mockResolvedValue([{ id: media.id }]);
 
     await expect(
@@ -172,7 +158,7 @@ describe('MediaRepository', () => {
     it('should find media by id with variants', async () => {
       const mediaWithVariants = {
         ...mockMediaRecord,
-        Variants: [{ id: 'variant-1', variant: MediaVariant.THUMBNAIL }],
+        variants: [{ id: 'variant-1', variant: MediaVariant.THUMBNAIL }],
       };
       mockPrismaClient.media.findUnique.mockResolvedValue(
         mediaWithVariants as any,
@@ -183,13 +169,13 @@ describe('MediaRepository', () => {
       expect(result).toEqual(mediaWithVariants);
       expect(mockPrismaClient.media.findUnique).toHaveBeenCalledWith({
         where: { id: 'media-id-1' },
-        include: { Variants: true },
+        include: { variants: true },
       });
     });
   });
 
   describe('reuseOrCreateUpload', () => {
-    it('should find unattached original media in the same ownership context', async () => {
+    it('should find a live original in the same ownership context', async () => {
       mockPrismaClient.media.findFirst.mockResolvedValue(mockMediaRecord);
       mockPrismaClient.$queryRaw.mockResolvedValue([]);
 
@@ -210,7 +196,7 @@ describe('MediaRepository', () => {
       expect(mockPrismaClient.media.findFirst).toHaveBeenLastCalledWith({
         where: { ...lookup?.where, id: mockMediaRecord.id },
       });
-      expect(mockPrismaClient.$queryRaw).toHaveBeenCalledTimes(3);
+      expect(mockPrismaClient.$queryRaw).toHaveBeenCalledTimes(1);
       expect(mockPrismaClient.$executeRaw).toHaveBeenCalledTimes(3);
       expect(upload).not.toHaveBeenCalled();
 
@@ -223,34 +209,8 @@ describe('MediaRepository', () => {
           target: MediaTarget.POST,
           parentId: null,
           variant: MediaVariant.ORIGINAL,
-          NOT: {
-            OR: [
-              expect.objectContaining({
-                OR: expect.arrayContaining([
-                  { DraftMedia: { some: {} } },
-                  { AvatarUsers: { some: {} } },
-                  { CommentMedia: { some: {} } },
-                ]),
-              }),
-              { Variants: { some: expect.any(Object) } },
-            ],
-          },
+          deletedAt: null,
         },
-      });
-    });
-  });
-
-  describe('incrementRefCount', () => {
-    it('should increment reference count', async () => {
-      const updatedMedia = { ...mockMediaRecord, refCount: 2 };
-      mockPrismaClient.media.update.mockResolvedValue(updatedMedia as any);
-
-      const result = await repository.incrementRefCount('media-id-1');
-
-      expect(result).toEqual(updatedMedia);
-      expect(mockPrismaClient.media.update).toHaveBeenCalledWith({
-        where: { id: 'media-id-1' },
-        data: { refCount: { increment: 1 } },
       });
     });
   });
@@ -296,15 +256,17 @@ describe('MediaRepository', () => {
 
   describe('update', () => {
     it('should update media record', async () => {
-      const updatedMedia = { ...mockMediaRecord, refCount: 2 };
+      const updatedMedia = { ...mockMediaRecord, mimeType: 'image/png' };
       mockPrismaClient.media.update.mockResolvedValue(updatedMedia);
 
-      const result = await repository.update('media-id-1', { refCount: 2 });
+      const result = await repository.update('media-id-1', {
+        mimeType: 'image/png',
+      });
 
       expect(result).toEqual(updatedMedia);
       expect(mockPrismaClient.media.update).toHaveBeenCalledWith({
         where: { id: 'media-id-1' },
-        data: { refCount: 2 },
+        data: { mimeType: 'image/png' },
       });
     });
   });
