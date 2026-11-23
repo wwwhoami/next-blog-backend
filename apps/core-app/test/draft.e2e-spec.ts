@@ -200,6 +200,29 @@ describe('Draft (e2e)', () => {
     await save({ mediaIds: [], coverMediaId: original.id }).expect(
       HttpStatus.OK,
     );
+    await save({
+      title: 'Edited draft',
+      coverMedia: { disconnect: true },
+      draftMedia: { deleteMany: {} },
+    }).expect(HttpStatus.OK);
+    await expect(
+      prisma.draft.findUniqueOrThrow({
+        where: { id: draft.id },
+        include: { draftMedia: true },
+      }),
+    ).resolves.toMatchObject({
+      title: 'Edited draft',
+      coverMediaId: original.id,
+      draftMedia: [{ mediaId: original.id }],
+    });
+    const references = await request(app.getHttpServer())
+      .get(`/media/${original.id}/references`)
+      .auth(accessToken, { type: 'bearer' })
+      .expect(HttpStatus.OK);
+    expect(references.body.drafts).toContainEqual({
+      id: draft.id,
+      status: DraftStatus.ACTIVE,
+    });
     const remove = (force: boolean) =>
       request(app.getHttpServer())
         .delete(`/media/${original.id}?force=${force}`)
@@ -401,31 +424,39 @@ describe('Draft (e2e)', () => {
     const payload = {
       title: randomUUID(),
       excerpt: 'Trusted',
+      postMedia: { createMany: { data: [{ mediaId: foreign.id }] } },
       published: true,
     };
+
     const post = (coverImage: string, content: string) =>
       request(app.getHttpServer())
         .post('/post')
         .auth(adminToken, { type: 'bearer' })
         .send({ ...payload, coverImage, content });
     await post(foreign.publicUrl, 'text').expect(HttpStatus.BAD_REQUEST);
+
     const html = `<img alt="a > b" src="${variant.publicUrl}">`;
     const externalCover = 'https://example.com/cover.webp';
     await post(externalCover, html).expect(HttpStatus.BAD_REQUEST);
+
     await expect(
       prisma.post.findUnique({ where: { title: payload.title } }),
     ).resolves.toBeNull();
+
     const fenced = `\`\`\`markdown\n${html}\n\`\`\``;
     const example = await post(externalCover, fenced).expect(
       HttpStatus.CREATED,
     );
+
     expect(example.body.content).toBe(fenced);
     await expect(
       prisma.postMedia.count({ where: { postId: example.body.id } }),
     ).resolves.toBe(0);
+
     payload.title = randomUUID();
     const content = `![variant][image]\n\n[image]: ${variant.publicUrl}`;
     const saved = await post(externalCover, content).expect(HttpStatus.CREATED);
+
     await expect(
       prisma.postMedia.findMany({ where: { postId: saved.body.id } }),
     ).resolves.toEqual([{ postId: saved.body.id, mediaId: original.id }]);
@@ -435,6 +466,7 @@ describe('Draft (e2e)', () => {
         .delete(`/media/${original.id}?force=${force}`)
         .auth(adminToken, { type: 'bearer' });
     await remove(false).expect(HttpStatus.CONFLICT);
+
     const storage = app.get(StorageService);
     const removeObject = storage.deleteObject.bind(storage);
     let failOriginal = true;
@@ -445,6 +477,7 @@ describe('Draft (e2e)', () => {
           throw new Error('Storage unavailable');
         return removeObject(key, bucket);
       });
+
     try {
       await remove(true).expect(HttpStatus.OK);
       await expect(
@@ -461,6 +494,7 @@ describe('Draft (e2e)', () => {
       await app
         .get(MediaCleanupProcessor)
         .process({ name: 'drainStorage' } as Job);
+
       await expect(
         prisma.mediaStorageDeletion.count({
           where: { key: { in: [original.key, variant.key] } },

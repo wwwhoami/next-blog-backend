@@ -368,8 +368,8 @@ export class PostRepository {
     const { urls, hasHtml } = markdownImages(post.content);
     if (hasHtml) throw new BadRequestException('Raw HTML is not supported');
 
-    const { categories, ...postData } = post;
-    const slug = slugify(postData.title, { lower: true });
+    const { title, excerpt, content, published, coverImage, categories } = post;
+    const slug = slugify(title, { lower: true });
     const coverKey = this.managedMedia.key(post.coverImage);
     if (coverKey === undefined && !isURL(post.coverImage)) {
       throw new BadRequestException('coverImage must be a URL address');
@@ -378,7 +378,11 @@ export class PostRepository {
     const create = (tx: Prisma.TransactionClient, mediaIds: string[] = []) =>
       tx.post.create({
         data: {
-          ...postData,
+          title,
+          excerpt,
+          content,
+          published,
+          coverImage,
           slug,
           authorId,
           ...(mediaIds.length && {
@@ -387,11 +391,11 @@ export class PostRepository {
             },
           }),
           categories: {
-            create: categories?.map((category) => ({
+            create: categories?.map(({ name, description, hexColor }) => ({
               category: {
                 connectOrCreate: {
-                  where: { name: category.name },
-                  create: category,
+                  where: { name },
+                  create: { name, description, hexColor },
                 },
               },
             })),
@@ -447,11 +451,14 @@ export class PostRepository {
   }
 
   /**
-   * @param {number} id - Post id
-   * @param {string} userId - User id
-   * @description Like post creating like record and incrementing likes count
-   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
-   * @throws {Prisma.PrismaClientKnownRequestError} - If like record already exists
+   * Creates a like and reads the count updated by the database trigger
+   * within the same transaction.
+   *
+   * @param id - Post ID.
+   * @param userId - ID of the user adding the like.
+   * @returns The post ID and updated like count.
+   * @throws {Prisma.PrismaClientKnownRequestError} If the post or user does not
+   * exist, or the user has already liked the post.
    */
   async like(id: number, userId: string): Promise<PostLike> {
     return this.prisma.$transaction(async (tx) => {
@@ -460,11 +467,24 @@ export class PostRepository {
     });
   }
 
+  /**
+   * Deletes a user's like and reads the count updated by the database trigger
+   * within the same transaction. Locks the post before deleting the like to
+   * match the lock order used by {@link deleteById}.
+   *
+   * @param id - Post ID.
+   * @param userId - ID of the user removing the like.
+   * @returns The post ID and updated like count.
+   * @throws {Prisma.PrismaClientKnownRequestError} If the like does not exist,
+   * including when a concurrent post deletion has already removed it.
+   */
   async unlike(id: number, userId: string): Promise<PostLike> {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} FOR NO KEY UPDATE`;
       await tx.postLikes.delete({
         where: { postId_userId: { postId: id, userId } },
       });
+
       return this.readLikeCount(tx, id);
     });
   }
@@ -477,13 +497,20 @@ export class PostRepository {
   }
 
   /**
-   * @param {number} id - Post id
-   * @description Delete post by id
-   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   * Deletes a post, archives active revisions, and detaches all revisions
+   * in one transaction. Detached revisions retain the deleted post ID.
+   *
+   * @param id - Post ID.
+   * @returns The deleted post with its author and categories.
+   * @throws {ConflictException} If a revision is publishing.
+   * @throws {Prisma.PrismaClientKnownRequestError} If the post does not exist.
    */
   async deleteById(id: number): Promise<PostEntity> {
     return this.prisma.$transaction(async (tx) => {
+      // Match the parent-first lock order used by unlike before likes cascade.
       await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${id} FOR UPDATE`;
+
+      // Keep revision statuses stable through the publication check and detach.
       const revisions = await tx.$queryRaw<{ status: string }[]>`
         SELECT "status" FROM "Draft" WHERE "post_id" = ${id} ORDER BY "id" FOR UPDATE
       `;
@@ -492,6 +519,7 @@ export class PostRepository {
           'Post cannot be deleted while a revision is publishing',
         );
       }
+
       await tx.draft.updateMany({
         where: { postId: id, status: 'ACTIVE' },
         data: {
@@ -505,6 +533,7 @@ export class PostRepository {
         where: { postId: id },
         data: { deletedPostId: id, postId: null },
       });
+
       return tx.post.delete({
         where: { id },
         select: { ...selectPostWithAuthorCategories },
@@ -513,15 +542,19 @@ export class PostRepository {
   }
 
   /**
-   * @param {string} slug - Post slug
-   * @description Delete post by slug
-   * @throws {Prisma.PrismaClientKnownRequestError} - If post is not found
+   * Resolves the post ID by slug and delegates to {@link deleteById}.
+   *
+   * @param slug - Post slug.
+   * @returns The deleted post with its author and categories.
+   * @throws {ConflictException} If a revision is publishing.
+   * @throws {Prisma.PrismaClientKnownRequestError} If the post does not exist.
    */
   async deleteBySlug(slug: string): Promise<PostEntity> {
     const { id } = await this.prisma.post.findUniqueOrThrow({
       where: { slug },
       select: { id: true },
     });
+
     return this.deleteById(id);
   }
 }

@@ -15,6 +15,8 @@ import {
 } from '../media/util/managed-media';
 import { markdownImages } from '../media/util/markdown-images';
 
+import { CreateDraftDto } from './dto/create-draft.dto';
+
 const includeDraftMedia = {
   draftMedia: { where: { media: originalMedia }, include: { media: true } },
 } satisfies Prisma.DraftInclude;
@@ -39,10 +41,22 @@ export class DraftRepository {
     return { authorId: ownerId };
   }
 
+  /**
+   * Creates a draft and attaches the owner's original post media referenced
+   * by managed image URLs in the Markdown content. Variant URLs resolve to
+   * their originals, which stay locked until the draft and its links commit.
+   *
+   * @param ownerId - Draft owner's user ID.
+   * @param data - Initial draft fields, including any Markdown content.
+   * @returns The created draft with its attached original media.
+   * @throws {BadRequestException} If a managed image is unavailable, ineligible,
+   * or resolves to a different original while acquiring the locks.
+   */
   create(ownerId: string, data: Record<string, unknown>) {
     const keys = this.managedMedia.keys(
       typeof data.content === 'string' ? markdownImages(data.content).urls : [],
     );
+
     const create = (tx: Prisma.TransactionClient, mediaIds: string[] = []) =>
       tx.draft.create({
         data: {
@@ -54,7 +68,9 @@ export class DraftRepository {
         },
         include: includeDraftMedia,
       });
+
     if (!keys.length) return create(this.prisma);
+
     return this.prisma.$transaction(async (tx) => {
       const mediaIds = await this.managedMedia.lockAndResolve(
         tx,
@@ -62,6 +78,7 @@ export class DraftRepository {
         ownerId,
         MediaTarget.POST,
       );
+
       return create(tx, mediaIds);
     });
   }
@@ -94,6 +111,14 @@ export class DraftRepository {
     });
   }
 
+  /**
+   * Finds the post's revision in `ACTIVE` or `PUBLISHING` status.
+   *
+   * @param postId - ID of the post being revised.
+   * @param tx - Optional transaction client for the lookup.
+   * @returns The revision with its post and attached original media, or
+   * `null` when no revision matches.
+   */
   async findActiveRevision(
     postId: number,
     tx: Prisma.TransactionClient = this.prisma,
@@ -111,25 +136,32 @@ export class DraftRepository {
   }
 
   /**
-   * Creates or reuses the author's revision snapshot for an existing post.
+   * Opens a revision for a post owned by the specified author.
    *
-   * The operation runs in a transaction to keep revision creation consistent
-   * with the post's current version. An active revision for that version is
-   * returned unchanged, a publishing revision is preserved for conflict
-   * handling, and an outdated active revision is archived before a new
-   * snapshot is created with the post's content, categories, cover media, and
-   * media links.
+   * Locks the post for the transaction and reuses a publishing revision or
+   * an active revision based on the current post version. Otherwise, it
+   * archives any stale active revision and snapshots the post's editable
+   * fields, categories, and source version.
    *
-   * @param ownerId - The authenticated author's identifier.
-   * @param postId - The identifier of the post being revised.
-   * @returns The existing or newly created revision, or `null` when the post
-   * does not exist or is not owned by the requested author.
+   * The snapshot links existing attachments and originals resolved from
+   * managed image URLs, and selects a cover when it can match the post's
+   * cover URL to an original. Missing managed URLs can remain in the content
+   * for the author to repair.
+   *
+   * @param ownerId - Expected post author's user ID.
+   * @param postId - ID of the post being revised.
+   * @returns The existing or newly created revision, or `null` if the post
+   * is missing, belongs to another author, or no revision can be found after
+   * a concurrent creation conflict.
+   * @throws {BadRequestException} If media is ineligible or a managed URL
+   * resolves to a new or different original during attachment locking.
    */
   async createRevision(ownerId: string, postId: number) {
     try {
       return await this.prisma.$transaction(async (tx) => {
         // Serialize revision creation, publication and post deletion.
         await tx.$queryRaw`SELECT "id" FROM "Post" WHERE "id" = ${postId} FOR UPDATE`;
+
         const post = await tx.post.findUnique({
           where: { id: postId },
           include: {
@@ -145,6 +177,7 @@ export class DraftRepository {
         });
         if (!post || post.authorId !== ownerId) return null;
 
+        // Check for an existing revision before creating a new one
         const active = await this.findActiveRevision(postId, tx);
         if (active?.status === DraftStatus.PUBLISHING) return active;
         if (active && active.sourceVersion === post.version) return active;
@@ -159,67 +192,10 @@ export class DraftRepository {
           }
         }
 
-        const coverKey = this.managedMedia.key(post.coverImage);
-        const keys = this.managedMedia.keys([
-          post.coverImage,
-          ...markdownImages(post.content).urls,
-        ]);
-        // Confirmed deletion can leave URLs behind for the author to repair.
-        const referenced = await this.managedMedia.resolveByKey(
-          tx,
-          keys,
-          ownerId,
-          MediaTarget.POST,
-          { allowMissing: true },
-        );
-        const attached = post.postMedia.map(({ media }) => media);
-        const attachedIds = attached.map(({ id }) => id);
-        const lockIds = [...new Set([...attachedIds, ...referenced.values()])];
-        let currentReferences = referenced;
-        if (lockIds.length) {
-          await lockOriginalMedia(tx, lockIds);
-          const current = await this.findActiveRevision(postId, tx);
-          if (current) return current;
-          currentReferences = await this.managedMedia.resolveByKey(
-            tx,
-            keys,
-            ownerId,
-            MediaTarget.POST,
-            { allowMissing: true },
-          );
-          if (
-            [...currentReferences].some(
-              ([key, id]) => referenced.get(key) !== id,
-            )
-          ) {
-            throw new BadRequestException(
-              'Managed image changed. Retry the request.',
-            );
-          }
-        }
-        const currentAttachments = await tx.postMedia.findMany({
-          where: { postId, mediaId: { in: attachedIds } },
-          select: { mediaId: true },
-        });
-        const mediaIds = [
-          ...new Set([
-            ...currentAttachments.map(({ mediaId }) => mediaId),
-            ...currentReferences.values(),
-          ]),
-        ];
-        await this.assertOwnedOriginals(tx, ownerId, mediaIds);
+        const media = await this.resolveRevisionMedia(tx, post, ownerId);
+        if (media.revision) return media.revision;
 
-        const coverMediaId =
-          coverKey === undefined
-            ? attached.find(
-                ({ id, publicUrl, variants }) =>
-                  mediaIds.includes(id) &&
-                  (publicUrl === post.coverImage ||
-                    variants.some(
-                      (variant) => variant.publicUrl === post.coverImage,
-                    )),
-              )?.id
-            : currentReferences.get(coverKey);
+        const { mediaIds, coverMediaId } = media;
         const draft = await tx.draft.create({
           data: {
             ownerId,
@@ -241,6 +217,7 @@ export class DraftRepository {
             post: true,
           },
         });
+
         return draft;
       });
     } catch (error) {
@@ -251,10 +228,115 @@ export class DraftRepository {
       ) {
         return this.findActiveRevision(postId);
       }
+
       throw error;
     }
   }
 
+  /**
+   * Locks the original media linked to the post or referenced by its managed
+   * image URLs. After locking, checks for a reusable revision and revalidates
+   * the media before selecting the cover. Missing managed URLs are tolerated.
+   *
+   * @param tx - Transaction used to create the revision and hold the locks.
+   * @param post - Post with its cover URL, Markdown, attachments, and variants.
+   * @param ownerId - Expected media owner's user ID.
+   * @returns Distinct original media IDs and an optional cover ID, or an
+   * existing active or publishing revision found after acquiring the locks.
+   * @throws {BadRequestException} If media is ineligible or a managed URL
+   * resolves to a new or different original during locking.
+   */
+  private async resolveRevisionMedia(
+    tx: Prisma.TransactionClient,
+    post: {
+      id: number;
+      coverImage: string;
+      content: string;
+      postMedia: {
+        media: {
+          id: string;
+          publicUrl: string;
+          variants: { publicUrl: string }[];
+        };
+      }[];
+    },
+    ownerId: string,
+  ) {
+    const coverKey = this.managedMedia.key(post.coverImage);
+    const keys = this.managedMedia.keys([
+      post.coverImage,
+      ...markdownImages(post.content).urls,
+    ]);
+    // Confirmed deletion can leave URLs behind for the author to repair.
+    const referenced = await this.managedMedia.resolveByKey(
+      tx,
+      keys,
+      ownerId,
+      MediaTarget.POST,
+      { allowMissing: true },
+    );
+    const attached = post.postMedia.map(({ media }) => media);
+    const attachedIds = attached.map(({ id }) => id);
+    const lockIds = [...new Set([...attachedIds, ...referenced.values()])];
+    let currentReferences = referenced;
+
+    if (lockIds.length) {
+      await lockOriginalMedia(tx, lockIds);
+
+      const current = await this.findActiveRevision(post.id, tx);
+      if (current) return { revision: current };
+
+      currentReferences = await this.managedMedia.resolveByKey(
+        tx,
+        keys,
+        ownerId,
+        MediaTarget.POST,
+        { allowMissing: true },
+      );
+      if (
+        [...currentReferences].some(([key, id]) => referenced.get(key) !== id)
+      ) {
+        throw new BadRequestException(
+          'Managed image changed. Retry the request.',
+        );
+      }
+    }
+
+    const currentAttachments = await tx.postMedia.findMany({
+      where: { postId: post.id, mediaId: { in: attachedIds } },
+      select: { mediaId: true },
+    });
+    const mediaIds = [
+      ...new Set([
+        ...currentAttachments.map(({ mediaId }) => mediaId),
+        ...currentReferences.values(),
+      ]),
+    ];
+    await this.assertOwnedOriginals(tx, ownerId, mediaIds);
+
+    const coverMediaId =
+      coverKey === undefined
+        ? attached.find(
+            ({ id, publicUrl, variants }) =>
+              mediaIds.includes(id) &&
+              (publicUrl === post.coverImage ||
+                variants.some(
+                  (variant) => variant.publicUrl === post.coverImage,
+                )),
+          )?.id
+        : currentReferences.get(coverKey);
+
+    return { mediaIds, coverMediaId };
+  }
+
+  /**
+   * Identifies the unique constraint that allows one active or publishing
+   * revision per post. Prisma can report the target as the field name,
+   * column name, or partial index name.
+   *
+   * @param error - Prisma unique constraint error (`P2002`).
+   * @returns Whether the error target matches the revision constraint.
+   */
   private isActiveRevisionConflict(
     error: Prisma.PrismaClientKnownRequestError,
   ): boolean {
@@ -296,7 +378,7 @@ export class DraftRepository {
    */
   update(
     id: string,
-    data: Record<string, unknown>,
+    data: CreateDraftDto & { coverMediaId?: string | null },
     tx: Prisma.TransactionClient = this.prisma,
   ) {
     return tx.draft.update({
@@ -380,6 +462,15 @@ export class DraftRepository {
     });
   }
 
+  /**
+   * Verifies that each media ID identifies an undeleted post media original
+   * owned by the specified user.
+   *
+   * @param tx - Transaction client for the eligibility check.
+   * @param ownerId - Expected media owner's user ID.
+   * @param mediaIds - Distinct media IDs to validate. An empty list passes.
+   * @throws {BadRequestException} If any media ID fails the eligibility check.
+   */
   private async assertOwnedOriginals(
     tx: Prisma.TransactionClient,
     ownerId: string,
@@ -417,7 +508,7 @@ export class DraftRepository {
     id: string,
     ownerId: string,
     requestedMediaIds: string[] | undefined,
-    data: Record<string, unknown>,
+    data: CreateDraftDto,
     coverMediaId?: string | null,
   ) {
     return this.prisma.$transaction(async (tx) => {

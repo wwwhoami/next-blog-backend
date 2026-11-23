@@ -113,6 +113,7 @@ export class ManagedMedia {
   ) {
     const ids = new Map<string, string>();
     if (!keys.length) return ids;
+
     const members = await tx.media.findMany({
       where: { key: { in: keys }, deletedAt: null },
       select: {
@@ -135,11 +136,13 @@ export class ManagedMedia {
         },
       },
     });
+
     if (!allowMissing && members.length !== keys.length) {
       throw new BadRequestException(
         'Managed image is unavailable for this use',
       );
     }
+
     for (const member of members) {
       const original = member.parent ?? member;
       if (
@@ -153,8 +156,10 @@ export class ManagedMedia {
           'Managed image is unavailable for this use',
         );
       }
+
       ids.set(member.key, original.id);
     }
+
     return ids;
   }
 
@@ -172,13 +177,16 @@ export class ManagedMedia {
     target: MediaTarget,
   ) {
     const ids = await this.resolve(tx, keys, ownerId, target);
+
     await lockOriginalMedia(tx, ids);
+
     const current = await this.resolve(tx, keys, ownerId, target);
     if (current.some((id) => !ids.includes(id))) {
       throw new BadRequestException(
         'Managed image changed. Retry the request.',
       );
     }
+
     return current;
   }
 }
@@ -195,6 +203,7 @@ export async function lockOriginalMedia(
   ids: string[],
 ) {
   if (!ids.length) return;
+
   await tx.$queryRaw`
     SELECT "id" FROM "Media" WHERE "id" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
       AND "parentId" IS NULL AND "media_variant" = 'ORIGINAL'

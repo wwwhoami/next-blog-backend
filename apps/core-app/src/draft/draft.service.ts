@@ -153,14 +153,15 @@ export class DraftService {
     if (draft.status !== DraftStatus.ACTIVE) {
       throw new ConflictException('Draft is not editable while publishing');
     }
-    const { mediaIds, coverMediaId, ...draftData } = dto;
+    const { title, excerpt, content, categoryNames, mediaIds, coverMediaId } =
+      dto;
 
     return this.present(
       await this.repo.attachMedia(
         id,
         ownerId,
         mediaIds,
-        draftData,
+        { title, excerpt, content, categoryNames },
         coverMediaId,
       ),
     );

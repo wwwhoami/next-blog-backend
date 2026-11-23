@@ -1,13 +1,16 @@
+import { PrismaService } from '@app/prisma';
 import { AppModule } from '@core/src/app.module';
 import { AuthCredentialsDto } from '@core/src/auth/dto/auth-credentials.dto';
 import { CreateCategoryDto } from '@core/src/category/dto/create-category.dto';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import { PostEntity } from '@core/src/post/entities/post.entity';
+import { PostRepository } from '@core/src/post/post.repository';
 import { PostService } from '@core/src/post/post.service';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { DraftStatus, MediaTarget, MediaType } from 'prisma/generated/client';
 import request from 'supertest';
@@ -766,6 +769,51 @@ describe('Post (e2e)', () => {
         .auth(adminAccessToken, { type: 'bearer' })
         .expect(HttpStatus.NOT_FOUND);
     });
+  });
+
+  it('lets a post deletion finish before a waiting unlike', async () => {
+    const prisma = app.get(PrismaService);
+    const repository = app.get(PostRepository);
+    const userId = userData[0].id;
+    const title = randomUUID();
+    const { id } = await prisma.post.create({
+      data: {
+        title,
+        slug: title,
+        authorId: userId,
+        content: '',
+        excerpt: '',
+        coverImage: '',
+      },
+    });
+    await repository.like(id, userId);
+    let unlike: Promise<unknown> | undefined;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Post" WHERE id = ${id} FOR UPDATE`;
+        unlike = repository.unlike(id, userId).catch((error: unknown) => error);
+        const deadline = Date.now() + 3000;
+        for (;;) {
+          const [waiter] = await tx.$queryRaw<{ pid: number }[]>`
+            SELECT pid FROM pg_stat_activity
+            WHERE pg_backend_pid() = ANY(pg_blocking_pids(pid))
+          `;
+          if (waiter) break;
+          if (Date.now() >= deadline)
+            throw new Error('Unlike did not block on the post');
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        await tx.$executeRaw`SET LOCAL lock_timeout = '1s'`;
+        await tx.post.delete({ where: { id } });
+      });
+      await expect(unlike).resolves.toMatchObject({ code: 'P2025' });
+      await expect(
+        prisma.postLikes.count({ where: { postId: id } }),
+      ).resolves.toBe(0);
+    } finally {
+      await unlike;
+      await prisma.post.deleteMany({ where: { id } });
+    }
   });
 
   describe('/post/:id/likes (GET)', () => {
