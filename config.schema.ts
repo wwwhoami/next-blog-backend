@@ -30,6 +30,6 @@ export const configValidationSchema = Joi.object({
   MINIO_PUBLIC_URL: Joi.string().required(),
   MEDIA_BASE_URL: Joi.string(),
   EXTERNAL_MEDIA_DOMAINS: Joi.string().default(''),
-  MEDIA_UNATTACHED_RETENTION_DAYS: Joi.number().default(30),
-  DRAFT_REVISION_RETENTION_DAYS: Joi.number().default(30),
+  MEDIA_UNATTACHED_RETENTION_DAYS: Joi.number().min(0).default(30),
+  DRAFT_REVISION_RETENTION_DAYS: Joi.number().min(0).default(30),
 });

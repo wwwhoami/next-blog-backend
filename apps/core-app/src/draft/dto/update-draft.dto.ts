@@ -1,13 +1,12 @@
-import { PartialType } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsOptional, IsUUID, ValidateIf } from 'class-validator';
 import { CreateDraftDto } from './create-draft.dto';
 
-export class UpdateDraftDto extends PartialType(CreateDraftDto) {
+export class UpdateDraftDto extends CreateDraftDto {
   @IsOptional()
   @IsUUID()
   coverMediaId?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsArray()
   @IsUUID('4', { each: true })
   mediaIds?: string[];

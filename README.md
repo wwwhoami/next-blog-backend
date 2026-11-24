@@ -14,7 +14,7 @@ PostgreSQL stores blog records through Prisma. MinIO stores uploaded files throu
 
 ## Getting started
 
-Use Node.js 24, pnpm 10.28.0, and Docker with Compose. Run these commands from the repository root.
+Use Node.js 24, the pnpm version pinned by `packageManager` in `package.json` (currently 12.21.0), and Docker with Compose. Run these commands from the repository root.
 
 ### 1. Install and configure
 

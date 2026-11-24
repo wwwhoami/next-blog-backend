@@ -9,12 +9,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { isURL } from 'class-validator';
 import { MediaTarget, Prisma } from 'prisma/generated/client';
-import slugify from 'slugify';
 import { ManagedMedia } from '../media/util/managed-media';
 import { markdownImages } from '../media/util/markdown-images';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostDto, PostOrderBy, SearchPostDto } from './dto/get-post.dto';
 import { PostEntity, PostEntityRanked, PostLike } from './entities/post.entity';
+import { postConflictMessage } from './post-conflict';
+import { postSlug } from './post-slug';
 import { selectPostWithAuthorCategories } from './utils/select.objects';
 
 @Injectable()
@@ -257,12 +258,12 @@ export class PostRepository {
         ${selectContent}
         ${selectRank}
         json_build_object('name', u. "name", 'image', u.image) AS author,
-        array_to_json(array_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color)))) AS categories
+        COALESCE(json_agg(json_build_object('category', json_build_object('name', c. "name", 'hexColor', c.hex_color))) FILTER (WHERE c.name IS NOT NULL), '[]'::json) AS categories
       FROM
         "Post" AS p
         JOIN "User" AS u ON p.author_id = u.id
-        JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
-        JOIN "Category" AS c ON c.name = ptc.category_name
+        LEFT JOIN "PostToCategory" AS ptc ON ptc.post_id = p.id
+        LEFT JOIN "Category" AS c ON c.name = ptc.category_name
       ${whereClause}
       GROUP BY
         p.id,
@@ -369,7 +370,7 @@ export class PostRepository {
     if (hasHtml) throw new BadRequestException('Raw HTML is not supported');
 
     const { title, excerpt, content, published, coverImage, categories } = post;
-    const slug = slugify(title, { lower: true });
+    const slug = postSlug(title);
     const coverKey = this.managedMedia.key(post.coverImage);
     if (coverKey === undefined && !isURL(post.coverImage)) {
       throw new BadRequestException('coverImage must be a URL address');
@@ -406,17 +407,26 @@ export class PostRepository {
           content: true,
         },
       });
-    if (!keys.length) return create(this.prisma);
+    try {
+      if (!keys.length) return await create(this.prisma);
 
-    return this.prisma.$transaction(async (tx) => {
-      const originals = await this.managedMedia.lockAndResolve(
-        tx,
-        keys,
-        authorId,
-        MediaTarget.POST,
-      );
-      return create(tx, originals);
-    });
+      return await this.prisma.$transaction(async (tx) => {
+        const originals = await this.managedMedia.lockAndResolve(
+          tx,
+          keys,
+          authorId,
+          MediaTarget.POST,
+        );
+        return create(tx, originals);
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      )
+        throw new ConflictException(postConflictMessage(error));
+      throw error;
+    }
   }
 
   updatePublication(id: number, published: boolean): Promise<PostEntity> {

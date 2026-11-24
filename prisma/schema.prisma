@@ -90,6 +90,7 @@ model Draft {
   sourceVersion   Int?        @map("source_version")
   deletedPostId   Int?        @map("deleted_post_id")
   status          DraftStatus @default(ACTIVE)
+  publicationAttemptId String? @db.Uuid @map("publication_attempt_id")
   validationError String?     @map("validation_error")
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)

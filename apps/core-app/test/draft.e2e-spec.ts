@@ -2,20 +2,24 @@ import { PrismaService } from '@app/prisma';
 import { AppModule } from '@core/src/app.module';
 import { ErrorInterceptor } from '@core/src/common/interceptors/error.interceptor';
 import {
+  DRAFT_PROCESSOR_QUEUE,
   DraftPublishJobData,
   VALIDATE_AND_PUBLISH_JOB,
 } from '@core/src/draft/constants/draft-processor.constants';
 import { DraftProcessor } from '@core/src/draft/draft.processor';
 import { DraftRepository } from '@core/src/draft/draft.repository';
+import { DraftService } from '@core/src/draft/draft.service';
+import { createDraftJsonBodyMiddleware } from '@core/src/draft/middleware/draft-json-body.middleware';
 import { MediaCleanupProcessor } from '@core/src/media/media-cleanup.processor';
 import { MediaProcessor } from '@core/src/media/media.processor';
 import { MediaRepository } from '@core/src/media/media.repository';
 import { MediaService } from '@core/src/media/media.service';
 import { StorageService } from '@core/src/storage/storage.service';
+import { getQueueToken } from '@nestjs/bullmq';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
-import { Job } from 'bullmq';
+import { Job, Queue, Worker } from 'bullmq';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
 import { randomUUID } from 'node:crypto';
@@ -44,6 +48,7 @@ function gate() {
 }
 
 describe('Draft (e2e)', () => {
+  const attempt = randomUUID();
   let app: INestApplication;
   let accessToken: string;
   let prisma: PrismaService;
@@ -54,6 +59,7 @@ describe('Draft (e2e)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    app.use(createDraftJsonBodyMiddleware());
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.useGlobalInterceptors(new ErrorInterceptor());
     app.use(cookieParser());
@@ -101,6 +107,140 @@ describe('Draft (e2e)', () => {
       .put(`/draft/${draftId}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ mediaIds, coverMediaId });
+
+  it('validates draft JSON at the editor character and byte boundaries', async () => {
+    const draft = await createDraft({ content: 'a'.repeat(150000) });
+    const update = (body: object) =>
+      request(app.getHttpServer())
+        .put(`/draft/${draft.id}`)
+        .auth(accessToken, { type: 'bearer' })
+        .send(body);
+    const create = (body: object) =>
+      request(app.getHttpServer())
+        .post('/draft')
+        .auth(accessToken, { type: 'bearer' })
+        .send(body);
+    for (const body of [
+      { title: null },
+      { excerpt: null },
+      { content: null },
+      { categoryNames: null },
+      { categoryNames: ['a', 'a'] },
+    ]) {
+      await create(body).expect(400);
+      await update(body).expect(400);
+    }
+    await update({ mediaIds: null }).expect(400);
+    await update({ coverMediaId: null })
+      .expect(200)
+      .expect(({ body }) => expect(body.content.length).toBe(150000));
+    const content = '😀'.repeat(2000000);
+    await update({ content }).expect(200);
+    await update({ content: content + 'x' }).expect(400);
+    await create({ content: 'a'.repeat(16 * 1024 * 1024) }).expect(413);
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ content: 'a'.repeat(150000) })
+      .expect(413);
+  });
+
+  it('recovers a backlog of interrupted claims within one minute', async () => {
+    const ownerId = userData[0].id;
+    const ids = Array.from({ length: 105 }, () => randomUUID());
+    const started = Date.now();
+    await prisma.draft.createMany({
+      data: ids.map((id) => ({
+        id,
+        ownerId,
+        status: DraftStatus.PUBLISHING,
+        publicationAttemptId: randomUUID(),
+      })),
+    });
+    while (Date.now() - started < 59000) {
+      const pending = await prisma.draft.count({
+        where: { id: { in: ids }, status: DraftStatus.PUBLISHING },
+      });
+      if (!pending) break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    expect(
+      await prisma.draft.count({
+        where: {
+          id: { in: ids },
+          status: DraftStatus.ACTIVE,
+          validationError: { not: null },
+          postId: null,
+          publicationAttemptId: null,
+        },
+      }),
+    ).toBe(ids.length);
+  }, 60000);
+
+  it('recovers a terminal stall and fences delayed callbacks after a new claim', async () => {
+    const draft = await createDraft();
+    const repo = app.get(DraftRepository);
+    const connection = app.get<Queue>(getQueueToken(DRAFT_PROCESSOR_QUEUE)).opts
+      .connection;
+    const queue = new Queue(randomUUID(), { connection });
+    const worker = new Worker(
+      queue.name,
+      async () => {
+        throw new Error('Retryable worker failure');
+      },
+      {
+        connection,
+        autorun: false,
+        maxStalledCount: 0,
+        stalledInterval: 100,
+        lockDuration: 100,
+      },
+    );
+    const service = new DraftService(repo, queue);
+    const data = { draftId: draft.id, ownerId: draft.ownerId };
+    const id = randomUUID();
+    try {
+      await repo.markPublishing(draft.id, draft.ownerId, id);
+      const job = await queue.add(VALIDATE_AND_PUBLISH_JOB, data, {
+        jobId: id,
+        attempts: 3,
+      });
+      await worker.getNextJob(randomUUID(), { block: false });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      void worker.run();
+      for (let i = 0; i < 100 && (await job.getState()) !== 'failed'; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(await job.getState()).toBe('failed');
+      await service.reconcile();
+      const retryId = randomUUID();
+      expect(
+        await repo.markPublishing(draft.id, draft.ownerId, retryId),
+      ).toBeTruthy();
+      const retry = await queue.add(VALIDATE_AND_PUBLISH_JOB, data, {
+        jobId: retryId,
+        attempts: 3,
+        backoff: 120000,
+      });
+      for (let i = 0; i < 100 && (await retry.getState()) !== 'delayed'; i++)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(await retry.getState()).toBe('delayed');
+      const processor = app.get(DraftProcessor);
+      await processor.onFailed(job, new Error('stale'));
+      await expect(processor.process(job)).rejects.toThrow(
+        'no longer publishing',
+      );
+      await service.reconcile();
+      expect(await repo.findById(draft.id)).toMatchObject({
+        status: DraftStatus.PUBLISHING,
+        publicationAttemptId: retryId,
+        validationError: null,
+        postId: null,
+      });
+    } finally {
+      await worker.close();
+      await queue.obliterate({ force: true });
+      await queue.close();
+    }
+  });
 
   const createMedia = async (
     ownerId: string,
@@ -168,6 +308,90 @@ describe('Draft (e2e)', () => {
       .expect(HttpStatus.CREATED);
     return { id: body.id as string, token: body.accessToken as string, image };
   };
+
+  it('serves uncategorized articles and preserves the revision URL', async () => {
+    const http = request(app.getHttpServer());
+    const login = await http
+      .post('/auth/login')
+      .send({ email: 'admin@admin.com', password: 'password' })
+      .expect(201);
+    const direct = await http
+      .post('/post')
+      .auth(login.body.accessToken, { type: 'bearer' })
+      .send({
+        title: '😀',
+        excerpt: 'excerpt',
+        content: 'content',
+        coverImage: 'https://example.org/cover.webp',
+        published: true,
+      })
+      .expect(201);
+    const draft = await createDraft({
+      title: '😎',
+      content: '😀'.repeat(2000000),
+    });
+    const cover = await createMedia(draft.ownerId, {}, { draftId: draft.id });
+    await saveMedia(draft.id, [cover.id], cover.id).expect(200);
+    const publish = async (id: string) => {
+      const jobId = randomUUID();
+      await app.get(DraftRepository).markPublishing(id, draft.ownerId, jobId);
+      await app.get(DraftProcessor).process({
+        id: jobId,
+        name: VALIDATE_AND_PUBLISH_JOB,
+        data: { draftId: id, ownerId: draft.ownerId },
+      } as Job<DraftPublishJobData>);
+    };
+    await publish(draft.id);
+    const article = await prisma.post.findUniqueOrThrow({
+      where: { title: '😎' },
+    });
+    expect(article.slug).toBeTruthy();
+    expect(article.slug).not.toBe(direct.body.slug);
+    for (const post of [article, direct.body])
+      await http
+        .get(`/post/article/${post.slug}`)
+        .expect(200)
+        .expect(({ body }) => expect(body.id).toBe(post.id));
+    const feed = await http.get('/post').query({ take: 100 }).expect(200);
+    expect(
+      feed.body.filter((p: { id: number }) => p.id === article.id),
+    ).toEqual([expect.objectContaining({ categories: [] })]);
+    const filtered = await http
+      .get('/post')
+      .query({ take: 100, category: 'python' })
+      .expect(200);
+    expect(filtered.body).not.toContainEqual(
+      expect.objectContaining({ id: article.id }),
+    );
+    const getDraft = (id: string) =>
+      http.get(`/draft/${id}`).auth(accessToken, { type: 'bearer' });
+    await getDraft(draft.id)
+      .expect(200)
+      .expect(({ body }) => expect(body.revisionMode).toBe('NEW'));
+    const revision = await http
+      .post(`/post/${article.id}/draft`)
+      .auth(accessToken, { type: 'bearer' })
+      .expect(201);
+    await http
+      .put(`/draft/${revision.body.id}`)
+      .auth(accessToken, { type: 'bearer' })
+      .send({ title: randomUUID(), content: 'revision' })
+      .expect(200);
+    await publish(revision.body.id);
+    await http
+      .get(`/post/article/${article.slug}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.content).toBe('revision'));
+    await prisma.draft.update({
+      where: { id: revision.body.id },
+      data: { sourceVersion: 0 },
+    });
+    await prisma.post.delete({ where: { id: article.id } });
+    await getDraft(revision.body.id)
+      .expect(200)
+      .expect(({ body }) => expect(body.revisionMode).toBe('REVISION'));
+    await prisma.post.delete({ where: { id: direct.body.id } });
+  });
 
   it('attaches pasted variant URLs and detaches editable draft families without deleting files', async () => {
     const ownerId = userData[0].id;
@@ -546,8 +770,9 @@ describe('Draft (e2e)', () => {
     const repo = app.get(DraftRepository);
     const processor = app.get(DraftProcessor);
     const publish = async () => {
-      await repo.markPublishing(repair.id, ownerId);
+      await repo.markPublishing(repair.id, ownerId, attempt);
       return processor.process({
+        id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
         data: { draftId: repair.id, ownerId },
       } as Job<DraftPublishJobData>);
@@ -603,8 +828,9 @@ describe('Draft (e2e)', () => {
     const relative = (url: string) => url.replace(/^https?:/, '');
     const repo = app.get(DraftRepository);
     const publish = async (id: string) => {
-      await repo.markPublishing(id, ownerId);
+      await repo.markPublishing(id, ownerId, attempt);
       return app.get(DraftProcessor).process({
+        id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
         data: { draftId: id, ownerId },
       } as Job<DraftPublishJobData>);
@@ -747,6 +973,7 @@ describe('Draft (e2e)', () => {
           title,
           postId: post.id,
           sourceVersion: 2,
+          publicationAttemptId: attempt,
           status: DraftStatus.PUBLISHING,
           coverMediaId: mediaId,
           categoryNames: [category.name],
@@ -756,6 +983,7 @@ describe('Draft (e2e)', () => {
     await prepareRevision(draft.id, cover.id, randomUUID());
     const job = (draftId: string) =>
       ({
+        id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
         data: { draftId, ownerId: draft.ownerId },
       }) as Job<DraftPublishJobData>;
@@ -819,6 +1047,7 @@ describe('Draft (e2e)', () => {
       await prisma.draft.update({
         where: { id: draft.id },
         data: {
+          publicationAttemptId: attempt,
           status: DraftStatus.PUBLISHING,
           coverMediaId: cover.id,
           draftMedia: { create: { mediaId: cover.id } },
@@ -907,8 +1136,9 @@ describe('Draft (e2e)', () => {
       const processor = app.get(DraftProcessor);
       const posts = await Promise.all(
         [first, second].map(async (draft) => {
-          await repo.markPublishing(draft.id, draft.ownerId);
+          await repo.markPublishing(draft.id, draft.ownerId, attempt);
           const post = await processor.process({
+            id: attempt,
             name: VALIDATE_AND_PUBLISH_JOB,
             data: { draftId: draft.id, ownerId: draft.ownerId },
           } as Job<DraftPublishJobData>);
@@ -1053,6 +1283,70 @@ describe('Draft (e2e)', () => {
       }
     },
   );
+
+  it('refreshes old revisions on fresh and reused uploads and honors zero retention', async () => {
+    const ownerId = userData[0].id;
+    const post = await prisma.post.create({
+      data: {
+        authorId: ownerId,
+        title: randomUUID(),
+        slug: randomUUID(),
+        content: 'body',
+        excerpt: 'excerpt',
+        coverImage: '',
+      },
+    });
+    const repo = app.get(DraftRepository);
+    const revision = await repo.createRevision(ownerId, post.id);
+    const draftId = revision!.id;
+    const key = randomUUID();
+    const hash = randomUUID().replaceAll('-', '').padEnd(64, '0');
+    const object = { key, bucket: 'test' };
+    const upload = jest.fn(async () => ({
+      ...object,
+      ownerId,
+      hash,
+      variant: MediaVariant.ORIGINAL,
+      type: MediaType.IMAGE,
+      target: MediaTarget.POST,
+      mimeType: 'image/png',
+      sizeBytes: 1,
+      publicUrl: 'https://cdn.test/' + key,
+    }));
+    try {
+      for (let i = 0; i < 2; i++) {
+        await prisma.draft.update({
+          where: { id: draftId },
+          data: { updatedAt: new Date(0) },
+        });
+        await app
+          .get(MediaRepository)
+          .reuseOrCreateUpload(
+            ownerId,
+            hash,
+            MediaType.IMAGE,
+            MediaTarget.POST,
+            draftId,
+            object,
+            upload,
+          );
+        await repo.archiveInactiveRevisionsBefore(
+          new Date(Date.now() - 86400000),
+        );
+        expect(await repo.findById(draftId)).toMatchObject({
+          status: DraftStatus.ACTIVE,
+        });
+      }
+      expect(upload).toHaveBeenCalledTimes(1);
+      const config = new ConfigService({ DRAFT_REVISION_RETENTION_DAYS: 0 });
+      await new DraftProcessor(repo, config).process({
+        name: 'cleanup-archived-revisions',
+      } as Job);
+      expect(await repo.findById(draftId)).toBeNull();
+    } finally {
+      await prisma.post.delete({ where: { id: post.id } });
+    }
+  });
 
   it('refreshes retention on reuse and creates a fresh record after cleanup wins', async () => {
     const draft = await createDraft();
@@ -1320,9 +1614,10 @@ describe('Draft (e2e)', () => {
       .auth(accessToken, { type: 'bearer' })
       .send({ title })
       .expect(HttpStatus.OK);
-    await repository.markPublishing(revision!.id, draft.ownerId);
+    await repository.markPublishing(revision!.id, draft.ownerId, attempt);
     await expect(
       app.get(DraftProcessor).process({
+        id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
         data: { draftId: revision!.id, ownerId: draft.ownerId },
       } as Job<DraftPublishJobData>),
@@ -1389,6 +1684,7 @@ describe('Draft (e2e)', () => {
           excerpt: post.excerpt,
           content: source.content,
           coverMediaId: cover.id,
+          publicationAttemptId: attempt,
           status: DraftStatus.PUBLISHING,
           draftMedia: {
             create: [...new Set([cover.id, foreign.id])].map((mediaId) => ({
@@ -1399,6 +1695,7 @@ describe('Draft (e2e)', () => {
       });
       await expect(
         app.get(DraftProcessor).process({
+          id: attempt,
           name: VALIDATE_AND_PUBLISH_JOB,
           data: { draftId: revision.id, ownerId },
         } as Job<DraftPublishJobData>),
@@ -1432,7 +1729,9 @@ describe('Draft (e2e)', () => {
         await saveMedia(draft.id, [original.id], original.id).expect(
           HttpStatus.OK,
         );
-        await app.get(DraftRepository).markPublishing(draft.id, draft.ownerId);
+        await app
+          .get(DraftRepository)
+          .markPublishing(draft.id, draft.ownerId, attempt);
       }
 
       const storage = app.get(StorageService);
@@ -1478,6 +1777,7 @@ describe('Draft (e2e)', () => {
 
         if (operation === 'publication') {
           const post = await app.get(DraftProcessor).process({
+            id: attempt,
             name: VALIDATE_AND_PUBLISH_JOB,
             data: { draftId: draft.id, ownerId: draft.ownerId },
           } as Job<DraftPublishJobData>);
@@ -1696,7 +1996,9 @@ describe('Draft (e2e)', () => {
     await started.promise;
     try {
       await saveMedia(draft.id, []).expect(HttpStatus.OK);
-      await app.get(DraftRepository).markPublishing(draft.id, draft.ownerId);
+      await app
+        .get(DraftRepository)
+        .markPublishing(draft.id, draft.ownerId, attempt);
     } finally {
       unpause.resolve();
     }

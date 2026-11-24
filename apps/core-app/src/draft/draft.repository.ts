@@ -399,12 +399,43 @@ export class DraftRepository {
    *
    * @param id - Draft identifier.
    * @param ownerId - Expected draft owner.
-   * @returns The number of drafts successfully claimed.
+   * @returns The claimed snapshot, or null if another request already claimed the draft.
    */
-  markPublishing(id: string, ownerId: string) {
-    return this.prisma.draft.updateMany({
-      where: { id, ownerId, status: DraftStatus.ACTIVE },
-      data: { status: DraftStatus.PUBLISHING, validationError: null },
+  markPublishing(id: string, ownerId: string, publicationAttemptId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const claim = await tx.draft.updateMany({
+        where: { id, ownerId, status: DraftStatus.ACTIVE },
+        data: {
+          publicationAttemptId,
+          status: DraftStatus.PUBLISHING,
+          validationError: null,
+        },
+      });
+      if (!claim.count) return null;
+      return tx.draft.findUniqueOrThrow({
+        where: { id },
+        include: { ...includeDraftMedia, post: true },
+      });
+    });
+  }
+
+  /**
+   * Lists publishing drafts with a recorded attempt for queue reconciliation.
+   *
+   * @param after - Exclusive draft ID cursor. Omit to start at the first ID.
+   * @returns Up to 100 claims ordered by draft ID, with attempt IDs for job
+   * lookup and update timestamps for measuring claim age.
+   */
+  pendingClaims(after?: string) {
+    return this.prisma.draft.findMany({
+      where: {
+        status: DraftStatus.PUBLISHING,
+        publicationAttemptId: { not: null },
+        id: { gt: after },
+      },
+      select: { id: true, publicationAttemptId: true, updatedAt: true },
+      orderBy: { id: 'asc' },
+      take: 100,
     });
   }
 
@@ -416,12 +447,20 @@ export class DraftRepository {
    *
    * @param id - Draft identifier.
    * @param error - User-facing or infrastructure failure description.
-   * @returns The restored draft with directly attachments.
+   * @returns The number of matching claims restored.
    */
-  markValidationFailed(id: string, error: string) {
+  markValidationFailed(
+    id: string,
+    publicationAttemptId: string,
+    error: string,
+  ) {
     return this.prisma.draft.updateMany({
-      where: { id, status: DraftStatus.PUBLISHING },
-      data: { status: DraftStatus.ACTIVE, validationError: error },
+      where: { id, publicationAttemptId, status: DraftStatus.PUBLISHING },
+      data: {
+        status: DraftStatus.ACTIVE,
+        publicationAttemptId: null,
+        validationError: error,
+      },
     });
   }
 
@@ -439,7 +478,7 @@ export class DraftRepository {
     return this.prisma.draft.deleteMany({
       where: {
         status: DraftStatus.ARCHIVED,
-        archivedAt: { lt: cutoff },
+        archivedAt: { lte: cutoff },
       },
     });
   }
@@ -456,7 +495,7 @@ export class DraftRepository {
         postId: { not: null },
         sourceVersion: { not: null },
         status: DraftStatus.ACTIVE,
-        updatedAt: { lt: cutoff },
+        updatedAt: { lte: cutoff },
       },
       data: { status: DraftStatus.ARCHIVED, archivedAt: new Date() },
     });
@@ -683,6 +722,7 @@ export class DraftRepository {
     draftId: string,
     ownerId: string,
     data: {
+      publicationAttemptId: string;
       title: string;
       slug: string;
       excerpt: string;
@@ -699,6 +739,7 @@ export class DraftRepository {
         where: {
           id: draftId,
           ownerId,
+          publicationAttemptId: data.publicationAttemptId,
           status: DraftStatus.PUBLISHING,
           postId: null,
         },
@@ -706,6 +747,7 @@ export class DraftRepository {
       });
       if (!draft) throw new ConflictException('Draft is no longer publishing');
 
+      await this.checkPublicationCategories(tx, data.categoryNames);
       const originalIds = await this.validatePublicationMedia(
         tx,
         draftId,
@@ -739,6 +781,7 @@ export class DraftRepository {
       await tx.draft.update({
         where: { id: draftId },
         data: {
+          publicationAttemptId: null,
           status: DraftStatus.ARCHIVED,
           postId: post.id,
           archivedAt: new Date(),
@@ -770,6 +813,7 @@ export class DraftRepository {
     draftId: string,
     ownerId: string,
     data: {
+      publicationAttemptId: string;
       title: string;
       excerpt: string;
       content: string;
@@ -788,6 +832,7 @@ export class DraftRepository {
         where: {
           id: draftId,
           ownerId,
+          publicationAttemptId: data.publicationAttemptId,
           status: DraftStatus.PUBLISHING,
           postId: data.postId,
         },
@@ -801,6 +846,7 @@ export class DraftRepository {
           'Post changed since this revision was created',
         );
       }
+      await this.checkPublicationCategories(tx, data.categoryNames);
       const originalIds = await this.validatePublicationMedia(
         tx,
         draftId,
@@ -840,6 +886,7 @@ export class DraftRepository {
       await tx.draft.update({
         where: { id: draftId },
         data: {
+          publicationAttemptId: null,
           status: DraftStatus.ARCHIVED,
           archivedAt: new Date(),
           validationError: null,
@@ -854,6 +901,24 @@ export class DraftRepository {
         },
       });
     });
+  }
+
+  private async checkPublicationCategories(
+    tx: Prisma.TransactionClient,
+    names: string[],
+  ) {
+    if (!names.length) return;
+    // Hold the category keys until their post links commit.
+    const rows = await tx.$queryRaw<{ name: string }[]>`
+      SELECT name FROM "Category" WHERE name IN (${Prisma.join(names)})
+      ORDER BY name FOR KEY SHARE
+    `;
+    const existing = new Set(rows.map(({ name }) => name));
+    const missing = names.filter((name) => !existing.has(name));
+    if (missing.length)
+      throw new BadRequestException(
+        `Remove or replace unavailable categories: ${missing.join(', ')}`,
+      );
   }
 
   private async replacePostMedia(

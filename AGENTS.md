@@ -2,7 +2,7 @@
 
 Next Blog Backend is a pnpm-managed NestJS monorepo for the core blog API and notification services.
 
-- Use the **pnpm 10** version pinned in `package.json` under `packageManager`. Use pnpm to install dependencies and leave `package-lock.json` untouched.
+- Use the pnpm version pinned in `package.json` under `packageManager`. Use pnpm to install dependencies and leave `package-lock.json` untouched.
 - Build all applications with `pnpm build`, or build the core API with `pnpm build:core`; the repository has no standalone typecheck script.
 - Never edit generated Prisma client files in `prisma/generated/` or commit credentials from `.env*` files.
 

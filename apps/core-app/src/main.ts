@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { LoggerErrorInterceptor, Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { ErrorInterceptor } from './common/interceptors/error.interceptor';
+import { createDraftJsonBodyMiddleware } from './draft/middleware/draft-json-body.middleware';
 import metadata from './metadata';
 
 // Override JSON.stringify to handle BigInt
@@ -33,6 +34,7 @@ async function bootstrap() {
     });
   }
 
+  app.use(createDraftJsonBodyMiddleware());
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.useGlobalInterceptors(
     new ErrorInterceptor(),

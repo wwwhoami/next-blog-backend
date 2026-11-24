@@ -62,6 +62,7 @@ describe('DraftRepository', () => {
     ) => callback(tx)) as never);
 
     await repository.publish('draft-id', 'owner-id', {
+      publicationAttemptId: 'attempt',
       title: 'Title',
       slug: 'title',
       excerpt: 'Excerpt',
@@ -80,12 +81,51 @@ describe('DraftRepository', () => {
     expect(tx.draft.update).toHaveBeenCalledWith({
       where: { id: 'draft-id' },
       data: {
+        publicationAttemptId: null,
         status: DraftStatus.ARCHIVED,
         postId: post.id,
         archivedAt: expect.any(Date),
       },
     });
   });
+
+  it.each(['new', 'revision'])(
+    'rejects unavailable categories before writing a %s post',
+    async (mode) => {
+      const tx = mockDeep<PrismaService>();
+      prisma.$transaction.mockImplementation((async (
+        run: (client: Prisma.TransactionClient) => Promise<unknown>,
+      ) => run(tx)) as never);
+      tx.draft.findFirst.mockResolvedValue({
+        sourceVersion: 0,
+        coverMediaId: 'cover',
+      } as never);
+      tx.$queryRaw.mockResolvedValue([{ name: 'available' }]);
+      const data = {
+        publicationAttemptId: 'attempt',
+        title: 'Title',
+        content: 'Body',
+        excerpt: 'Excerpt',
+        coverMediaId: 'cover',
+        coverImage: 'cover.png',
+        mediaIds: ['cover'],
+        categoryNames: ['available', 'removed'],
+      };
+      const publication =
+        mode === 'new'
+          ? repository.publish('draft', 'owner', { ...data, slug: 'title' })
+          : repository.publishRevision('draft', 'owner', {
+              ...data,
+              sourceVersion: 0,
+              postId: 1,
+            });
+      await expect(publication).rejects.toThrow(
+        'Remove or replace unavailable categories: removed',
+      );
+      expect(tx.post.create).not.toHaveBeenCalled();
+      expect(tx.post.updateMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns an existing active revision after a concurrent create conflict', async () => {
     const activeRevision = { id: 'existing-revision', postId: 7 };
@@ -184,7 +224,7 @@ describe('DraftRepository', () => {
         postId: { not: null },
         sourceVersion: { not: null },
         status: DraftStatus.ACTIVE,
-        updatedAt: { lt: cutoff },
+        updatedAt: { lte: cutoff },
       },
       data: { status: DraftStatus.ARCHIVED, archivedAt: expect.any(Date) },
     });
@@ -199,7 +239,7 @@ describe('DraftRepository', () => {
     expect(prisma.draft.deleteMany).toHaveBeenCalledWith({
       where: {
         status: DraftStatus.ARCHIVED,
-        archivedAt: { lt: cutoff },
+        archivedAt: { lte: cutoff },
       },
     });
   });

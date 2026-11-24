@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { DraftStatus, MediaTarget } from 'prisma/generated/client';
+import { configValidationSchema } from '../../../../../config.schema';
 import { DraftProcessor } from '../draft.processor';
 import { DraftRepository } from '../draft.repository';
 
@@ -17,6 +18,35 @@ describe('DraftProcessor', () => {
     processor = new DraftProcessor(repository, config);
   });
 
+  it.each(['DRAFT_REVISION_RETENTION_DAYS', 'MEDIA_UNATTACHED_RETENTION_DAYS'])(
+    'validates %s at startup',
+    (key) => {
+      const setting = configValidationSchema.extract(key);
+      expect(setting.validate(-1).error).toBeDefined();
+      expect(setting.validate(0).error).toBeUndefined();
+    },
+  );
+
+  it('rejects duplicate category names in a stored draft', async () => {
+    repository.findById.mockResolvedValue({
+      publicationAttemptId: 'attempt',
+      ownerId: 'owner',
+      status: DraftStatus.PUBLISHING,
+      title: 'title',
+      excerpt: 'excerpt',
+      content: 'body',
+      categoryNames: ['A', 'A'],
+    } as never);
+    await expect(
+      processor.process({
+        id: 'attempt',
+        name: 'validate-and-publish',
+        data: { draftId: 'id', ownerId: 'owner' },
+      } as never),
+    ).rejects.toThrow('duplicate category names');
+    expect(repository.publish).not.toHaveBeenCalled();
+  });
+
   it('validates and publishes a draft in the worker', async () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
@@ -26,6 +56,7 @@ describe('DraftProcessor', () => {
       content: '# Content',
       categoryNames: [],
       coverMediaId: 'cover-id',
+      publicationAttemptId: 'attempt',
       status: DraftStatus.PUBLISHING,
       draftMedia: [
         {
@@ -42,6 +73,7 @@ describe('DraftProcessor', () => {
 
     await expect(
       processor.process({
+        id: 'attempt',
         name: 'validate-and-publish',
         data: { draftId: 'draft-id', ownerId: 'owner-id' },
       } as never),
@@ -65,12 +97,14 @@ describe('DraftProcessor', () => {
       content: '# Content',
       categoryNames: [],
       coverMediaId: null,
+      publicationAttemptId: 'attempt',
       status: DraftStatus.PUBLISHING,
       draftMedia: [],
     } as never);
 
     await expect(
       processor.process({
+        id: 'attempt',
         name: 'validate-and-publish',
         data: { draftId: 'draft-id', ownerId: 'owner-id' },
       } as never),
@@ -80,6 +114,7 @@ describe('DraftProcessor', () => {
 
     expect(repository.markValidationFailed).toHaveBeenCalledWith(
       'draft-id',
+      'attempt',
       'A cover image attached to the draft is required to publish',
     );
   });
@@ -112,6 +147,7 @@ describe('DraftProcessor', () => {
     repository.findById.mockResolvedValue({
       id: 'draft-id',
       ownerId: 'owner-id',
+      publicationAttemptId: 'attempt',
       status: DraftStatus.PUBLISHING,
       title: 'Title',
       excerpt: 'Excerpt',
@@ -130,6 +166,7 @@ describe('DraftProcessor', () => {
     repository.publish.mockResolvedValue({ id: 1 } as never);
 
     const publication = processor.process({
+      id: 'attempt',
       name: 'validate-and-publish',
       data: { draftId: 'draft-id', ownerId: 'owner-id' },
     } as never);
@@ -161,6 +198,7 @@ describe('DraftProcessor', () => {
       content: '# Content',
       categoryNames: [],
       coverMediaId: 'cover-id',
+      publicationAttemptId: 'attempt',
       status: DraftStatus.PUBLISHING,
       draftMedia: [
         {
@@ -177,6 +215,7 @@ describe('DraftProcessor', () => {
 
     await expect(
       processor.process({
+        id: 'attempt',
         name: 'validate-and-publish',
         data: { draftId: 'draft-id', ownerId: 'owner-id' },
       } as never),
@@ -194,6 +233,7 @@ describe('DraftProcessor', () => {
       content: '![Body](https://cdn.example.com/body.webp)',
       categoryNames: [],
       coverMediaId: 'cover-id',
+      publicationAttemptId: 'attempt',
       status: DraftStatus.PUBLISHING,
       draftMedia: [
         {
@@ -211,6 +251,7 @@ describe('DraftProcessor', () => {
 
     await expect(
       processor.process({
+        id: 'attempt',
         name: 'validate-and-publish',
         data: { draftId: 'draft-id', ownerId: 'owner-id' },
       } as never),
@@ -231,6 +272,7 @@ describe('DraftProcessor', () => {
         content,
         categoryNames: [],
         coverMediaId: 'cover-id',
+        publicationAttemptId: 'attempt',
         status: DraftStatus.PUBLISHING,
         draftMedia: [
           {
@@ -247,6 +289,7 @@ describe('DraftProcessor', () => {
 
       await expect(
         processor.process({
+          id: 'attempt',
           name: 'validate-and-publish',
           data: { draftId: 'draft-id', ownerId: 'owner-id' },
         } as never),
@@ -261,9 +304,11 @@ describe('DraftProcessor', () => {
 
     await processor.onFailed(
       {
+        id: 'attempt',
         name: 'validate-and-publish',
         data: { draftId: 'draft-id', ownerId: 'owner-id' },
-        attemptsMade: 3,
+        attemptsMade: 1,
+        getState: async () => 'failed',
         opts: { attempts: 3 },
       } as never,
       new Error('Storage unavailable'),
@@ -271,8 +316,25 @@ describe('DraftProcessor', () => {
 
     expect(repository.markValidationFailed).toHaveBeenCalledWith(
       'draft-id',
-      'Storage unavailable',
+      'attempt',
+      'Publication failed. Please publish again.',
     );
+  });
+
+  it('leaves recovery to reconciliation if the failure update rejects', async () => {
+    repository.markValidationFailed.mockRejectedValue(
+      new Error('Database unavailable'),
+    );
+    const job = {
+      id: 'attempt',
+      name: 'validate-and-publish',
+      data: { draftId: 'draft-id' },
+      getState: async () => 'failed',
+    };
+    await expect(
+      processor.onFailed(job as never, new Error('Worker failed')),
+    ).resolves.toBeUndefined();
+    expect(repository.markValidationFailed).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a failed worker event without a job payload', async () => {
@@ -287,7 +349,8 @@ describe('DraftProcessor', () => {
     await processor.onFailed(
       {
         name: 'cleanup-archived-revisions',
-        attemptsMade: 3,
+        attemptsMade: 1,
+        getState: async () => 'failed',
         opts: { attempts: 3 },
       } as never,
       new Error('Cleanup unavailable'),

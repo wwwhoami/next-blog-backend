@@ -580,14 +580,10 @@ describe('Post (e2e)', () => {
         .expect(HttpStatus.FORBIDDEN));
 
     it('publishes a revision into the existing post', async () => {
-      const postsResponse = await request(app.getHttpServer())
-        .get('/post')
-        .query({ content: true, take: 10 })
-        .expect(HttpStatus.OK);
-      const post = postsResponse.body.find(
-        (candidate: { id: number }) => candidate.id === 2,
-      );
-      expect(post).toEqual(expect.objectContaining({ id: 2 }));
+      const post = await app.get(PrismaService).post.findUniqueOrThrow({
+        where: { id: 2 },
+        select: { slug: true },
+      });
 
       const revision = await request(app.getHttpServer())
         .post('/post/2/draft')

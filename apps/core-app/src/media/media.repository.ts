@@ -268,12 +268,25 @@ export class MediaRepository {
     return current;
   }
 
+  /**
+   * Links a new or reused upload to a draft and refreshes the draft's
+   * `updatedAt` for retention cleanup, even when the link already exists.
+   *
+   * @param tx - Upload transaction that commits the link and timestamp together.
+   * @param mediaId - ID of the uploaded or reused media record.
+   * @param draftId - Draft to attach to. Omit for a standalone upload.
+   */
   private async attachUpload(
     tx: Prisma.TransactionClient,
     mediaId: string,
     draftId?: string,
   ) {
     if (!draftId) return;
+
+    await tx.draft.update({
+      where: { id: draftId },
+      data: { updatedAt: new Date() },
+    });
     await tx.draftMedia.createMany({
       data: { draftId, mediaId },
       skipDuplicates: true,
@@ -579,10 +592,10 @@ export class MediaRepository {
     return {
       ...originalMedia,
       NOT: hasReferences,
-      createdAt: { lt: cutoff },
+      createdAt: { lte: cutoff },
       OR: [
         { retentionRefreshedAt: null },
-        { retentionRefreshedAt: { lt: cutoff } },
+        { retentionRefreshedAt: { lte: cutoff } },
       ],
     };
   }
