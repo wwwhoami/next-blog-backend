@@ -6,3 +6,5 @@ export interface DraftPublishJobData {
   draftId: string;
   ownerId: string;
 }
+
+export const PENDING_CLAIM_BATCH_SIZE = 100;

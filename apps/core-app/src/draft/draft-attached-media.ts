@@ -1,4 +1,4 @@
-export function effectiveMedia<T>({
+export function getAttachedDraftMedia<T>({
   draftMedia = [],
 }: {
   draftMedia?: { media: T }[];

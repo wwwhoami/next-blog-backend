@@ -1,18 +1,21 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { DraftStatus } from 'prisma/generated/client';
+import { DraftPublicationRepository } from '../draft-publication.repository';
 import { DraftRepository } from '../draft.repository';
 import { DraftService } from '../draft.service';
 
 describe('DraftService', () => {
   let service: DraftService;
+  let publication: DeepMockProxy<DraftPublicationRepository>;
   let repository: DeepMockProxy<DraftRepository>;
   let queue: { add: jest.Mock; getJobState: jest.Mock; getJob: jest.Mock };
 
   beforeEach(() => {
+    publication = mockDeep<DraftPublicationRepository>();
     repository = mockDeep<DraftRepository>();
     queue = { add: jest.fn(), getJobState: jest.fn(), getJob: jest.fn() };
-    service = new DraftService(repository, queue as never);
+    service = new DraftService(repository, publication, queue as never);
   });
 
   it('creates an incomplete draft without creating a Post', async () => {
@@ -103,7 +106,7 @@ describe('DraftService', () => {
         ownerId: 'owner-id',
         status: DraftStatus.ARCHIVED,
       } as never);
-    repository.markPublishing.mockResolvedValue({
+    publication.markPublishing.mockResolvedValue({
       status: DraftStatus.PUBLISHING,
     } as never);
 
@@ -113,7 +116,7 @@ describe('DraftService', () => {
       status: DraftStatus.PUBLISHING,
     });
 
-    expect(repository.markPublishing).toHaveBeenCalledWith(
+    expect(publication.markPublishing).toHaveBeenCalledWith(
       'draft-id',
       'owner-id',
       expect.any(String),
@@ -123,7 +126,7 @@ describe('DraftService', () => {
       { draftId: 'draft-id', ownerId: 'owner-id' },
       expect.objectContaining({
         attempts: 3,
-        jobId: repository.markPublishing.mock.calls[0][2],
+        jobId: publication.markPublishing.mock.calls[0][2],
       }),
     );
   });
@@ -133,27 +136,14 @@ describe('DraftService', () => {
       ownerId: 'owner',
       status: DraftStatus.ACTIVE,
     } as never);
-    repository.markPublishing.mockResolvedValue({
+    publication.markPublishing.mockResolvedValue({
       status: DraftStatus.PUBLISHING,
     } as never);
     queue.add.mockRejectedValue(new Error('connection lost'));
     await expect(service.publish('draft', 'owner')).rejects.toThrow(
       'connection lost',
     );
-    expect(repository.markValidationFailed).not.toHaveBeenCalled();
-  });
-
-  it('preserves claims while Redis state is unavailable or the enqueue grace period is open', async () => {
-    repository.pendingClaims.mockResolvedValue([
-      { id: 'old', publicationAttemptId: 'a', updatedAt: new Date(0) },
-      { id: 'new', publicationAttemptId: 'b', updatedAt: new Date() },
-    ]);
-    queue.getJobState
-      .mockRejectedValueOnce(new Error('Redis unavailable'))
-      .mockResolvedValueOnce('unknown');
-    await service.reconcile();
-    expect(repository.markValidationFailed).not.toHaveBeenCalled();
-    expect(queue.getJob).not.toHaveBeenCalled();
+    expect(publication.markValidationFailed).not.toHaveBeenCalled();
   });
 
   it('requires draft-bound post media to be owned by the draft owner', async () => {

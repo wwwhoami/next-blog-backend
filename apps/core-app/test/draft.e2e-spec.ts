@@ -6,14 +6,17 @@ import {
   DraftPublishJobData,
   VALIDATE_AND_PUBLISH_JOB,
 } from '@core/src/draft/constants/draft-processor.constants';
+import { DraftMaintenanceService } from '@core/src/draft/draft-maintenance.service';
+import { DraftPublicationMediaService } from '@core/src/draft/draft-publication-media.service';
+import { DraftPublicationRepository } from '@core/src/draft/draft-publication.repository';
 import { DraftProcessor } from '@core/src/draft/draft.processor';
 import { DraftRepository } from '@core/src/draft/draft.repository';
-import { DraftService } from '@core/src/draft/draft.service';
 import { createDraftJsonBodyMiddleware } from '@core/src/draft/middleware/draft-json-body.middleware';
 import { MediaCleanupProcessor } from '@core/src/media/media-cleanup.processor';
 import { MediaProcessor } from '@core/src/media/media.processor';
 import { MediaRepository } from '@core/src/media/media.repository';
 import { MediaService } from '@core/src/media/media.service';
+import { drainStorageDeletions } from '@core/src/media/util/drain-storage-deletions';
 import { StorageService } from '@core/src/storage/storage.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
@@ -22,6 +25,7 @@ import { Test } from '@nestjs/testing';
 import { Job, Queue, Worker } from 'bullmq';
 import cookieParser from 'cookie-parser';
 import { userData } from 'data/seed-data';
+import { PinoLogger } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import {
@@ -65,6 +69,8 @@ describe('Draft (e2e)', () => {
     app.use(cookieParser());
 
     await app.init();
+    // These cases drive storage outbox draining explicitly.
+    await app.get(MediaCleanupProcessor).worker.pause();
     prisma = app.get(PrismaService);
 
     const loginResponse = await request(app.getHttpServer())
@@ -195,11 +201,16 @@ describe('Draft (e2e)', () => {
         lockDuration: 100,
       },
     );
-    const service = new DraftService(repo, queue);
+    const service = new DraftMaintenanceService(
+      app.get(DraftPublicationRepository),
+      queue,
+    );
     const data = { draftId: draft.id, ownerId: draft.ownerId };
     const id = randomUUID();
     try {
-      await repo.markPublishing(draft.id, draft.ownerId, id);
+      await app
+        .get(DraftPublicationRepository)
+        .markPublishing(draft.id, draft.ownerId, id);
       const job = await queue.add(VALIDATE_AND_PUBLISH_JOB, data, {
         jobId: id,
         attempts: 3,
@@ -213,7 +224,9 @@ describe('Draft (e2e)', () => {
       await service.reconcile();
       const retryId = randomUUID();
       expect(
-        await repo.markPublishing(draft.id, draft.ownerId, retryId),
+        await app
+          .get(DraftPublicationRepository)
+          .markPublishing(draft.id, draft.ownerId, retryId),
       ).toBeTruthy();
       const retry = await queue.add(VALIDATE_AND_PUBLISH_JOB, data, {
         jobId: retryId,
@@ -299,6 +312,16 @@ describe('Draft (e2e)', () => {
     );
   };
 
+  const drainStorageFor = async (
+    ...objects: { key: string; bucket: string }[]
+  ) =>
+    drainStorageDeletions(
+      app.get(MediaRepository),
+      app.get(StorageService),
+      await app.resolve(PinoLogger),
+      objects.map(({ key, bucket }) => ({ key, bucket })),
+    );
+
   const createTestAccount = async () => {
     const name = randomUUID();
     const image = 'https://example.com/avatar.webp';
@@ -334,7 +357,9 @@ describe('Draft (e2e)', () => {
     await saveMedia(draft.id, [cover.id], cover.id).expect(200);
     const publish = async (id: string) => {
       const jobId = randomUUID();
-      await app.get(DraftRepository).markPublishing(id, draft.ownerId, jobId);
+      await app
+        .get(DraftPublicationRepository)
+        .markPublishing(id, draft.ownerId, jobId);
       await app.get(DraftProcessor).process({
         id: jobId,
         name: VALIDATE_AND_PUBLISH_JOB,
@@ -715,9 +740,7 @@ describe('Draft (e2e)', () => {
         where: { key: original.key },
         data: { nextAttemptAt: new Date(0) },
       });
-      await app
-        .get(MediaCleanupProcessor)
-        .process({ name: 'drainStorage' } as Job);
+      await drainStorageFor(original, variant);
 
       await expect(
         prisma.mediaStorageDeletion.count({
@@ -767,10 +790,11 @@ describe('Draft (e2e)', () => {
       effectiveMedia: [],
     });
 
-    const repo = app.get(DraftRepository);
     const processor = app.get(DraftProcessor);
     const publish = async () => {
-      await repo.markPublishing(repair.id, ownerId, attempt);
+      await app
+        .get(DraftPublicationRepository)
+        .markPublishing(repair.id, ownerId, attempt);
       return processor.process({
         id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
@@ -826,9 +850,10 @@ describe('Draft (e2e)', () => {
       variant(foreign.id, foreign.ownerId),
     ]);
     const relative = (url: string) => url.replace(/^https?:/, '');
-    const repo = app.get(DraftRepository);
     const publish = async (id: string) => {
-      await repo.markPublishing(id, ownerId, attempt);
+      await app
+        .get(DraftPublicationRepository)
+        .markPublishing(id, ownerId, attempt);
       return app.get(DraftProcessor).process({
         id: attempt,
         name: VALIDATE_AND_PUBLISH_JOB,
@@ -995,6 +1020,8 @@ describe('Draft (e2e)', () => {
     const worker = app.get(DraftProcessor);
     const secondWorker = new DraftProcessor(
       app.get(DraftRepository),
+      app.get(DraftPublicationRepository),
+      app.get(DraftPublicationMediaService),
       app.get(ConfigService),
     );
     const results = await Promise.allSettled([
@@ -1132,11 +1159,12 @@ describe('Draft (e2e)', () => {
           .auth(accessToken, { type: 'bearer' })
           .send({ coverMediaId: original.id })
           .expect(HttpStatus.OK);
-      const repo = app.get(DraftRepository);
       const processor = app.get(DraftProcessor);
       const posts = await Promise.all(
         [first, second].map(async (draft) => {
-          await repo.markPublishing(draft.id, draft.ownerId, attempt);
+          await app
+            .get(DraftPublicationRepository)
+            .markPublishing(draft.id, draft.ownerId, attempt);
           const post = await processor.process({
             id: attempt,
             name: VALIDATE_AND_PUBLISH_JOB,
@@ -1339,7 +1367,12 @@ describe('Draft (e2e)', () => {
       }
       expect(upload).toHaveBeenCalledTimes(1);
       const config = new ConfigService({ DRAFT_REVISION_RETENTION_DAYS: 0 });
-      await new DraftProcessor(repo, config).process({
+      await new DraftProcessor(
+        repo,
+        app.get(DraftPublicationRepository),
+        app.get(DraftPublicationMediaService),
+        config,
+      ).process({
         name: 'cleanup-archived-revisions',
       } as Job);
       expect(await repo.findById(draftId)).toBeNull();
@@ -1490,9 +1523,7 @@ describe('Draft (e2e)', () => {
         return { $metadata: {} };
       });
     try {
-      await app
-        .get(MediaCleanupProcessor)
-        .process({ name: 'drainStorage' } as Job);
+      await drainStorageFor(orphan, orphanVariant);
       await expect(pending()).resolves.toEqual([]);
       await expect(
         prisma.mediaStorageDeletion.findFirst({ where: { key: orphan.key } }),
@@ -1502,10 +1533,12 @@ describe('Draft (e2e)', () => {
         where: { key: orphan.key },
         data: { nextAttemptAt: new Date(0) },
       });
-      await app
-        .get(MediaCleanupProcessor)
-        .process({ name: 'drainStorage' } as Job);
-      await expect(pending()).resolves.toEqual([]);
+      await drainStorageFor(orphan, orphanVariant);
+      await expect(
+        prisma.mediaStorageDeletion.count({
+          where: { key: { in: [orphan.key, orphanVariant.key] } },
+        }),
+      ).resolves.toBe(0);
       expect(deletedAfterCommit).toEqual(
         expect.arrayContaining([orphan.key, orphanVariant.key]),
       );
@@ -1614,7 +1647,9 @@ describe('Draft (e2e)', () => {
       .auth(accessToken, { type: 'bearer' })
       .send({ title })
       .expect(HttpStatus.OK);
-    await repository.markPublishing(revision!.id, draft.ownerId, attempt);
+    await app
+      .get(DraftPublicationRepository)
+      .markPublishing(revision!.id, draft.ownerId, attempt);
     await expect(
       app.get(DraftProcessor).process({
         id: attempt,
@@ -1730,7 +1765,7 @@ describe('Draft (e2e)', () => {
           HttpStatus.OK,
         );
         await app
-          .get(DraftRepository)
+          .get(DraftPublicationRepository)
           .markPublishing(draft.id, draft.ownerId, attempt);
       }
 
@@ -1997,7 +2032,7 @@ describe('Draft (e2e)', () => {
     try {
       await saveMedia(draft.id, []).expect(HttpStatus.OK);
       await app
-        .get(DraftRepository)
+        .get(DraftPublicationRepository)
         .markPublishing(draft.id, draft.ownerId, attempt);
     } finally {
       unpause.resolve();

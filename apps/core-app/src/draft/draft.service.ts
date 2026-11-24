@@ -2,21 +2,20 @@ import { InjectQueue } from '@nestjs/bullmq';
 import {
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
-import { DraftStatus } from 'prisma/generated/client';
+import { DraftStatus, Media } from 'prisma/generated/client';
 import {
-  CLEANUP_ARCHIVED_REVISIONS_JOB,
   DRAFT_PROCESSOR_QUEUE,
   VALIDATE_AND_PUBLISH_JOB,
 } from './constants/draft-processor.constants';
+import { getAttachedDraftMedia } from './draft-attached-media';
+import { DraftPublicationRepository } from './draft-publication.repository';
 import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
-import { effectiveMedia } from './effective-media';
 
 /**
  * Coordinates draft access, editing, media ownership, and async publication.
@@ -25,6 +24,7 @@ import { effectiveMedia } from './effective-media';
 export class DraftService {
   constructor(
     private readonly repo: DraftRepository,
+    private readonly publication: DraftPublicationRepository,
     @InjectQueue(DRAFT_PROCESSOR_QUEUE)
     private readonly draftQueue: Queue,
   ) {}
@@ -47,14 +47,12 @@ export class DraftService {
    * @returns The draft with normalized `revisionMode` and `effectiveMedia`.
    */
   private present<
-    M extends { id: string; parentId?: string | null },
     T extends {
       sourceVersion?: number | null;
-      postId?: number | null;
-      draftMedia?: { media: M }[];
+      draftMedia?: { media: Media }[];
     },
   >(draft: T) {
-    const media = effectiveMedia(draft);
+    const media = getAttachedDraftMedia(draft);
     return {
       ...draft,
       media,
@@ -193,7 +191,7 @@ export class DraftService {
     }
 
     const attempt = randomUUID();
-    const claimed = await this.repo.markPublishing(id, ownerId, attempt);
+    const claimed = await this.publication.markPublishing(id, ownerId, attempt);
     if (!claimed) {
       throw new ConflictException(
         'Draft is already being published or archived',
@@ -211,101 +209,5 @@ export class DraftService {
       },
     );
     return this.present(claimed);
-  }
-
-  private reconcileTimer?: NodeJS.Timeout;
-  private scanning = false;
-  private readonly logger = new Logger(DraftService.name);
-
-  /**
-   * Checks pending publication claims against BullMQ in batches.
-   *
-   * Restores the matching draft to `ACTIVE` with a retryable error when its job
-   * has failed terminally or when Redis confirms the job is missing after a
-   * 30-second enqueue grace period. Logs lookup failures and leaves those
-   * claims pending for a later pass.
-   *
-   * The pass runs at startup and every 15 seconds. Overlapping calls in the
-   * same process are skipped.
-   */
-  async reconcile() {
-    if (this.scanning) return;
-
-    this.scanning = true;
-    let after: string | undefined;
-    let oldestAge = 0;
-
-    try {
-      for (;;) {
-        const rows = await this.repo.pendingClaims(after);
-
-        await Promise.all(
-          rows.map(async ({ id, publicationAttemptId, updatedAt }) => {
-            const age = Date.now() - updatedAt.getTime();
-            oldestAge = Math.max(age, oldestAge);
-
-            if (!publicationAttemptId) return;
-
-            try {
-              const state =
-                await this.draftQueue.getJobState(publicationAttemptId);
-              const missing =
-                state === 'unknown' &&
-                age >= 30000 &&
-                !(await this.draftQueue.getJob(publicationAttemptId));
-
-              if (state === 'failed' || missing) {
-                await this.repo.markValidationFailed(
-                  id,
-                  publicationAttemptId,
-                  'Publication interrupted. Please publish again.',
-                );
-              }
-            } catch (error) {
-              this.logger.error(error);
-            }
-          }),
-        );
-        if (rows.length < 100) break;
-
-        after = rows[rows.length - 1].id;
-      }
-      if (oldestAge)
-        this.logger.log(`Oldest pending publication claim: ${oldestAge} ms`);
-    } catch (error) {
-      this.logger.error(error);
-    } finally {
-      this.scanning = false;
-    }
-  }
-
-  /**
-   * Clears the reconciliation timer during module shutdown
-   */
-  onModuleDestroy() {
-    clearInterval(this.reconcileTimer);
-  }
-
-  /**
-   * Starts publication reconciliation and registers daily archived revision cleanup.
-   *
-   * Runs the first reconciliation pass in the background and schedules later
-   * passes every 15 seconds on a timer that allows the process to exit.
-   * Waits for BullMQ to register the recurring cleanup job.
-   */
-  async onModuleInit() {
-    void this.reconcile();
-    this.reconcileTimer = setInterval(() => void this.reconcile(), 15000);
-    this.reconcileTimer.unref();
-    await this.draftQueue.add(
-      CLEANUP_ARCHIVED_REVISIONS_JOB,
-      {},
-      {
-        jobId: CLEANUP_ARCHIVED_REVISIONS_JOB,
-        repeat: { every: 24 * 60 * 60 * 1000 },
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
-    );
   }
 }

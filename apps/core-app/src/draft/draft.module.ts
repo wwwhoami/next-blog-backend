@@ -3,6 +3,9 @@ import { EntityWithAuthorService } from '@core/src/common/entity-with-author.ser
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { DRAFT_PROCESSOR_QUEUE } from './constants/draft-processor.constants';
+import { DraftMaintenanceService } from './draft-maintenance.service';
+import { DraftPublicationMediaService } from './draft-publication-media.service';
+import { DraftPublicationRepository } from './draft-publication.repository';
 import { DraftController } from './draft.controller';
 import { DraftProcessor } from './draft.processor';
 import { DraftRepository } from './draft.repository';
@@ -18,6 +21,10 @@ import { DraftService } from './draft.service';
     DraftRepository,
     DraftService,
     DraftProcessor,
+    DraftPublicationRepository,
+    DraftMaintenanceService,
+    DraftPublicationMediaService,
+
     {
       provide: EntityWithAuthorService,
       useExisting: DraftService,
