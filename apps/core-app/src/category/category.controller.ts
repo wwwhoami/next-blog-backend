@@ -1,7 +1,9 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiExtraModels,
   ApiOkResponse,
+  ApiOperation,
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
@@ -22,6 +24,7 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @ApiOkResponse({
+    description: 'Categories returned.',
     schema: {
       type: 'array',
       items: {
@@ -33,6 +36,14 @@ export class CategoryController {
     },
   })
   @Get()
+  @ApiBadRequestResponse({
+    description: 'Invalid category search or pagination parameters.',
+  })
+  @ApiOperation({
+    summary: 'List or search categories',
+    description:
+      'With a non-empty `searchTerm`, searches by name prefix and includes descriptions and hotness scores. Otherwise, returns category names and colors.',
+  })
   getMany(
     @Query() getCategoriesQuery: GetCategoryDto,
   ): Promise<CategoryNoDescription[] | CategoryWithHotness[]> {
@@ -40,6 +51,15 @@ export class CategoryController {
   }
 
   @Get('combo')
+  @ApiOkResponse({
+    description: 'Matching category names returned.',
+    type: [String],
+  })
+  @ApiOperation({
+    summary: 'Find related category names',
+    description:
+      'Provide category names to find tags used together on posts. Use `searchTerm` to limit the results to tags on matching posts.',
+  })
   async getCombinations(
     @Query() getCategoryCombinationsQuery: GetCategoryCombinationsDto,
   ): Promise<Array<string>> {

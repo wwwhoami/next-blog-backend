@@ -19,14 +19,21 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConflictResponse,
   ApiConsumes,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiProperty,
+  ApiProduces,
   ApiQuery,
-  ApiResponse,
+  ApiServiceUnavailableResponse,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { MediaTarget, MediaType } from 'prisma/generated/enums';
 import {
@@ -47,6 +54,11 @@ import { MAX_FILE_SIZE_BYTES } from './constants/media-processor.constants';
 import { MediaReferencesDto } from './dto/media-references.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import {
+  ListedMediaEntity,
+  MediaDetailEntity,
+  MediaEntity,
+} from './entities/media.entity';
+import {
   MediaEventsService,
   MediaVariantsStatusMsg,
 } from './media-events.service';
@@ -60,11 +72,38 @@ export class MediaController {
   ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Upload media file' })
+  @ApiCreatedResponse({
+    description: 'Upload accepted and media record returned.',
+    type: MediaEntity,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid multipart fields or upload metadata.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'The supplied draft does not exist, is inactive, or belongs to another user.',
+  })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'The image is missing or fails validation, or the draft-bound upload does not target a post.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'The upload reservation or lock is temporarily unavailable. Retry the request.',
+  })
+  @ApiOperation({
+    summary: 'Upload an image',
+    description:
+      'Send a multipart upload. Use the returned media ID to subscribe to `GET /media/{id}/stream` for the processing result.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['file', 'type', 'target'],
       properties: {
         file: {
           type: 'string',
@@ -85,14 +124,15 @@ export class MediaController {
           ],
           description: "Uploaded media's target",
         },
+        draftId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'ID of an active draft you own. Requires target POST.',
+        },
       },
     },
   })
-  @ApiProperty({ type: UploadMediaDto })
   @ApiBearerAuth('accessToken')
-  @ApiResponse({ status: 201, description: 'File uploaded successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 422, description: 'Invalid file type or size' })
   @UseGuards(AccessTokenGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
@@ -118,6 +158,16 @@ export class MediaController {
   }
 
   @Sse(':id/stream')
+  @ApiOperation({
+    summary: 'Watch media processing status',
+    description:
+      'This public stream closes after the first `upload-status` event. The JSON event data reports `status` as `completed` or `failed`. A stored result can be sent immediately. An invalid UUID, lookup failure, or timeout produces an `error` event and closes the stream.',
+  })
+  @ApiProduces('text/event-stream')
+  @ApiOkResponse({
+    description: 'Server-sent event stream for the upload status.',
+    schema: { type: 'string' },
+  })
   stream(@Param('id', ParseUUIDPipe) id: string): Observable<MessageEvent> {
     // Check DB immediately for already-completed processing
     const immediateCheck$ = from(
@@ -153,7 +203,18 @@ export class MediaController {
   }
 
   @Get(':id/references')
-  @ApiOkResponse({ type: MediaReferencesDto })
+  @ApiBadRequestResponse({ description: 'The media ID must be a UUID.' })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
+  })
+  @ApiNotFoundResponse({
+    description: 'The media does not exist or belongs to another user.',
+  })
+  @ApiOperation({ summary: 'List references to your media' })
+  @ApiOkResponse({
+    description: 'References to the media returned.',
+    type: MediaReferencesDto,
+  })
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   references(
@@ -164,11 +225,31 @@ export class MediaController {
   }
 
   @Get(':id')
+  @ApiOkResponse({
+    description: 'Media and available variants returned.',
+    type: MediaDetailEntity,
+  })
+  @ApiBadRequestResponse({ description: 'The media ID must be a UUID.' })
+  @ApiNotFoundResponse({ description: 'The media does not exist.' })
+  @ApiOperation({ summary: 'Get media and its generated variants' })
   async getMedia(@Param('id', ParseUUIDPipe) id: string) {
     return this.mediaService.getMediaWithVariants(id);
   }
 
   @Get()
+  @ApiOkResponse({
+    description: 'Owned media returned.',
+    type: [ListedMediaEntity],
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
+  })
+  @ApiOperation({
+    summary: 'List your media',
+    description:
+      'Omit `attached` to list all owned originals. Set `attached=true` to list originals referenced by a draft, post, comment, or active avatar. Any other supplied value, including `false`, lists unattached originals.',
+  })
+  @ApiQuery({ name: 'attached', required: false, type: Boolean })
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   list(
@@ -180,12 +261,32 @@ export class MediaController {
   }
 
   @Delete(':id')
-  @ApiQuery({ name: 'force', required: false, type: Boolean })
-  @ApiResponse({
-    status: 409,
-    description:
-      'Media is in use. When canForce is true, confirmation may delete the file, break images or covers in saved content, and reset an active avatar.',
+  @ApiBadRequestResponse({ description: 'Invalid media ID or force flag.' })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
   })
+  @ApiForbiddenResponse({
+    description: 'Only the media owner or an administrator can delete it.',
+  })
+  @ApiNotFoundResponse({ description: 'The media does not exist.' })
+  @ApiConflictResponse({
+    description:
+      'The media is referenced, is attached to a publishing draft, or is a generated variant. Retry with force=true only if canForce is true and the user confirms. Deletion may break saved images or covers and reset an active avatar.',
+  })
+  @ApiOperation({
+    summary: 'Delete media and its variants',
+    description:
+      'The media owner or an administrator can delete it. When a 409 response has `canForce` set to true, retry with `force=true` only after confirming the impact. A publishing draft blocks deletion.',
+  })
+  @ApiQuery({
+    name: 'force',
+    required: false,
+    schema: { type: 'boolean', default: false },
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'Media references are changing. Retry the request.',
+  })
+  @ApiOkResponse({ description: 'Media deleted.', type: MediaEntity })
   @UuidId()
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)

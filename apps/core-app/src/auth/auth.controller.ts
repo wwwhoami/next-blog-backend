@@ -20,7 +20,20 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiPayloadTooLargeResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { Prisma } from 'prisma/generated/client';
 import { AuthService } from './auth.service';
@@ -40,6 +53,24 @@ export class AuthController {
   ) {}
 
   @Post('sign-up')
+  @ApiCreatedResponse({
+    description: 'Account created and session started.',
+    type: AuthenticatedUser,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid sign-up fields or a managed avatar was supplied.',
+  })
+  @ApiConflictResponse({
+    description: 'The name or email is already registered.',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: 'JSON body exceeds 100 KiB.',
+  })
+  @ApiOperation({
+    summary: 'Create an account and sign in',
+    description:
+      'Returns the new account and an access token, and sets the HTTP-only `refreshToken` cookie.',
+  })
   async signUp(
     @Body() user: CreateUserDto,
     @Res({ passthrough: true }) res: Response,
@@ -95,6 +126,22 @@ export class AuthController {
   }
 
   @Post('login')
+  @ApiCreatedResponse({
+    description: 'Credentials accepted and session started.',
+    type: AuthenticatedUser,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid login fields.' })
+  @ApiUnauthorizedResponse({
+    description: 'The supplied credentials are incorrect.',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: 'JSON body exceeds 100 KiB.',
+  })
+  @ApiOperation({
+    summary: 'Sign in with a name or email',
+    description:
+      'Send a name or email and the password. The response includes an access token and sets the HTTP-only `refreshToken` cookie.',
+  })
   async login(
     @Body() user: AuthCredentialsDto,
     @Res({ passthrough: true }) res: Response,
@@ -134,6 +181,15 @@ export class AuthController {
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Get('profile')
+  @ApiOkResponse({
+    description: 'Current profile returned.',
+    type: UserNoPasswordEntity,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
+  })
+  @ApiNotFoundResponse({ description: 'The account no longer exists.' })
+  @ApiOperation({ summary: 'Get your profile' })
   async getProfile(@GetUser('id') id: string): Promise<UserNoPasswordEntity> {
     const user = await this.authService.getProfile(id);
 
@@ -145,6 +201,27 @@ export class AuthController {
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Patch('profile')
+  @ApiOkResponse({
+    description: 'Profile updated and new tokens issued.',
+    type: AuthenticatedUser,
+  })
+  @ApiBadRequestResponse({ description: 'Invalid profile fields or avatar.' })
+  @ApiUnauthorizedResponse({
+    description:
+      'The access token is invalid or the supplied current password is incorrect.',
+  })
+  @ApiNotFoundResponse({ description: 'The account no longer exists.' })
+  @ApiConflictResponse({
+    description: 'The requested name or email is already in use.',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: 'JSON body exceeds 100 KiB.',
+  })
+  @ApiOperation({
+    summary: 'Update your profile',
+    description:
+      'To change your password, send both `password` and `newPassword`. A successful update issues a new access token and replaces the HTTP-only `refreshToken` cookie.',
+  })
   async updateProfile(
     @GetUser('id') id: string,
     @Body() user: UpdateUserDto,
@@ -174,6 +251,17 @@ export class AuthController {
   @ApiBearerAuth('accessToken')
   @UseGuards(AccessTokenGuard)
   @Get('logout')
+  @ApiNoContentResponse({
+    description: 'Signed out and refresh cookie cleared.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token is missing, invalid, or expired.',
+  })
+  @ApiOperation({
+    summary: 'Sign out',
+    description:
+      'Clears the `refreshToken` cookie and invalidates the server-side refresh session. Returns 204 with an empty body.',
+  })
   async logout(
     @GetUser('id') id: string,
     @Res({ passthrough: true }) res: Response,
@@ -186,6 +274,19 @@ export class AuthController {
   @ApiCookieAuth()
   @UseGuards(RefreshTokenGuard)
   @Get('refresh')
+  @ApiOkResponse({
+    description: 'New access token returned and refresh cookie replaced.',
+    type: AccessTokenEntity,
+  })
+  @ApiUnauthorizedResponse({
+    description:
+      'Refresh cookie or server-side refresh session is missing, invalid, or expired.',
+  })
+  @ApiOperation({
+    summary: 'Refresh your session',
+    description:
+      'Send the HTTP-only `refreshToken` cookie. The response returns a new access token and replaces the cookie. Browser clients making cross-origin requests must include credentials.',
+  })
   async refreshTokens(
     @GetRefreshToken() jwt: JwtPayload,
     @Res({ passthrough: true }) res: Response,

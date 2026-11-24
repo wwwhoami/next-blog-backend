@@ -448,7 +448,7 @@ describe('Media (e2e)', () => {
       const invalidId = 'invalid-uuid';
       let raw = '';
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .get(`/media/${invalidId}/stream`)
         .set('Accept', 'text/event-stream')
         .set('Cache-Control', 'no-cache')
@@ -460,6 +460,8 @@ describe('Media (e2e)', () => {
           res.on('end', () => callback(null, raw));
         });
 
+      expect(response.status).toBe(HttpStatus.OK);
+      expect(response.headers['content-type']).toMatch(/^text\/event-stream/);
       const events = parseSse(raw);
 
       expect(events[0]).toMatchObject({

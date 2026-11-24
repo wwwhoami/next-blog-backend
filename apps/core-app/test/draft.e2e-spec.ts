@@ -1274,6 +1274,25 @@ describe('Draft (e2e)', () => {
             .expect(HttpStatus.OK);
         }
 
+        const listMedia = (query: string) =>
+          request(app.getHttpServer())
+            .get('/media' + query)
+            .auth(owner.token, { type: 'bearer' })
+            .expect(HttpStatus.OK);
+
+        for (const query of ['', '?attached=true']) {
+          const { body } = await listMedia(query);
+          expect(body).toContainEqual(
+            expect.objectContaining({ id: original.id }),
+          );
+        }
+        for (const query of ['?attached=false', '?attached=invalid']) {
+          const { body } = await listMedia(query);
+          expect(body).not.toContainEqual(
+            expect.objectContaining({ id: original.id }),
+          );
+        }
+
         const repo = app.get(MediaRepository);
         const upload = () => {
           const key = randomUUID();

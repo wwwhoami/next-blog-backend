@@ -295,7 +295,8 @@ export class MediaService implements EntityWithAuthorService {
    * without issuing separate lookups.
    *
    * @param ownerId - UUID of the media owner.
-   * @param attached - When `true`, return media attached to a draft or post;
+   * @param attached - When `true`, return media referenced by a draft, post,
+   * comment, or active avatar;
    * when `false`, return unattached media; when omitted, return both.
    * @returns The owner's media records ordered from newest to oldest.
    */

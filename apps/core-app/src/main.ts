@@ -45,7 +45,9 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('nest-blog')
-    .setDescription('NextBlog API description')
+    .setDescription(
+      'NextBlog API. Responses list the expected outcomes for each operation. Unexpected server or dependency failures may return a 5xx status.',
+    )
     .setVersion('0.1')
     .addBearerAuth(
       {
