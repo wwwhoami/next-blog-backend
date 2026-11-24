@@ -12,15 +12,14 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
 import { UserFollower } from './entities/user-follower.entity';
 import { UserNoPasswordEntity } from './entities/user.entity';
 import { UserService } from './user.service';
@@ -45,7 +44,7 @@ export class UserController {
     return user;
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Post('follow/:followingId')
   @ApiCreatedResponse({
@@ -53,9 +52,6 @@ export class UserController {
     type: UserFollower,
   })
   @ApiBadRequestResponse({ description: 'The target user ID must be a UUID.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({ description: 'The target user does not exist.' })
   @ApiConflictResponse({ description: 'You already follow this user.' })
   @ApiOperation({ summary: 'Follow a user' })
@@ -66,7 +62,7 @@ export class UserController {
     return this.userService.follow(userId, followingId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Delete('follow/:followingId')
   @ApiOkResponse({
@@ -74,9 +70,6 @@ export class UserController {
     type: UserFollower,
   })
   @ApiBadRequestResponse({ description: 'The target user ID must be a UUID.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({
     description: 'The target user is missing or you do not follow them.',
   })

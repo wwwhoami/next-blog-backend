@@ -9,8 +9,8 @@ import { GetCommentDto } from './dto/get-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import {
   CommentEntity,
-  CommentEntityWithChildrenCount,
   CommentLike,
+  CommentListItem,
 } from './entities/comment.entity';
 
 @Injectable()
@@ -98,7 +98,7 @@ export class CommentService implements EntityWithAuthorService {
   getManyForPostWithChildrenCount(
     postId: number,
     getCommentOptions: GetCommentDto,
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     return this.commentRepository.getManyForPostWithChildrenCount(
       postId,
       getCommentOptions,
@@ -114,7 +114,7 @@ export class CommentService implements EntityWithAuthorService {
   getDescendantsWithChildrenCount(
     id: number,
     getCommentOptions: GetCommentDto,
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     return this.commentRepository.getDescendantsWithChildrenCount(
       id,
       getCommentOptions,

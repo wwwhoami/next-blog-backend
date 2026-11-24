@@ -6,14 +6,11 @@ import { Prisma } from 'prisma/generated/client';
 import { CommentRepository } from '../comment.repository';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
-import {
-  CommentEntity,
-  CommentEntityWithDepth,
-} from '../entities/comment.entity';
+import { CommentEntity, CommentListItem } from '../entities/comment.entity';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
-const comments: CommentEntityWithDepth[] = [
+const comments: CommentListItem[] = [
   {
     id: 1,
     authorId,
@@ -24,7 +21,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 2,
@@ -36,7 +33,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 3,
@@ -48,7 +45,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 4,
@@ -60,9 +57,12 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
+    images: [],
   },
 ];
+
+const { depth: _depth, ...firstComment } = comments[0];
+const singleComment: CommentEntity = { ...firstComment, likesCount: 0 };
 
 describe('CommentService', () => {
   let service: CommentService;
@@ -167,7 +167,7 @@ describe('CommentService', () => {
   describe('getManyForPostWithChildrenCount', () => {
     it('should return comments for post with provided id', async () => {
       const postId = 1;
-      const resolvedComments: CommentEntity[] = comments.slice(3, 5);
+      const resolvedComments = comments.slice(3, 5);
 
       commentRepository.getManyForPostWithChildrenCount.mockResolvedValue(
         resolvedComments,
@@ -202,7 +202,7 @@ describe('CommentService', () => {
   describe('getOne', () => {
     it('should return comment with provided id', async () => {
       const commentId = 1;
-      const resolvedComment = comments[0];
+      const resolvedComment = singleComment;
 
       commentRepository.getOne.mockResolvedValue(resolvedComment);
 
@@ -217,7 +217,7 @@ describe('CommentService', () => {
       const commentId = 1;
       const commentData = { content: 'new content' };
       const resolvedComment = {
-        ...comments[0],
+        ...singleComment,
         ...commentData,
       };
 
@@ -233,7 +233,7 @@ describe('CommentService', () => {
       const commentId = 1;
       const commentData = { content: 'new content' };
       const resolvedComment = {
-        ...comments[0],
+        ...singleComment,
         isDeleted: true,
       };
 
@@ -331,7 +331,7 @@ describe('CommentService', () => {
     it('should soft remove comment with provided id', async () => {
       const commentId = 1;
       const resolvedComment = {
-        ...comments[0],
+        ...singleComment,
         isDeleted: true,
       };
 

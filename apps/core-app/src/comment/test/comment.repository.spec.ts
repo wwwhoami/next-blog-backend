@@ -13,14 +13,11 @@ import {
 } from '../dto/create-comment.dto';
 import { CommentOrderBy } from '../dto/get-comment.dto';
 import { UpdateCommentDto } from '../dto/update-comment.dto';
-import {
-  CommentEntity,
-  CommentEntityWithDepth,
-} from '../entities/comment.entity';
+import { CommentEntity, CommentListItem } from '../entities/comment.entity';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
-const comments: CommentEntityWithDepth[] = [
+const comments: Omit<CommentListItem, 'childrenCount' | 'images'>[] = [
   {
     id: 1,
     authorId,
@@ -31,7 +28,6 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
   },
   {
     id: 2,
@@ -43,7 +39,6 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
   },
   {
     id: 3,
@@ -55,7 +50,6 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
   },
   {
     id: 4,
@@ -67,9 +61,15 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
   },
 ];
+
+const { depth: _depth, ...firstComment } = comments[0];
+const singleComment: CommentEntity = {
+  ...firstComment,
+  images: [],
+  likesCount: 0,
+};
 
 describe('CommentService', () => {
   let repository: CommentRepository;
@@ -345,7 +345,7 @@ describe('CommentService', () => {
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
-      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(singleComment);
 
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
@@ -407,7 +407,7 @@ describe('CommentService', () => {
       const descendants = comments.slice(3, 5);
 
       prisma.$queryRaw.mockResolvedValue(descendants);
-      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(singleComment);
 
       await expect(repository.getDescendants(commentId)).resolves.toEqual(
         descendants.map((comment) => ({ ...comment, images: [] })),
@@ -446,7 +446,7 @@ describe('CommentService', () => {
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
-      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(singleComment);
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
         'getCountOfDescendants',
@@ -469,7 +469,7 @@ describe('CommentService', () => {
       }));
 
       prisma.$queryRaw.mockResolvedValue(descendants);
-      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(singleComment);
 
       const getCountOfDescendantsSpy = jest.spyOn(
         repository,
@@ -608,7 +608,7 @@ describe('CommentService', () => {
 
   describe('getLikes', () => {
     beforeEach(() => {
-      jest.spyOn(repository, 'getOne').mockResolvedValue(comments[0]);
+      jest.spyOn(repository, 'getOne').mockResolvedValue(singleComment);
     });
 
     const likes = [

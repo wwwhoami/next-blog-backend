@@ -6,14 +6,11 @@ import { CommentController } from '../comment.controller';
 import { CommentService } from '../comment.service';
 import { CreateCommentDto } from '../dto/create-comment.dto';
 import { UpdateCommentDto } from '../dto/update-comment.dto';
-import {
-  CommentEntity,
-  CommentEntityWithDepth,
-} from '../entities/comment.entity';
+import { CommentEntity, CommentListItem } from '../entities/comment.entity';
 
 const authorId = 'ab182222-5603-4b01-909b-a68fbb3a2153';
 
-const comments: CommentEntityWithDepth[] = [
+const comments: CommentListItem[] = [
   {
     id: 1,
     authorId,
@@ -24,7 +21,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 2,
@@ -36,7 +33,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 1,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 3,
@@ -48,7 +45,7 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
+    images: [],
   },
   {
     id: 4,
@@ -60,9 +57,12 @@ const comments: CommentEntityWithDepth[] = [
     updatedAt: new Date(),
     isDeleted: false,
     depth: 2,
-    likesCount: 0,
+    images: [],
   },
 ];
+
+const { depth: _depth, ...firstComment } = comments[0];
+const singleComment: CommentEntity = { ...firstComment, likesCount: 0 };
 
 describe('CommentController', () => {
   let controller: CommentController;
@@ -124,9 +124,7 @@ describe('CommentController', () => {
   describe('getOne', () => {
     it('should get a comment by id calling commentService.getOne', async () => {
       const commentId = 1;
-      const resolvedComment: CommentEntityWithDepth = {
-        ...comments[0],
-      };
+      const resolvedComment = singleComment;
 
       commentService.getOne.mockResolvedValueOnce(resolvedComment);
 
@@ -138,7 +136,7 @@ describe('CommentController', () => {
   describe('getReplies', () => {
     it('should get replies of a comment by id calling commentService.getReplies', async () => {
       const commentId = 1;
-      const resolvedComments: CommentEntityWithDepth[] = comments.slice(2);
+      const resolvedComments: CommentListItem[] = comments.slice(2);
 
       commentService.getDescendantsWithChildrenCount.mockResolvedValueOnce(
         resolvedComments,
@@ -156,7 +154,7 @@ describe('CommentController', () => {
   describe('getForPost', () => {
     it('should get comments for a post with provided id calling commentService.getForPost', async () => {
       const postId = 1;
-      const resolvedComments: CommentEntityWithDepth[] = comments.slice(0, 2);
+      const resolvedComments: CommentListItem[] = comments.slice(0, 2);
 
       commentService.getManyForPostWithChildrenCount.mockResolvedValueOnce(
         resolvedComments,
@@ -283,7 +281,7 @@ describe('CommentController', () => {
     it('should remove a comment by id calling commentService.softRemove', async () => {
       const commentId = 1;
       const resolvedComment = {
-        ...comments[0],
+        ...singleComment,
         isDeleted: true,
       };
 

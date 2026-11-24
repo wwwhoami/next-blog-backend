@@ -21,11 +21,12 @@ import { CommentOrderBy, GetCommentDto } from './dto/get-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import {
   CommentEntity,
-  CommentEntityWithChildrenCount,
-  CommentEntityWithDepth,
   CommentImage,
   CommentLike,
+  CommentListItem,
 } from './entities/comment.entity';
+
+type RecursiveCommentRow = Omit<CommentListItem, 'images' | 'childrenCount'>;
 
 const selectImage = { id: true, publicUrl: true, mimeType: true } as const;
 const includeImages = {
@@ -272,7 +273,7 @@ export class CommentRepository {
   async getManyForPost(
     postId: number,
     { orderBy = 'createdAt', order = 'desc', depth = 5 }: GetCommentDto = {},
-  ): Promise<CommentEntityWithDepth[]> {
+  ): Promise<Omit<CommentListItem, 'childrenCount'>[]> {
     // Pick the ordering
     const ordering = this.pickOrdering(orderBy, order);
 
@@ -289,7 +290,7 @@ export class CommentRepository {
     }
 
     // Get the comments for the post with the specified depth and ordering (using a recursive CTE)
-    const comments = await this.prisma.$queryRaw<CommentEntityWithDepth[]>`
+    const comments = await this.prisma.$queryRaw<RecursiveCommentRow[]>`
       WITH RECURSIVE d AS (
         SELECT
           c.id,
@@ -345,7 +346,7 @@ export class CommentRepository {
    * @throws {NotFoundError} if the post does not exist
    * @description
    * This method is used to get the comments for a post with the children count
-   * for comments that could have children (are not at the set maximum depth)
+   * for comments at the requested depth limit
    * @example
    * const comments = await commentRepository.getManyForPostWithChildrenCount(1, {
    *    orderBy: 'createdAt',
@@ -356,14 +357,14 @@ export class CommentRepository {
   async getManyForPostWithChildrenCount(
     postId: number,
     { depth = 5, ...getCommentOptions }: GetCommentDto = {},
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     // Get the comments for the post
     const comments = await this.getManyForPost(postId, {
       depth,
       ...getCommentOptions,
     });
 
-    // Get the count of descendants for each comment that could have children (is not at the set maximum depth)
+    // Get the count of descendants for each comment at the depth limit
     return Promise.all(
       comments.map(async (comment) => ({
         ...comment,
@@ -390,7 +391,7 @@ export class CommentRepository {
   async getDescendants(
     ancestorId: number,
     { orderBy = 'createdAt', order = 'desc', depth = 10 }: GetCommentDto = {},
-  ): Promise<CommentEntityWithDepth[]> {
+  ): Promise<Omit<CommentListItem, 'childrenCount'>[]> {
     // Pick the ordering
     const ordering = this.pickOrdering(orderBy, order);
     // If the ancestor does not exist, will throw a NotFoundError
@@ -406,7 +407,7 @@ export class CommentRepository {
     }
 
     // Get the descendants for the ancestor with the specified depth and ordering (using a recursive CTE)
-    const comments = await this.prisma.$queryRaw<CommentEntityWithDepth[]>`
+    const comments = await this.prisma.$queryRaw<RecursiveCommentRow[]>`
       WITH RECURSIVE d AS (
         SELECT
           c.id,
@@ -460,7 +461,7 @@ export class CommentRepository {
    * @throws {NotFoundError} if the ancestor does not exist
    * @description
    * This method is used to get the descendants for a comment with the children count
-   * for comments that could have children (are not at the set maximum depth)
+   * for comments at the requested depth limit
    * @example
    * const comments = await commentRepository.getDescendantsWithChildrenCount(1, {
    *    orderBy: 'createdAt',
@@ -471,14 +472,14 @@ export class CommentRepository {
   async getDescendantsWithChildrenCount(
     ancestorId: number,
     { depth = 5, ...getCommentOptions }: GetCommentDto = {},
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     // Get the descendants for the comment
     const comments = await this.getDescendants(ancestorId, {
       depth,
       ...getCommentOptions,
     });
 
-    // Get the count of descendants for each comment that could have children (is not at the set maximum depth)
+    // Get the count of descendants for each comment at the depth limit
     return Promise.all(
       comments.map(async (comment) => ({
         ...comment,

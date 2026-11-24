@@ -15,22 +15,39 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiExtraModels,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { NotificationService } from './notification.service';
 
+const notificationResponseSchema = {
+  allOf: [
+    { $ref: getSchemaPath(NotificationMessage) },
+    {
+      properties: {
+        data: {
+          oneOf: [
+            { $ref: getSchemaPath(CommentPayload) },
+            { $ref: getSchemaPath(PostPayload) },
+          ],
+        },
+      },
+    },
+  ],
+};
+
 @Controller('notification')
 @ApiTags('notification')
+@ApiAccessTokenAuth()
+@UseGuards(AccessTokenGuard)
 @ApiExtraModels(NotificationMessage, CommentPayload, PostPayload)
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
@@ -39,31 +56,12 @@ export class NotificationController {
     description: 'Notifications returned.',
     schema: {
       type: 'array',
-      items: {
-        allOf: [
-          { $ref: getSchemaPath(NotificationMessage) },
-          {
-            properties: {
-              data: {
-                oneOf: [
-                  { $ref: getSchemaPath(CommentPayload) },
-                  { $ref: getSchemaPath(PostPayload) },
-                ],
-              },
-            },
-          },
-        ],
-      },
+      items: notificationResponseSchema,
     },
   })
-  @ApiBearerAuth('accessToken')
-  @UseGuards(AccessTokenGuard)
   @Get()
   @ApiBadRequestResponse({
     description: 'Invalid notification filters or pagination parameters.',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
   })
   @ApiOperation({
     summary: 'List your notifications',
@@ -79,30 +77,11 @@ export class NotificationController {
 
   @ApiOkResponse({
     description: 'Notification marked as read and returned.',
-    schema: {
-      allOf: [
-        { $ref: getSchemaPath(NotificationMessage) },
-        {
-          properties: {
-            data: {
-              oneOf: [
-                { $ref: getSchemaPath(CommentPayload) },
-                { $ref: getSchemaPath(PostPayload) },
-              ],
-            },
-          },
-        },
-      ],
-    },
+    schema: notificationResponseSchema,
   })
-  @ApiBearerAuth('accessToken')
-  @UseGuards(AccessTokenGuard)
   @Patch(':id')
   @ApiBadRequestResponse({
     description: 'The notification ID must be an integer.',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
   })
   @ApiForbiddenResponse({
     description: 'The notification belongs to another user.',

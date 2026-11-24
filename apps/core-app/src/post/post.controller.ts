@@ -18,20 +18,20 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiPayloadTooLargeResponse,
   ApiTags,
-  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
+import { ApiJsonBodyLimit } from '../common/decorators/api-json-body-limit.decorator';
 import { DraftService } from '../draft/draft.service';
-import { DraftPublicationResponseDto } from '../draft/dto/draft-publication-response.dto';
+import { PublishingRevisionConflictDto } from '../draft/dto/publishing-revision-conflict.dto';
+import { DraftEntity } from '../draft/entities/draft.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostPublicDto } from './dto/get-post.dto';
 import { UpdatePublicationDto } from './dto/update-publication.dto';
@@ -83,38 +83,40 @@ export class PostController {
     return this.postService.getSlugsForPublished();
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @IntId()
   @Post(':id/draft')
   @ApiCreatedResponse({
-    description: 'Revision draft created or existing revision returned.',
-    type: DraftPublicationResponseDto,
+    description:
+      'Returns a new revision draft or reuses an active revision whose `sourceVersion` matches the post version. A stale active revision is archived and replaced. Use the returned draft ID for subsequent edits.',
+    type: DraftEntity,
   })
-  @ApiBadRequestResponse({ description: 'The post ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
+  @ApiBadRequestResponse({
+    description:
+      'The post ID must be an integer. Repair ineligible media on the source post before reopening a revision. If a managed image changed during attachment locking, retry the request.',
   })
   @ApiForbiddenResponse({
     description: 'Only the post author can open a revision.',
   })
   @ApiNotFoundResponse({ description: 'The post does not exist.' })
   @ApiConflictResponse({
-    description: 'The existing revision is already publishing.',
+    description:
+      'The existing revision is already publishing. Poll `GET /draft/{draftId}` using the returned draft ID.',
+    type: PublishingRevisionConflictDto,
   })
   @ApiOperation({
     summary: 'Open a revision draft for a post',
-    description:
-      'Only the post author can open a revision. Returns the existing revision when available. If it is already publishing, the response is 409 with the draft ID and status.',
+    description: 'Only the post author can open a revision.',
   })
   createRevision(
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') ownerId: string,
-  ) {
+  ): Promise<DraftEntity> {
     return this.draftService.createRevision(id, ownerId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAdminGuard)
   @IntId()
   @Patch(':id/publication')
@@ -125,14 +127,9 @@ export class PostController {
   @ApiBadRequestResponse({
     description: 'Invalid post ID or publication flag.',
   })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({ description: 'Administrator access is required.' })
   @ApiNotFoundResponse({ description: 'The post does not exist.' })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Change a post’s publication status',
     description:
@@ -145,24 +142,19 @@ export class PostController {
     return this.postService.updatePublication(id, dto.published);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAdminGuard)
   @Post()
   @ApiCreatedResponse({ description: 'Post created.', type: PostEntity })
   @ApiBadRequestResponse({
     description: 'Invalid post fields, content, or media.',
   })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({ description: 'Administrator access is required.' })
   @ApiConflictResponse({
     description:
       'The title or slug is already in use, or a category is listed more than once.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Create a complete post directly',
     description:
@@ -195,7 +187,7 @@ export class PostController {
     return this.postService.getLikes(id);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Post(':id/likes')
   @ApiCreatedResponse({
@@ -203,9 +195,6 @@ export class PostController {
     type: PostLike,
   })
   @ApiBadRequestResponse({ description: 'The post ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiConflictResponse({ description: 'You already liked this post.' })
   @ApiUnprocessableEntityResponse({ description: 'The post does not exist.' })
   @ApiOperation({ summary: 'Like a post' })
@@ -216,7 +205,7 @@ export class PostController {
     return this.postService.like(id, userId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Delete(':id/likes')
   @ApiOkResponse({
@@ -224,9 +213,6 @@ export class PostController {
     type: PostLike,
   })
   @ApiBadRequestResponse({ description: 'The post ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({
     description: 'The post is missing or you have no like to remove.',
   })
@@ -238,14 +224,11 @@ export class PostController {
     return this.postService.unlike(id, userId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAdminGuard)
   @Delete(':id')
   @ApiOkResponse({ description: 'Deleted post returned.', type: PostEntity })
   @ApiBadRequestResponse({ description: 'The post ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({ description: 'Administrator access is required.' })
   @ApiNotFoundResponse({ description: 'The post does not exist.' })
   @ApiConflictResponse({ description: 'A revision of the post is publishing.' })

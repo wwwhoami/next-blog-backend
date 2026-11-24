@@ -4,7 +4,6 @@ import { MediaTarget, MediaType, MediaVariant } from 'prisma/generated/client';
 export class MediaEntity {
   @ApiProperty({ format: 'uuid' })
   id: string;
-  @ApiProperty()
   key: string;
   @ApiProperty({ format: 'uuid' })
   ownerId: string;
@@ -16,13 +15,10 @@ export class MediaEntity {
   target: MediaTarget;
   @ApiProperty({ enum: MediaVariant })
   variant: MediaVariant;
-  @ApiProperty()
   mimeType: string;
   @ApiProperty({ type: String })
   sizeBytes: string;
-  @ApiProperty()
   bucket: string;
-  @ApiProperty()
   publicUrl: string;
   @ApiProperty({ type: String, nullable: true })
   hash: string | null;
@@ -37,7 +33,7 @@ export class ListedMediaEntity extends MediaEntity {
   Variants: MediaEntity[];
 }
 
-class MediaChildEntity extends PickType(MediaEntity, [
+export class MediaChildEntity extends PickType(MediaEntity, [
   'id',
   'key',
   'variant',

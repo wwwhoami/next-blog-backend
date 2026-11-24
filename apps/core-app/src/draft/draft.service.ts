@@ -16,6 +16,7 @@ import { DraftPublicationRepository } from './draft-publication.repository';
 import { DraftRepository } from './draft.repository';
 import { CreateDraftDto } from './dto/create-draft.dto';
 import { UpdateDraftDto } from './dto/update-draft.dto';
+import type { DraftEntity } from './entities/draft.entity';
 
 /**
  * Coordinates draft access, editing, media ownership, and async publication.
@@ -53,10 +54,12 @@ export class DraftService {
     },
   >(draft: T) {
     const media = getAttachedDraftMedia(draft);
+    const revisionMode: DraftEntity['revisionMode'] =
+      draft.sourceVersion != null ? 'REVISION' : 'NEW';
     return {
       ...draft,
       media,
-      revisionMode: draft.sourceVersion != null ? 'REVISION' : 'NEW',
+      revisionMode,
       effectiveMedia: media,
     };
   }

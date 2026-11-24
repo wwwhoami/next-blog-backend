@@ -30,12 +30,13 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiPayloadTooLargeResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Prisma } from 'prisma/generated/client';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
+import { ApiJsonBodyLimit } from '../common/decorators/api-json-body-limit.decorator';
 import { AuthService } from './auth.service';
 import { GetRefreshToken } from './decorators/get-refresh-token.decorator';
 import { GetUser } from './decorators/get-user.decorator';
@@ -63,9 +64,7 @@ export class AuthController {
   @ApiConflictResponse({
     description: 'The name or email is already registered.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Create an account and sign in',
     description:
@@ -134,9 +133,7 @@ export class AuthController {
   @ApiUnauthorizedResponse({
     description: 'The supplied credentials are incorrect.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Sign in with a name or email',
     description:
@@ -178,15 +175,12 @@ export class AuthController {
     return { id, email, name, image, role, accessToken };
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Get('profile')
   @ApiOkResponse({
     description: 'Current profile returned.',
     type: UserNoPasswordEntity,
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
   })
   @ApiNotFoundResponse({ description: 'The account no longer exists.' })
   @ApiOperation({ summary: 'Get your profile' })
@@ -214,9 +208,7 @@ export class AuthController {
   @ApiConflictResponse({
     description: 'The requested name or email is already in use.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Update your profile',
     description:
@@ -248,14 +240,11 @@ export class AuthController {
   }
 
   @HttpCode(204)
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Get('logout')
   @ApiNoContentResponse({
     description: 'Signed out and refresh cookie cleared.',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
   })
   @ApiOperation({
     summary: 'Sign out',

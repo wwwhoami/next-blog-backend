@@ -1,4 +1,9 @@
-import { ApiProperty, PickType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PickType,
+} from '@nestjs/swagger';
 import { Comment } from 'prisma/generated/client';
 
 export class CommentImage {
@@ -29,11 +34,21 @@ export class CommentLike extends PickType(CommentEntity, [
   'likesCount',
   'postId',
 ] as const) {}
-export class CommentEntityWithDepth extends CommentEntity {
-  depth: number;
-}
 
-export class CommentEntityWithChildrenCount extends CommentEntity {
+export class CommentListItem extends OmitType(CommentEntity, [
+  'images',
+  'likesCount',
+] as const) {
+  @ApiProperty({ type: [CommentImage] })
+  images: CommentImage[];
+
+  @ApiProperty({ type: 'integer' })
+  depth: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Descendant count at the requested depth limit.',
+  })
   childrenCount?: number;
 }
 

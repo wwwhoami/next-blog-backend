@@ -20,7 +20,6 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
@@ -32,7 +31,6 @@ import {
   ApiProduces,
   ApiQuery,
   ApiServiceUnavailableResponse,
-  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { MediaTarget, MediaType } from 'prisma/generated/enums';
@@ -47,10 +45,12 @@ import {
   timeout,
 } from 'rxjs';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
 import { UuidId } from '../common/decorators/id-type.decorator';
 import { AccessTokenGuard } from '../common/guards/access-token.guard';
 import { IsAdminOrAuthorGuard } from '../common/guards/is-admin-or-author.guard';
 import { MAX_FILE_SIZE_BYTES } from './constants/media-processor.constants';
+import { MediaDeletionConflictDto } from './dto/media-deletion-conflict.dto';
 import { MediaReferencesDto } from './dto/media-references.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import {
@@ -78,9 +78,6 @@ export class MediaController {
   })
   @ApiBadRequestResponse({
     description: 'Invalid multipart fields or upload metadata.',
-  })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
   })
   @ApiNotFoundResponse({
     description:
@@ -132,7 +129,7 @@ export class MediaController {
       },
     },
   })
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
@@ -204,9 +201,6 @@ export class MediaController {
 
   @Get(':id/references')
   @ApiBadRequestResponse({ description: 'The media ID must be a UUID.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({
     description: 'The media does not exist or belongs to another user.',
   })
@@ -215,7 +209,7 @@ export class MediaController {
     description: 'References to the media returned.',
     type: MediaReferencesDto,
   })
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   references(
     @Param('id', ParseUUIDPipe) id: string,
@@ -241,16 +235,13 @@ export class MediaController {
     description: 'Owned media returned.',
     type: [ListedMediaEntity],
   })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiOperation({
     summary: 'List your media',
     description:
       'Omit `attached` to list all owned originals. Set `attached=true` to list originals referenced by a draft, post, comment, or active avatar. Any other supplied value, including `false`, lists unattached originals.',
   })
   @ApiQuery({ name: 'attached', required: false, type: Boolean })
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   list(
     @GetUser('id') ownerId: string,
@@ -262,16 +253,14 @@ export class MediaController {
 
   @Delete(':id')
   @ApiBadRequestResponse({ description: 'Invalid media ID or force flag.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({
     description: 'Only the media owner or an administrator can delete it.',
   })
   @ApiNotFoundResponse({ description: 'The media does not exist.' })
   @ApiConflictResponse({
     description:
-      'The media is referenced, is attached to a publishing draft, or is a generated variant. Retry with force=true only if canForce is true and the user confirms. Deletion may break saved images or covers and reset an active avatar.',
+      '`MEDIA_IN_USE` indicates existing references. Only this code allows a retry with `force=true` after the user confirms that deletion may break saved images or covers and reset an active avatar. `MEDIA_DRAFT_PUBLISHING` blocks deletion while a draft is publishing. For `MEDIA_VARIANT`, delete the variant through its original.',
+    type: MediaDeletionConflictDto,
   })
   @ApiOperation({
     summary: 'Delete media and its variants',
@@ -288,7 +277,7 @@ export class MediaController {
   })
   @ApiOkResponse({ description: 'Media deleted.', type: MediaEntity })
   @UuidId()
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

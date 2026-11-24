@@ -17,26 +17,25 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
-  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
-  ApiPayloadTooLargeResponse,
   ApiTags,
-  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { ApiAccessTokenAuth } from '../common/decorators/api-access-token-auth.decorator';
+import { ApiJsonBodyLimit } from '../common/decorators/api-json-body-limit.decorator';
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetCommentDto } from './dto/get-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import {
   CommentEntity,
-  CommentEntityWithChildrenCount,
   CommentLike,
+  CommentListItem,
 } from './entities/comment.entity';
 
 @Controller('comment')
@@ -44,7 +43,7 @@ import {
 export class CommentController {
   constructor(private readonly commentService: CommentService) {}
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Post()
   @ApiCreatedResponse({
@@ -54,17 +53,12 @@ export class CommentController {
   @ApiBadRequestResponse({
     description: 'Invalid comment fields or media attachments.',
   })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({ description: 'The parent comment does not exist.' })
   @ApiConflictResponse({
     description:
       'The parent comment was deleted or belongs to a different post.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiUnprocessableEntityResponse({
     description: 'The referenced post does not exist.',
   })
@@ -88,7 +82,7 @@ export class CommentController {
   @Get(':id/replies')
   @ApiOkResponse({
     description: 'Replies returned.',
-    type: [CommentEntityWithChildrenCount],
+    type: [CommentListItem],
   })
   @ApiBadRequestResponse({
     description: 'Invalid comment ID, depth, or sorting parameters.',
@@ -102,7 +96,7 @@ export class CommentController {
   getReplies(
     @Param('id', ParseIntPipe) id: number,
     @Query() getCommentQuery: GetCommentDto,
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     return this.commentService.getDescendantsWithChildrenCount(
       id,
       getCommentQuery,
@@ -112,7 +106,7 @@ export class CommentController {
   @Get('article/:articleId')
   @ApiOkResponse({
     description: 'Post comments returned.',
-    type: [CommentEntityWithChildrenCount],
+    type: [CommentListItem],
   })
   @ApiBadRequestResponse({
     description: 'Invalid post ID, depth, or sorting parameters.',
@@ -126,7 +120,7 @@ export class CommentController {
   getForPost(
     @Param('articleId', ParseIntPipe) postId: number,
     @Query() getCommentQuery: GetCommentDto,
-  ): Promise<CommentEntityWithChildrenCount[]> {
+  ): Promise<CommentListItem[]> {
     return this.commentService.getManyForPostWithChildrenCount(
       postId,
       getCommentQuery,
@@ -145,7 +139,7 @@ export class CommentController {
     return this.commentService.getLikes(id);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Post(':id/likes')
   @ApiCreatedResponse({
@@ -153,9 +147,6 @@ export class CommentController {
     type: CommentLike,
   })
   @ApiBadRequestResponse({ description: 'The comment ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiConflictResponse({ description: 'You already liked this comment.' })
   @ApiUnprocessableEntityResponse({
     description: 'The comment does not exist or was deleted.',
@@ -168,7 +159,7 @@ export class CommentController {
     return this.commentService.like(id, userId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard)
   @Delete(':id/likes')
   @ApiOkResponse({
@@ -176,9 +167,6 @@ export class CommentController {
     type: CommentLike,
   })
   @ApiBadRequestResponse({ description: 'The comment ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiNotFoundResponse({
     description: 'The comment is missing or you have no like to remove.',
   })
@@ -190,7 +178,7 @@ export class CommentController {
     return this.commentService.unlike(id, userId);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAuthorGuard)
   @Patch(':id')
   @ApiOkResponse({
@@ -200,18 +188,13 @@ export class CommentController {
   @ApiBadRequestResponse({
     description: 'Invalid comment ID, update fields, or media attachments.',
   })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({
     description: 'Only the author can edit this comment.',
   })
   @ApiNotFoundResponse({
     description: 'The comment does not exist or is deleted.',
   })
-  @ApiPayloadTooLargeResponse({
-    description: 'JSON body exceeds 100 KiB.',
-  })
+  @ApiJsonBodyLimit()
   @ApiOperation({
     summary: 'Edit a comment',
     description: 'Only the comment author can edit it.',
@@ -223,7 +206,7 @@ export class CommentController {
     return this.commentService.update(id, comment);
   }
 
-  @ApiBearerAuth('accessToken')
+  @ApiAccessTokenAuth()
   @UseGuards(AccessTokenGuard, IsAdminOrAuthorGuard)
   @Delete(':id')
   @ApiOkResponse({
@@ -231,9 +214,6 @@ export class CommentController {
     type: CommentEntity,
   })
   @ApiBadRequestResponse({ description: 'The comment ID must be an integer.' })
-  @ApiUnauthorizedResponse({
-    description: 'Access token is missing, invalid, or expired.',
-  })
   @ApiForbiddenResponse({
     description: 'Only the author or an administrator can delete this comment.',
   })
